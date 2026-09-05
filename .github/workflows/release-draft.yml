@@ -1,0 +1,21 @@
+name: Release draft
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar núcleo
+        run: swift test --filter XRollCoreTests
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          body_path: docs/RELEASE_NOTES_0.1.0.md

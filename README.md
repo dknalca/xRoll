@@ -27,6 +27,8 @@ swift run xroll-play-kit --source <uid-del-m-vave> --map mi-mvave.padmap
 swift run xroll-pads
 swift run xroll-map-pads --source <uid-del-m-vave> --output data/padmaps/mi-mvave.padmap
 swift run xroll-preview hh_01_bombo_caja
+swift run xroll-export-progress ~/Desktop/xroll-progreso.csv
+swift run xroll-export-progress ~/Desktop/xroll-progreso.json --exercise hh_03 --minimum-score 75
 ```
 
 El diagnostico enumera las fuentes MIDI, informa de la salida de audio y valida
@@ -60,6 +62,17 @@ Las notas llegan a la linea de golpe tras dos compases de anticipacion. Cada
 golpe muestra Perfecto, Bien, Regular o Toque extra, junto con su desviacion y
 si llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
 
+Antes de empezar se pueden ajustar los BPM y las vueltas sin modificar el
+ejercicio original. **Calentamiento recomendado** escoge primero un nivel que
+aún no se ha practicado y luego los resultados que necesitan consolidación. El
+resultado muestra una indicación de tendencia temporal y el núcleo conserva
+estadísticas por sonido para las siguientes vistas de progreso.
+
+El historial se puede sacar en CSV o JSON con `xroll-export-progress`. Los
+filtros `--exercise` y `--minimum-score` permiten exportar solo la parte que se
+quiera revisar. Los datos permanecen locales en
+`~/Library/Application Support/xRoll/progress.sqlite`.
+
 ## Requisitos
 
 - macOS 12 o superior
@@ -74,8 +87,19 @@ si llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
+- Selector de tempo y duración, calentamiento y ocho ejercicios progresivos
+- Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad
+- Etiquetas de accesibilidad en los pads y en la selección de ejercicios
+
+## Si algo falla
+
+La aplicación muestra un mensaje de recuperación al iniciar. Si faltan WAV,
+cópialos a `Resources/Kits/hiphop_basic/`; si el mapa no responde, abre
+**Mapear pads** y vuelve a asignarlo. Sin MIDI se puede usar el teclado del
+portátil. Si no hay sonido, revisa la salida de audio de macOS y reinicia xRoll.
+La guía detallada está en `docs/USER_GUIDE.md`.
 
 ## Licencias
 

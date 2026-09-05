@@ -12,7 +12,8 @@ let package = Package(
         .executable(name: "xroll-pads", targets: ["XRollPads"]),
         .executable(name: "xroll-map-pads", targets: ["XRollPadMapper"]),
         .executable(name: "xroll-preview", targets: ["XRollExercisePreview"]),
-        .executable(name: "xroll-analyse-recording", targets: ["XRollRecordingAnalysis"])
+        .executable(name: "xroll-analyse-recording", targets: ["XRollRecordingAnalysis"]),
+        .executable(name: "xroll-export-progress", targets: ["XRollProgressExport"])
     ],
     targets: [
         .target(
@@ -53,6 +54,11 @@ let package = Package(
             name: "XRollRecordingAnalysis",
             dependencies: ["XRollCore"],
             path: "Sources/XRollRecordingAnalysis"
+        ),
+        .executableTarget(
+            name: "XRollProgressExport",
+            dependencies: ["XRollCore"],
+            path: "Sources/XRollProgressExport"
         ),
         .testTarget(
             name: "XRollCoreTests",

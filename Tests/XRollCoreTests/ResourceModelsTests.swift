@@ -184,6 +184,56 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(summary.latestScore, 40, accuracy: 0.001)
     }
 
+    func testProgressStoreExportsCSV() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-export-\(UUID().uuidString)", isDirectory: true)
+        let database = directory.appendingPathComponent("progress.sqlite")
+        let csv = directory.appendingPathComponent("progress.csv")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ProgressStore(url: database)
+        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 1), bpm: 80, score: 75, stars: 2, perfect: 3, good: 1, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 2))
+        try store.exportCSV(to: csv)
+
+        XCTAssertTrue(try String(contentsOf: csv).contains("hh_01"))
+    }
+
+    func testProgressFilterAndJSONExport() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-filter-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ProgressStore(url: directory.appendingPathComponent("progress.sqlite"))
+        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 1), bpm: 80, score: 55, stars: 1, perfect: 1, good: 1, regular: 0, miss: 1, extra: 0, meanOffsetMilliseconds: nil))
+        try store.record(.init(exerciseID: "hh_02", timestamp: Date(timeIntervalSince1970: 2), bpm: 90, score: 90, stars: 3, perfect: 4, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 1))
+        let attempts = try store.attempts(filter: .init(minimumScore: 80))
+        XCTAssertEqual(attempts.map(\.exerciseID), ["hh_02"])
+        let json = directory.appendingPathComponent("progress.json")
+        try store.exportJSON(to: json, filter: .init(exerciseID: "hh_01"))
+        XCTAssertTrue(try String(contentsOf: json).contains("hh_01"))
+        XCTAssertFalse(try String(contentsOf: json).contains("hh_02"))
+    }
+
+    func testPracticeConfigurationClampsAndChangesTimeline() {
+        let exercise = Exercise(format: 1, id: "test", title: "Test", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick", hand: "L")])
+        let configured = PracticeConfiguration(exercise: exercise, bpm: 300, repeats: 0).applying(to: exercise)
+        XCTAssertEqual(configured.bpm, 240)
+        XCTAssertEqual(configured.repeats, 1)
+        XCTAssertEqual(ExerciseTimeline(exercise: configured).stepDurationMilliseconds, 62.5, accuracy: 0.001)
+    }
+
+    func testWarmupPrioritizesNewExerciseAndInsightsShowTiming() {
+        let one = Exercise(format: 1, id: "one", title: "Uno", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick", hand: "L")])
+        let two = Exercise(format: 1, id: "two", title: "Dos", family: "test", level: 2, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick", hand: "L")])
+        XCTAssertEqual(WarmupPlanner.recommend(exercises: [two, one], progress: ["two": .init(attemptCount: 1, bestScore: 90, latestScore: 90)]).first?.exerciseID, "one")
+        let score = RhythmScorer.score(timeline: ExerciseTimeline(exercise: one), bpm: 80, grid: 16, hits: [.init(sound: "kick", timeMilliseconds: -20)])
+        let insights = PracticeInsights(score: score)
+        XCTAssertEqual(insights.timingLabel, "Tiendes a adelantar el golpe")
+        XCTAssertEqual(insights.soundStatistics.first?.accuracy ?? -1, 100, accuracy: 0.001)
+    }
+
+    func testRecoveryAdvisorOrdersProblems() {
+        XCTAssertEqual(RecoveryAdvisor.assess(missingSamples: ["kick.wav"], hasMIDIInput: false), .missingSamples(["kick.wav"]))
+        XCTAssertEqual(RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: false), .noMIDIInput)
+        XCTAssertEqual(RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: true), .ready)
+    }
+
     func testCalibrationOffsetChangesTheJudgement() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(

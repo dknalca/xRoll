@@ -26,6 +26,7 @@ private final class Model: ObservableObject {
     @Published var mapping = false; @Published var mapMessage = ""
     @Published var practiceScene: PracticeScene?; @Published var judgement = ""; @Published var result = ""
     @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
+    @Published var selectedBPM = 80; @Published var selectedRepeats = 4; @Published var recovery = ""; @Published var insights = ""
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var monitor: Any?
@@ -42,6 +43,7 @@ private final class Model: ObservableObject {
     deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
 
     var chosen: Exercise? { exercises.first { $0.id == chosenID } }
+    var configuredExercise: Exercise? { chosen.map { PracticeConfiguration(exercise: $0, bpm: selectedBPM, repeats: selectedRepeats).applying(to: $0) } }
     func name(_ pad: PadPosition) -> String? {
         custom?.pads.first(where: { $0.row == pad.row && $0.column == pad.column })?.sound ?? kit?.sounds.first(where: { $0.gmNote == pad.note })?.id
     }
@@ -53,7 +55,7 @@ private final class Model: ObservableObject {
     }
     func cancelMapping() { mapping = false; builder = nil; mapMessage = "Asignacion cancelada." }
     func previewExercise() {
-        guard let exercise = chosen, let audio else { return }
+        guard let exercise = configuredExercise, let audio else { return }
         do {
             let timeline = ExerciseTimeline(exercise: exercise); let base = AudioClock.hostTime(afterMilliseconds: 500)
             for note in timeline.notes { try audio.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: base)) }
@@ -63,7 +65,7 @@ private final class Model: ObservableObject {
     func startPractice() { beginPractice(calibration: false) }
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
-        guard let exercise = chosen else { return }
+        guard let exercise = configuredExercise else { return }
         calibrating = calibration
         let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset)
         let anticipation = session.timeline.patternDurationMilliseconds * 2
@@ -85,11 +87,12 @@ private final class Model: ObservableObject {
         }
     }
     func finishPractice() {
-        guard let currentPractice = practice, let exercise = chosen else { return }
+        guard let currentPractice = practice, let exercise = configuredExercise else { return }
         let score = currentPractice.score
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
+        insights = PracticeInsights(score: score).timingLabel
         if calibrating {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {
@@ -109,10 +112,12 @@ private final class Model: ObservableObject {
             kit = loaded; audio = newAudio; gm = KitNoteRouter(kit: loaded)
             progressStore = try ProgressStore(url: applicationSupportURL("progress.sqlite"))
             exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: loaded); chosenID = exercises.first?.id ?? ""
+            selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = exercises.first?.repeats ?? 4
             sources = MIDIInspector.sources().filter { $0.uniqueID != nil }
             sourceID = sources.first(where: { $0.name.localizedCaseInsensitiveContains("Pocket-Private") })?.uniqueID ?? sources.first?.uniqueID
             connect()
-        } catch { status = "No se pudo iniciar: \(error.localizedDescription)" }
+            recovery = RecoveryAdvisor.assess(missingSamples: catalog.missingSampleFiles(for: loaded, in: kitDir), hasMIDIInput: !sources.isEmpty).message
+        } catch { status = "No se pudo iniciar: \(error.localizedDescription)"; recovery = RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: false, hasAudio: false).message }
     }
     private func connect() {
         input = nil
@@ -206,7 +211,14 @@ private final class Model: ObservableObject {
             refreshProgress(for: exercise.id)
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
-    func chooseExercise(_ exercise: Exercise) { chosenID = exercise.id; refreshProgress(for: exercise.id) }
+    func chooseExercise(_ exercise: Exercise) { chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; refreshProgress(for: exercise.id) }
+    func chooseWarmup() {
+        var summaries: [String: ExerciseProgress] = [:]
+        for exercise in exercises { if let item = try? progressStore?.progress(for: exercise.id) { summaries[exercise.id] = item } }
+        guard let recommendation = WarmupPlanner.recommend(exercises: exercises, progress: summaries).first,
+              let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
+        chooseExercise(exercise); preview = "Calentamiento: \(recommendation.reason)."
+    }
     private func refreshProgress(for exerciseID: String) {
         do {
             if let current = try progressStore?.progress(for: exerciseID) { progress = String(format: "Progreso: %d intentos · mejor %.0f %% · ultimo %.0f %%", current.attemptCount, current.bestScore, current.latestScore) }
@@ -230,6 +242,7 @@ private struct Grid: View {
                 let name = model.name(pad); let active = model.active.contains("\(pad.row):\(pad.column)")
                 VStack { Text(name ?? "—").font(.headline); Text(pad.key).font(.caption.bold()) }
                     .frame(maxWidth: .infinity, minHeight: 70).background(active ? Color.orange : (name == nil ? Color.gray.opacity(0.2) : Color.blue.opacity(0.75))).foregroundColor(name == nil ? .secondary : .white).clipShape(RoundedRectangle(cornerRadius: 9))
+                    .accessibilityElement(children: .ignore).accessibilityLabel(name.map { "Pad \($0), tecla \(pad.key)" } ?? "Pad sin asignar, tecla \(pad.key)")
             }
         }
     }
@@ -268,8 +281,18 @@ private struct ContentView: View {
             } else {
             HStack(alignment: .top, spacing: 28) {
                 VStack(alignment: .leading) {
-                    Text("xRoll").font(.largeTitle.bold()); Text(model.status).foregroundColor(.secondary); Divider(); Text("Ejercicios").font(.headline)
-                    ForEach(model.exercises, id: \.id) { exercise in Button("\(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }.buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)) }
+                    VStack(alignment: .leading) {
+                        Text("xRoll").font(.largeTitle.bold())
+                        Text(model.status).foregroundColor(.secondary)
+                        Divider()
+                        Text("Ejercicios").font(.headline)
+                    }
+                    ForEach(model.exercises, id: \.id) { exercise in Button("\(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }.buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)).accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(exercise.bpm) pulsos por minuto") }
+                    Button("Calentamiento recomendado") { model.chooseWarmup() }.padding(.top, 6)
+                    HStack {
+                        Stepper("BPM \(model.selectedBPM)", value: $model.selectedBPM, in: 40...240, step: 5)
+                        Stepper("Vueltas \(model.selectedRepeats)", value: $model.selectedRepeats, in: 1...16)
+                    }.font(.footnote).frame(width: 300, alignment: .leading)
                     Button("Escuchar y colocar") { model.previewExercise() }.padding(.top, 10)
                     Button("Empezar practica") { model.startPractice() }.padding(.top, 4)
                     Button("Calibracion guiada") { model.startCalibration() }.padding(.top, 4)
@@ -279,6 +302,8 @@ private struct ContentView: View {
                         Text(model.progress).font(.footnote).frame(width: 290, alignment: .leading)
                         Text(model.advice).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                         Text(model.calibrationMessage).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
+                        Text(model.insights).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
+                        Text(model.recovery).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                     }
                     ProgressChart(scores: model.scoreHistory)
                 }.frame(width: 320, alignment: .leading)
