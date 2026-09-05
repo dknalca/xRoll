@@ -108,3 +108,6 @@ open dist/xRoll.app
 
 El script incluye los recursos locales dentro del bundle. Los WAV no se
 publican en GitHub mientras su licencia siga pendiente de confirmar.
+
+Las notas preparadas para la version se encuentran en
+`docs/RELEASE_NOTES_0.1.0.md`.

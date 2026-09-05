@@ -11,6 +11,11 @@ mkdir -p "$output/Contents/MacOS" "$output/Contents/Resources/ProjectData"
 cp "$binary" "$output/Contents/MacOS/xRoll"
 cp -R "$project_root/Resources" "$output/Contents/Resources/ProjectData/"
 cp -R "$project_root/data" "$output/Contents/Resources/ProjectData/"
+iconset="$output/Contents/Resources/AppIcon.iconset"
+mkdir -p "$iconset"
+swift "$project_root/scripts/render_app_icon.swift" "$iconset"
+iconutil -c icns "$iconset" -o "$output/Contents/Resources/AppIcon.icns"
+rm -rf "$iconset"
 cat > "$output/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,6 +23,7 @@ cat > "$output/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>xRoll</string>
   <key>CFBundleExecutable</key><string>xRoll</string>
   <key>CFBundleIdentifier</key><string>com.alkbit.xroll</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>xRoll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
