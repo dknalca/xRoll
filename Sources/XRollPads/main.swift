@@ -25,7 +25,7 @@ private final class Model: ObservableObject {
     @Published var sources = [MIDIEndpointDescription](); @Published var sourceID: MIDIUniqueID?
     @Published var mapping = false; @Published var mapMessage = ""
     @Published var practiceScene: PracticeScene?; @Published var judgement = ""; @Published var result = ""
-    @Published var progress = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
+    @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var monitor: Any?
@@ -67,9 +67,17 @@ private final class Model: ObservableObject {
         calibrating = calibration
         let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset)
         let anticipation = session.timeline.patternDurationMilliseconds * 2
-        let start = AudioClock.hostTime(afterMilliseconds: anticipation)
+        let now = AudioGetCurrentHostTime()
+        let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
         practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound())
+        let beat = 60_000.0 / Double(exercise.bpm)
+        let countInStart = anticipation - session.timeline.patternDurationMilliseconds
+        if countInStart >= 0 {
+            for beatIndex in 0..<4 {
+                try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now))
+            }
+        }
         let token = UUID(); practiceToken = token
         let duration = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats) + 150
         DispatchQueue.main.asyncAfter(deadline: .now() + duration / 1_000) { [weak self] in
@@ -81,6 +89,7 @@ private final class Model: ObservableObject {
         let score = currentPractice.score
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
+        advice = advice(for: score)
         if calibrating {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {
@@ -191,8 +200,22 @@ private final class Model: ObservableObject {
     private func recordAttempt(exercise: Exercise, score: ExerciseScore) {
         do {
             try progressStore?.record(PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds))
-            if let current = try progressStore?.progress(for: exercise.id) { progress = String(format: "Progreso: %d intentos · mejor %.0f %% · ultimo %.0f %%", current.attemptCount, current.bestScore, current.latestScore) }
+            refreshProgress(for: exercise.id)
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
+    }
+    func chooseExercise(_ exercise: Exercise) { chosenID = exercise.id; refreshProgress(for: exercise.id) }
+    private func refreshProgress(for exerciseID: String) {
+        do {
+            if let current = try progressStore?.progress(for: exerciseID) { progress = String(format: "Progreso: %d intentos · mejor %.0f %% · ultimo %.0f %%", current.attemptCount, current.bestScore, current.latestScore) }
+            scoreHistory = try progressStore?.scores(for: exerciseID) ?? []
+        } catch { progress = "No se pudo leer el progreso: \(error.localizedDescription)" }
+    }
+    private func advice(for score: ExerciseScore) -> String {
+        if score.extraCount > 0 { return "Consejo: reduce los toques extra y espera a que la nota llegue a la linea." }
+        if let offset = score.meanOffsetMilliseconds, offset < -15 { return "Consejo: vas adelantado; deja caer la nota un poco mas." }
+        if let offset = score.meanOffsetMilliseconds, offset > 15 { return "Consejo: vas atrasado; prepara el golpe antes." }
+        if score.misses.count > 0 { return "Consejo: empieza mas despacio y usa Escuchar y colocar antes de puntuar." }
+        return "Consejo: buen control del pulso. Repite el nivel para consolidarlo."
     }
 }
 
@@ -206,6 +229,24 @@ private struct Grid: View {
                     .frame(maxWidth: .infinity, minHeight: 70).background(active ? Color.orange : (name == nil ? Color.gray.opacity(0.2) : Color.blue.opacity(0.75))).foregroundColor(name == nil ? .secondary : .white).clipShape(RoundedRectangle(cornerRadius: 9))
             }
         }
+    }
+}
+
+private struct ProgressChart: View {
+    let scores: [Double]
+    var body: some View {
+        Canvas { context, size in
+            guard scores.count > 1 else { return }
+            var line = Path()
+            for (index, score) in scores.enumerated() {
+                let x = size.width * CGFloat(index) / CGFloat(scores.count - 1)
+                let y = size.height * (1 - CGFloat(min(100, max(0, score)) / 100))
+                index == 0 ? line.move(to: CGPoint(x: x, y: y)) : line.addLine(to: CGPoint(x: x, y: y))
+            }
+            context.stroke(line, with: .color(.accentColor), lineWidth: 2)
+        }
+        .frame(width: 280, height: 55)
+        .overlay(Text(scores.count > 1 ? "Evolucion" : "La grafica aparece desde el segundo intento").font(.caption).foregroundColor(.secondary), alignment: .bottomLeading)
     }
 }
 
@@ -225,7 +266,7 @@ private struct ContentView: View {
             HStack(alignment: .top, spacing: 28) {
                 VStack(alignment: .leading) {
                     Text("xRoll").font(.largeTitle.bold()); Text(model.status).foregroundColor(.secondary); Divider(); Text("Ejercicios").font(.headline)
-                    ForEach(model.exercises, id: \.id) { exercise in Button("\(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chosenID = exercise.id }.buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)) }
+                    ForEach(model.exercises, id: \.id) { exercise in Button("\(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }.buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)) }
                     Button("Escuchar y colocar") { model.previewExercise() }.padding(.top, 10)
                     Button("Empezar practica") { model.startPractice() }.padding(.top, 4)
                     Button("Calibracion guiada") { model.startCalibration() }.padding(.top, 4)
@@ -233,8 +274,10 @@ private struct ContentView: View {
                         Text(model.preview).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                         Text(model.result).font(.footnote).frame(width: 290, alignment: .leading)
                         Text(model.progress).font(.footnote).frame(width: 290, alignment: .leading)
+                        Text(model.advice).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                         Text(model.calibrationMessage).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                     }
+                    ProgressChart(scores: model.scoreHistory)
                 }.frame(width: 320, alignment: .leading)
                 VStack { Text("Pads").font(.title2.bold()); Grid(model: model).frame(width: 390); Text("1–4 / Q–R / A–F / Z–V").font(.footnote).foregroundColor(.secondary) }
             }.padding(30)

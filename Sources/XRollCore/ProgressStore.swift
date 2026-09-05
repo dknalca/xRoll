@@ -73,6 +73,16 @@ public final class ProgressStore {
         return ExerciseProgress(attemptCount: Int(sqlite3_column_int(statement, 0)), bestScore: sqlite3_column_double(statement, 1), latestScore: sqlite3_column_double(statement, 2))
     }
 
+    public func scores(for exerciseID: String, limit: Int = 20) throws -> [Double] {
+        let statement = try prepare("SELECT score FROM attempts WHERE exercise_id = ? ORDER BY timestamp ASC, id ASC LIMIT ?")
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
+        sqlite3_bind_int(statement, 2, Int32(max(1, limit)))
+        var scores: [Double] = []
+        while sqlite3_step(statement) == SQLITE_ROW { scores.append(sqlite3_column_double(statement, 0)) }
+        return scores
+    }
+
     private func execute(_ sql: String) throws { let statement = try prepare(sql); defer { sqlite3_finalize(statement) }; guard sqlite3_step(statement) == SQLITE_DONE else { throw error() } }
     private func prepare(_ sql: String) throws -> OpaquePointer? { var statement: OpaquePointer?; guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { throw error() }; return statement }
     private func error() -> ProgressStoreError { ProgressStoreError.sqlite(String(cString: sqlite3_errmsg(database))) }
