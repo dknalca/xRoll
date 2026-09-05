@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "hh_01_bombo_caja",
+  "title": "Boom bap 1 - bombo y caja",
+  "family": "hiphop_boombap",
+  "level": 1,
+  "bpm": 80,
+  "meter": [
+    4,
+    4
+  ],
+  "bars": 1,
+  "grid": 16,
+  "repeats": 4,
+  "kit": "hiphop_basic",
+  "loop": null,
+  "offset": 0,
+  "notes": [
+    {
+      "step": 0,
+      "sound": "kick",
+      "hand": "L"
+    },
+    {
+      "step": 4,
+      "sound": "snare",
+      "hand": "R"
+    },
+    {
+      "step": 8,
+      "sound": "kick",
+      "hand": "L"
+    },
+    {
+      "step": 12,
+      "sound": "snare",
+      "hand": "R"
+    }
+  ]
+}

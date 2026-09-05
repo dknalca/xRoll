@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "id": "hiphop_basic",
+  "name": "Hip Hop Basico",
+  "sounds": [
+    {
+      "id": "kick",
+      "label": "Bombo",
+      "file": "kick.wav",
+      "gm_note": 36,
+      "choke_group": null
+    },
+    {
+      "id": "snare",
+      "label": "Caja",
+      "file": "snare.wav",
+      "gm_note": 38,
+      "choke_group": null
+    },
+    {
+      "id": "clap",
+      "label": "Palmada",
+      "file": "clap.wav",
+      "gm_note": 39,
+      "choke_group": null
+    },
+    {
+      "id": "hihat_closed",
+      "label": "Charles cerrado",
+      "file": "hihat_closed.wav",
+      "gm_note": 42,
+      "choke_group": "hihat"
+    },
+    {
+      "id": "hihat_open",
+      "label": "Charles abierto",
+      "file": "hihat_open.wav",
+      "gm_note": 46,
+      "choke_group": "hihat"
+    },
+    {
+      "id": "crash",
+      "label": "Crash",
+      "file": "crash.wav",
+      "gm_note": 49,
+      "choke_group": null
+    }
+  ]
+}

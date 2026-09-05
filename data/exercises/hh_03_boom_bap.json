@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "id": "hh_03_boom_bap",
+  "title": "Boom bap 3 - el groove clasico",
+  "family": "hiphop_boombap",
+  "level": 3,
+  "bpm": 80,
+  "meter": [
+    4,
+    4
+  ],
+  "bars": 1,
+  "grid": 16,
+  "repeats": 4,
+  "kit": "hiphop_basic",
+  "loop": null,
+  "offset": 0,
+  "notes": [
+    {
+      "step": 0,
+      "sound": "kick",
+      "hand": "L"
+    },
+    {
+      "step": 0,
+      "sound": "hihat_closed",
+      "hand": "R"
+    },
+    {
+      "step": 2,
+      "sound": "hihat_closed",
+      "hand": "R"
+    },
+    {
+      "step": 4,
+      "sound": "snare",
+      "hand": "R"
+    },
+    {
+      "step": 4,
+      "sound": "hihat_closed",
+      "hand": "L"
+    },
+    {
+      "step": 6,
+      "sound": "hihat_closed",
+      "hand": "L"
+    },
+    {
+      "step": 8,
+      "sound": "hihat_closed",
+      "hand": "R"
+    },
+    {
+      "step": 10,
+      "sound": "kick",
+      "hand": "L"
+    },
+    {
+      "step": 10,
+      "sound": "hihat_closed",
+      "hand": "R"
+    },
+    {
+      "step": 12,
+      "sound": "snare",
+      "hand": "R"
+    },
+    {
+      "step": 12,
+      "sound": "hihat_closed",
+      "hand": "L"
+    },
+    {
+      "step": 14,
+      "sound": "hihat_closed",
+      "hand": "L"
+    }
+  ]
+}
