@@ -7,5 +7,4 @@ DerivedData/
 data/measurements/*.MOV
 data/measurements/*.mov
 *.sqlite
-Resources/Kits/hiphop_basic/*.wav
 dist/

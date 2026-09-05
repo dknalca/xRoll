@@ -130,8 +130,9 @@ scripts/build-app.sh
 open dist/xRoll.app
 ```
 
-El script incluye los recursos locales dentro del bundle. Los WAV no se
-publican en GitHub mientras su licencia siga pendiente de confirmar.
+El script incluye los seis WAV originales de `hiphop_basic` dentro del bundle.
+Sus atribuciones y licencia CC BY-SA 4.0 están en
+`Resources/Loops/ATTRIBUTION.md`.
 
 Las notas preparadas para la version se encuentran en
 `docs/RELEASE_NOTES_0.1.0.md`.

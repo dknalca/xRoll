@@ -6,7 +6,9 @@ crea un borrador de release con las notas de `docs/RELEASE_NOTES_0.1.0.md`.
 ## Publicación de una versión
 
 1. Ejecuta `swift test`, `swift run xroll-preflight` y `scripts/build-app.sh`.
-2. Confirma la licencia de cada WAV que se vaya a distribuir.
+2. Comprueba que toda muestra nueva está anotada en
+   `Resources/Loops/ATTRIBUTION.md`. Los seis WAV de `hiphop_basic` ya están
+   confirmados como grabaciones originales del autor bajo CC BY-SA 4.0.
 3. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
    y `git push origin v0.1.0`.
 4. Revisa el borrador creado por GitHub y publícalo cuando corresponda.
@@ -27,5 +29,5 @@ xcrun stapler staple dist/xRoll.app
 ```
 
 La cuenta de Apple y el perfil `xroll-notary` solo se configuran en el Mac que
-publica la versión. El flujo de GitHub no intenta firmar ni subir binarios sin
-las muestras cuya licencia aún no está confirmada.
+publica la versión. El flujo de GitHub no firma ni notariza, porque esas
+credenciales no se almacenan en el repositorio.

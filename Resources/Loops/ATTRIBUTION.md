@@ -7,22 +7,16 @@ imposible, y anotarla cuesta treinta segundos.
 El codigo va bajo GPL-3.0-or-later, pero el audio no: son obras separadas, bajo
 CC BY-SA 4.0 salvo que la fuente imponga otra cosa.
 
-## Loops
-
-| Fichero | Autor | Origen | Licencia |
-|---|---|---|---|
-| `kick.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-| `snare.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-| `clap.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-| `hihat_closed.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-| `hihat_open.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-| `crash.wav` | Pendiente de confirmar | Pendiente de confirmar | Pendiente de confirmar |
-
 ## Samples del kit
 
 | Fichero | Autor | Origen | Licencia |
 |---|---|---|---|
-| _(pendiente)_ | | | |
+| `Resources/Kits/hiphop_basic/kick.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
+| `Resources/Kits/hiphop_basic/snare.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
+| `Resources/Kits/hiphop_basic/clap.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
+| `Resources/Kits/hiphop_basic/hihat_closed.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
+| `Resources/Kits/hiphop_basic/hihat_open.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
+| `Resources/Kits/hiphop_basic/crash.wav` | alkbit | Grabado por el autor | CC BY-SA 4.0 |
 
 ## Recordatorio
 
@@ -34,5 +28,5 @@ CC BY-SA 4.0 salvo que la fuente imponga otra cosa.
   redistribuir como sample". La mayoria de sitios de loops permiten lo primero y
   prohiben lo segundo, que es justo lo que hace este repositorio.
 
-Mientras una fila indique "Pendiente de confirmar", el sample puede usarse para
-desarrollo local pero no se publica ni se distribuye con la app.
+Los seis samples del kit `hiphop_basic` son grabaciones originales del autor del
+proyecto y pueden publicarse y distribuirse con la aplicación bajo CC BY-SA 4.0.
