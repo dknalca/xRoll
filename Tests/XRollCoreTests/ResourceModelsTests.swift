@@ -176,12 +176,12 @@ final class ResourceModelsTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
         let store = try ProgressStore(url: url)
         try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 1), bpm: 80, score: 65, stars: 1, perfect: 2, good: 1, regular: 0, miss: 1, extra: 0, meanOffsetMilliseconds: -12))
-        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 2), bpm: 80, score: 90, stars: 3, perfect: 4, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 4))
+        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 2), bpm: 80, score: 40, stars: 0, perfect: 1, good: 0, regular: 0, miss: 3, extra: 0, meanOffsetMilliseconds: 4))
 
         let summary = try XCTUnwrap(store.progress(for: "hh_01"))
         XCTAssertEqual(summary.attemptCount, 2)
-        XCTAssertEqual(summary.bestScore, 90, accuracy: 0.001)
-        XCTAssertEqual(summary.latestScore, 90, accuracy: 0.001)
+        XCTAssertEqual(summary.bestScore, 65, accuracy: 0.001)
+        XCTAssertEqual(summary.latestScore, 40, accuracy: 0.001)
     }
 
     func testCalibrationOffsetChangesTheJudgement() {

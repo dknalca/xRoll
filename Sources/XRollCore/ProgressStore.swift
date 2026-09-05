@@ -65,8 +65,10 @@ public final class ProgressStore {
     }
 
     public func progress(for exerciseID: String) throws -> ExerciseProgress? {
-        let statement = try prepare("SELECT COUNT(*), MAX(score), score FROM attempts WHERE exercise_id = ? ORDER BY timestamp DESC LIMIT 1")
-        defer { sqlite3_finalize(statement) }; sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
+        let statement = try prepare("SELECT COUNT(*), MAX(score), (SELECT score FROM attempts WHERE exercise_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1) FROM attempts WHERE exercise_id = ?")
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
+        sqlite3_bind_text(statement, 2, exerciseID, -1, sqliteTransient)
         guard sqlite3_step(statement) == SQLITE_ROW, sqlite3_column_int(statement, 0) > 0 else { return nil }
         return ExerciseProgress(attemptCount: Int(sqlite3_column_int(statement, 0)), bestScore: sqlite3_column_double(statement, 1), latestScore: sqlite3_column_double(statement, 2))
     }
