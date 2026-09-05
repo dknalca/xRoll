@@ -140,7 +140,7 @@ private final class Model: ObservableObject {
     private func receive(_ event: MIDINoteOn) {
         if mapping { DispatchQueue.main.async { [weak self] in self?.capture(event) }; return }
         guard let sound = customRouter?.soundID(for: event) ?? gm?.soundID(for: event) else { return }
-        play(sound, position: position(sound))
+        play(sound, position: position(sound), volume: VelocityCurve.gain(for: UInt8(clamping: event.velocity)))
     }
     private func capture(_ event: MIDINoteOn) {
         guard var builder else { return }; let result = builder.assign(event); self.builder = builder
@@ -161,13 +161,13 @@ private final class Model: ObservableObject {
         guard let kit else { return }
         do { let url = mapURL(map.deviceUID); try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true); try PadMapStore.save(map, to: url, availableSounds: Set(kit.sounds.map(\.id))); custom = map; customRouter = PadMapRouter(padMap: map); mapping = false; builder = nil; mapMessage = "Mapa guardado." } catch { mapMessage = error.localizedDescription }
     }
-    private func trigger(_ pad: PadPosition) { if let sound = name(pad) { play(sound, position: pad) } }
+    private func trigger(_ pad: PadPosition) { if let sound = name(pad) { play(sound, position: pad, volume: 0.85) } }
     private func position(_ sound: String) -> PadPosition? {
         if let pad = custom?.pads.first(where: { $0.sound == sound }) { return positions.first { $0.row == pad.row && $0.column == pad.column } }
         return kit.flatMap { kit in kit.sounds.first(where: { $0.id == sound }).flatMap { note in positions.first { $0.note == note.gmNote } } }
     }
-    private func play(_ sound: String, position: PadPosition?) {
-        guard let audio else { return }; do { try audio.play(soundID: sound); record(sound, hostTime: AudioGetCurrentHostTime()); guard let position else { return }; let key = "\(position.row):\(position.column)"; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
+    private func play(_ sound: String, position: PadPosition?, volume: Float = 1) {
+        guard let audio else { return }; do { try audio.play(soundID: sound, volume: volume); record(sound, hostTime: AudioGetCurrentHostTime()); guard let position else { return }; let key = "\(position.row):\(position.column)"; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
     }
     private func slotsBySound() -> [String: Int] {
         var result: [String: Int] = [:]

@@ -252,6 +252,12 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(try PracticePreferencesStore.load(from: url), preferences)
     }
 
+    func testVelocityCurveKeepsSoftHitsAudibleAndCapsHardHits() {
+        XCTAssertGreaterThan(VelocityCurve.gain(for: 1), 0.15)
+        XCTAssertLessThan(VelocityCurve.gain(for: 1), VelocityCurve.gain(for: 64))
+        XCTAssertEqual(VelocityCurve.gain(for: 127), 1, accuracy: 0.0001)
+    }
+
     func testCalibrationOffsetChangesTheJudgement() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(

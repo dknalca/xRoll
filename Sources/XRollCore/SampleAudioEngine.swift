@@ -89,7 +89,7 @@ public final class SampleAudioEngine {
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
     }
 
-    public func play(soundID: String) throws {
+    public func play(soundID: String, volume: Float = 1) throws {
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
@@ -103,17 +103,19 @@ public final class SampleAudioEngine {
 
         let voice = sound.voices[sound.nextVoice]
         sound.nextVoice = (sound.nextVoice + 1) % sound.voices.count
+        voice.volume = min(1, max(0, volume))
         voice.scheduleBuffer(sound.buffer, at: nil, options: [])
         if !voice.isPlaying { voice.play() }
     }
 
-    public func schedule(soundID: String, atHostTime hostTime: UInt64) throws {
+    public func schedule(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1) throws {
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
 
         let voice = sound.voices[sound.nextVoice]
         sound.nextVoice = (sound.nextVoice + 1) % sound.voices.count
+        voice.volume = min(1, max(0, volume))
         voice.scheduleBuffer(sound.buffer, at: AVAudioTime(hostTime: hostTime), options: [])
         if !voice.isPlaying { voice.play() }
     }

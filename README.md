@@ -84,6 +84,7 @@ quiera revisar. Los datos permanecen locales en
 
 - Notacion vertical con anticipacion de dos compases y vista previa del patron
 - Indicacion de que mano usar, reforzada con forma ademas de color
+- Dinámica: la velocidad MIDI del pad controla el volumen de cada golpe
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
