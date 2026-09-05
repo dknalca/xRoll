@@ -333,89 +333,159 @@ private struct ProgressChart: View {
     }
 }
 
+private struct Panel<Content: View>: View {
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View {
+        content.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct ExerciseCard: View {
+    @ObservedObject var model: Model
+    let exercise: Exercise
+    var body: some View {
+        let available = model.isAvailable(exercise)
+        Button { model.chooseExercise(exercise) } label: {
+            HStack(spacing: 10) {
+                Text(model.levelStatus(exercise).isEmpty ? "\(exercise.level)" : model.levelStatus(exercise))
+                    .font(.headline).frame(width: 28, height: 28).background(available ? Color.accentColor.opacity(0.18) : Color.gray.opacity(0.16)).clipShape(Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(exercise.title).font(.subheadline.bold()).lineLimit(1)
+                    Text(available ? "\(exercise.bpm) BPM · \(exercise.repeats) vueltas" : "Supera el nivel anterior").font(.caption).foregroundColor(.secondary)
+                }
+                Spacer()
+            }.padding(10).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor)).clipShape(RoundedRectangle(cornerRadius: 10))
+        }.buttonStyle(.plain).disabled(!available)
+            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(available ? "disponible" : "bloqueado")")
+    }
+}
+
+private struct PracticeHome: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("xRoll").font(.largeTitle.bold())
+                        Text("Aprende finger drumming paso a paso").foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("ENTRADA Y AUDIO").font(.caption.bold()).foregroundColor(.secondary)
+                        Text(model.status).font(.subheadline.bold())
+                    }
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    Panel {
+                        Text("Tu siguiente sesión").font(.headline)
+                        Text(model.chosen?.title ?? "Elige un ejercicio").font(.title3.bold()).padding(.top, 3)
+                        Text("Ajusta el tempo o usa el valor recomendado.").font(.caption).foregroundColor(.secondary)
+                        HStack {
+                            Stepper("\(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in model.savePreferences() }
+                            Stepper("\(model.selectedRepeats) vueltas", value: $model.selectedRepeats, in: 1...16).onChange(of: model.selectedRepeats) { _ in model.savePreferences() }
+                        }.padding(.top, 8)
+                        HStack {
+                            Button("Escuchar") { model.previewExercise() }
+                            Button("Empezar práctica") { model.startPractice() }.buttonStyle(.borderedProminent)
+                        }.padding(.top, 9)
+                    }
+                    Panel {
+                        Text("Tu controlador").font(.headline)
+                        Text(model.recovery).font(.subheadline).foregroundColor(.secondary).padding(.top, 4)
+                        Divider().padding(.vertical, 4)
+                        Text("Pads asignados").font(.caption.bold()).foregroundColor(.secondary)
+                        Grid(model: model).frame(width: 330).scaleEffect(0.74, anchor: .topLeading).frame(height: 190, alignment: .topLeading)
+                    }
+                }
+                Panel {
+                    HStack { Text("Ruta de aprendizaje").font(.headline); Spacer(); Button("Calentamiento recomendado") { model.chooseWarmup() } }
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                        ForEach(model.exercises, id: \.id) { ExerciseCard(model: model, exercise: $0) }
+                    }.padding(.top, 8)
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    Panel {
+                        Text("Último resultado").font(.headline)
+                        Text(model.result.isEmpty ? "Todavía no has terminado un intento." : model.result).font(.subheadline).padding(.top, 4)
+                        Text(model.advice).font(.caption).foregroundColor(.secondary).padding(.top, 4)
+                        Text(model.insights).font(.caption).foregroundColor(.secondary)
+                    }
+                    Panel {
+                        Text("Evolución del ejercicio").font(.headline)
+                        ProgressChart(scores: model.scoreHistory).padding(.top, 8)
+                        Text(model.progress).font(.caption).foregroundColor(.secondary)
+                    }
+                }
+                Text(model.preview).font(.caption).foregroundColor(.secondary)
+                Text(model.calibrationMessage).font(.caption).foregroundColor(.secondary)
+            }.padding(24)
+        }
+    }
+}
+
+private struct PracticeRun: View {
+    @ObservedObject var model: Model
+    let scene: PracticeScene
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack { VStack(alignment: .leading) { Text("En práctica").font(.caption.bold()).foregroundColor(.secondary); Text(model.chosen?.title ?? "Práctica").font(.title.bold()) }; Spacer(); Button("Terminar") { model.finishPractice() } }
+            SpriteView(scene: scene).frame(minWidth: 850, minHeight: 450).clipShape(RoundedRectangle(cornerRadius: 16))
+            Text(model.judgement).font(.title3.bold()).frame(minHeight: 28)
+        }.padding(24)
+    }
+}
+
+private struct ProgressHome: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Progreso").font(.largeTitle.bold())
+            Text("Revisa tus intentos y guarda una copia cuando quieras.").foregroundColor(.secondary)
+            Picker("Mostrar", selection: $model.progressFilter) { Text("Todos").tag(0); Text("Para consolidar").tag(1); Text("75 % o más").tag(2) }.pickerStyle(.segmented).frame(width: 460).onChange(of: model.progressFilter) { _ in model.refreshRecentAttempts() }
+            HStack { Button("Exportar CSV") { model.exportProgress(format: "csv") }; Button("Exportar JSON") { model.exportProgress(format: "json") } }
+            Text(model.exportMessage).font(.caption).foregroundColor(.secondary)
+            Panel {
+                if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.secondary) }
+                else { ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in HStack { Text(attempt.exerciseID).frame(width: 180, alignment: .leading); Text("\(attempt.bpm) BPM").frame(width: 80, alignment: .leading); Text(String(format: "%.0f %%", attempt.score)).frame(width: 70, alignment: .leading); Text("★ \(attempt.stars)") }.padding(.vertical, 3) } }
+            }
+            Spacer()
+        }.padding(28).frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+    }
+}
+
+private struct MappingHome: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        HStack(alignment: .top, spacing: 22) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Configura tus pads").font(.largeTitle.bold())
+                Text("Asignaremos seis sonidos siguiendo la misma posición que ves en tu controlador.").foregroundColor(.secondary)
+                Panel {
+                    Text("1. Elige el M‑Vave").font(.headline)
+                    Picker("Entrada MIDI", selection: $model.sourceID) { Text("Sin entrada").tag(MIDIUniqueID?.none); ForEach(model.sources, id: \.uniqueID) { Text($0.name).tag(Optional($0.uniqueID)) } }.onChange(of: model.sourceID) { _ in model.selectSource() }
+                    Text("2. Pulsa empezar y golpea el pad que te indique xRoll.").font(.headline).padding(.top, 8)
+                    Button(model.mapping ? "Cancelar asignación" : "Empezar asignación") { model.mapping ? model.cancelMapping() : model.startMapping() }.buttonStyle(.borderedProminent).disabled(model.sourceID == nil).padding(.top, 4)
+                    Text(model.mapMessage.isEmpty ? "La asignación se guarda automáticamente al completar los seis golpes." : model.mapMessage).font(.caption).foregroundColor(.secondary).padding(.top, 5)
+                }
+                Panel { Text("Orden recomendado").font(.headline); Text("Abajo: bombo · caja · palmada\nEncima: charles cerrado · charles abierto · crash").font(.subheadline).padding(.top, 4) }
+            }.frame(width: 390)
+            Panel { VStack(alignment: .leading) { Text("Vista del controlador").font(.headline); Text("La esquina inferior izquierda es el bombo.").font(.caption).foregroundColor(.secondary); Grid(model: model).frame(width: 390).padding(.top, 10) } }
+        }.padding(28).frame(minWidth: 820, minHeight: 560, alignment: .topLeading)
+    }
+}
+
 private struct ContentView: View {
     @StateObject private var model = Model()
     var body: some View {
         TabView {
-            VStack {
-            if let scene = model.practiceScene {
-                VStack(spacing: 14) {
-                    Text(model.chosen?.title ?? "Practica").font(.title.bold())
-                    SpriteView(scene: scene).frame(minWidth: 700, minHeight: 410).clipShape(RoundedRectangle(cornerRadius: 12))
-                    Text(model.judgement).font(.title3.bold())
-                    Button("Terminar") { model.finishPractice() }
-                }.padding(24)
-            } else {
-            HStack(alignment: .top, spacing: 28) {
-                VStack(alignment: .leading) {
-                    VStack(alignment: .leading) {
-                        Text("xRoll").font(.largeTitle.bold())
-                        Text(model.status).foregroundColor(.secondary)
-                        Divider()
-                        Text("Ejercicios").font(.headline)
-                    }
-                    ForEach(model.exercises, id: \.id) { exercise in
-                        Button("\(model.levelStatus(exercise)) \(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }
-                            .buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)).disabled(!model.isAvailable(exercise))
-                            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(exercise.bpm) pulsos por minuto, \(model.isAvailable(exercise) ? "disponible" : "bloqueado")")
-                    }
-                    Button("Calentamiento recomendado") { model.chooseWarmup() }.padding(.top, 6)
-                    HStack {
-                        Stepper("BPM \(model.selectedBPM)", value: $model.selectedBPM, in: 40...240, step: 5)
-                        Stepper("Vueltas \(model.selectedRepeats)", value: $model.selectedRepeats, in: 1...16)
-                    }.font(.footnote).frame(width: 300, alignment: .leading)
-                    Button("Escuchar y colocar") { model.previewExercise() }.padding(.top, 10)
-                    Button("Empezar practica") { model.startPractice() }.padding(.top, 4)
-                    Button("Calibracion guiada") { model.startCalibration() }.padding(.top, 4)
-                    VStack(alignment: .leading) {
-                        Text(model.preview).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
-                        Text(model.result).font(.footnote).frame(width: 290, alignment: .leading)
-                        Text(model.progress).font(.footnote).frame(width: 290, alignment: .leading)
-                        Text(model.advice).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
-                        Text(model.calibrationMessage).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
-                        Text(model.insights).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
-                        ForEach(model.soundStatistics, id: \.sound) { statistic in
-                            Text("\(statistic.sound): \(Int(statistic.accuracy)) % · \(statistic.missed) fallos").font(.footnote).foregroundColor(.secondary)
-                        }
-                        Text(model.recovery).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
-                    }
-                    ProgressChart(scores: model.scoreHistory)
-                }.frame(width: 320, alignment: .leading)
-                VStack { Text("Pads").font(.title2.bold()); Grid(model: model).frame(width: 390); Text("1–4 / Q–R / A–F / Z–V").font(.footnote).foregroundColor(.secondary) }
-            }.padding(30)
-            }
-            }.tabItem { Text("Practicar") }
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Progreso").font(.largeTitle.bold())
-                Picker("Mostrar", selection: $model.progressFilter) {
-                    Text("Todos").tag(0)
-                    Text("Para consolidar").tag(1)
-                    Text("75 % o más").tag(2)
-                }.pickerStyle(.segmented).frame(width: 440).onChange(of: model.progressFilter) { _ in model.refreshRecentAttempts() }
-                HStack {
-                    Button("Exportar CSV") { model.exportProgress(format: "csv") }.accessibilityLabel("Exportar el progreso filtrado como CSV")
-                    Button("Exportar JSON") { model.exportProgress(format: "json") }.accessibilityLabel("Exportar el progreso filtrado como JSON")
-                }
-                Text(model.exportMessage).font(.footnote).foregroundColor(.secondary)
-                if model.recentAttempts.isEmpty { Text("No hay intentos para este filtro.").foregroundColor(.secondary) }
-                else {
-                    ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in
-                        HStack {
-                            Text(attempt.exerciseID).frame(width: 170, alignment: .leading)
-                            Text("\(attempt.bpm) BPM").frame(width: 80, alignment: .leading)
-                            Text(String(format: "%.0f %%", attempt.score)).frame(width: 65, alignment: .leading)
-                            Text("★ \(attempt.stars)")
-                        }.accessibilityElement(children: .combine).accessibilityLabel("\(attempt.exerciseID), \(attempt.bpm) pulsos por minuto, resultado \(Int(attempt.score)) por ciento, \(attempt.stars) estrellas")
-                    }
-                }
-            }.padding(30).frame(minWidth: 600, minHeight: 420, alignment: .topLeading).tabItem { Text("Progreso") }
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Asignar pads").font(.largeTitle.bold()); Text("El mapa se guarda para este controlador y la rejilla visual adopta sus posiciones.").foregroundColor(.secondary)
-                Picker("Entrada MIDI", selection: $model.sourceID) { Text("Sin entrada").tag(MIDIUniqueID?.none); ForEach(model.sources, id: \.uniqueID) { Text($0.name).tag(Optional($0.uniqueID)) } }.frame(width: 440).onChange(of: model.sourceID) { _ in model.selectSource() }
-                Button(model.mapping ? "Cancelar" : "Empezar asignacion") { model.mapping ? model.cancelMapping() : model.startMapping() }.disabled(model.sourceID == nil)
-                Text(model.mapMessage).foregroundColor(.secondary); Divider(); Grid(model: model).frame(width: 500)
-            }.padding(30).tabItem { Text("Mapear pads") }
-        }.frame(minWidth: 760, minHeight: 560)
+            Group { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else { PracticeHome(model: model) } }.tabItem { Text("Practicar") }
+            ProgressHome(model: model).tabItem { Text("Progreso") }
+            MappingHome(model: model).tabItem { Text("Mapear pads") }
+        }.frame(minWidth: 900, minHeight: 650)
     }
 }
 
