@@ -204,6 +204,7 @@ final class ResourceModelsTests: XCTestCase {
         try store.record(.init(exerciseID: "hh_02", timestamp: Date(timeIntervalSince1970: 2), bpm: 90, score: 90, stars: 3, perfect: 4, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 1))
         let attempts = try store.attempts(filter: .init(minimumScore: 80))
         XCTAssertEqual(attempts.map(\.exerciseID), ["hh_02"])
+        XCTAssertEqual(try store.attempts(filter: .init(maximumScore: 60)).map(\.exerciseID), ["hh_01"])
         let json = directory.appendingPathComponent("progress.json")
         try store.exportJSON(to: json, filter: .init(exerciseID: "hh_01"))
         XCTAssertTrue(try String(contentsOf: json).contains("hh_01"))

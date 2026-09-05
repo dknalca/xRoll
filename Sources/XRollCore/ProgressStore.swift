@@ -31,10 +31,11 @@ public struct ExerciseProgress: Equatable {
 public struct ProgressFilter: Equatable {
     public var exerciseID: String?
     public var minimumScore: Double?
+    public var maximumScore: Double?
     public var from: Date?
     public var to: Date?
-    public init(exerciseID: String? = nil, minimumScore: Double? = nil, from: Date? = nil, to: Date? = nil) {
-        self.exerciseID = exerciseID; self.minimumScore = minimumScore; self.from = from; self.to = to
+    public init(exerciseID: String? = nil, minimumScore: Double? = nil, maximumScore: Double? = nil, from: Date? = nil, to: Date? = nil) {
+        self.exerciseID = exerciseID; self.minimumScore = minimumScore; self.maximumScore = maximumScore; self.from = from; self.to = to
     }
 }
 
@@ -97,6 +98,7 @@ public final class ProgressStore {
         var clauses: [String] = []
         if filter.exerciseID != nil { clauses.append("exercise_id = ?") }
         if filter.minimumScore != nil { clauses.append("score >= ?") }
+        if filter.maximumScore != nil { clauses.append("score <= ?") }
         if filter.from != nil { clauses.append("timestamp >= ?") }
         if filter.to != nil { clauses.append("timestamp <= ?") }
         let whereClause = clauses.isEmpty ? "" : " WHERE " + clauses.joined(separator: " AND ")
@@ -105,6 +107,7 @@ public final class ProgressStore {
         var index: Int32 = 1
         if let value = filter.exerciseID { sqlite3_bind_text(statement, index, value, -1, sqliteTransient); index += 1 }
         if let value = filter.minimumScore { sqlite3_bind_double(statement, index, value); index += 1 }
+        if let value = filter.maximumScore { sqlite3_bind_double(statement, index, value); index += 1 }
         if let value = filter.from { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
         if let value = filter.to { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
         sqlite3_bind_int(statement, index, Int32(max(1, limit)))

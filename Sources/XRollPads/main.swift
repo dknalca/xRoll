@@ -5,6 +5,7 @@ import CoreMIDI
 import Foundation
 import SwiftUI
 import SpriteKit
+import UniformTypeIdentifiers
 import XRollCore
 
 private struct PadPosition: Identifiable {
@@ -27,6 +28,7 @@ private final class Model: ObservableObject {
     @Published var practiceScene: PracticeScene?; @Published var judgement = ""; @Published var result = ""
     @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
     @Published var selectedBPM = 80; @Published var selectedRepeats = 4; @Published var recovery = ""; @Published var insights = ""
+    @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var monitor: Any?
@@ -92,7 +94,9 @@ private final class Model: ObservableObject {
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
-        insights = PracticeInsights(score: score).timingLabel
+        let practiceInsights = PracticeInsights(score: score)
+        insights = practiceInsights.timingLabel
+        soundStatistics = practiceInsights.soundStatistics
         if calibrating {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {
@@ -116,6 +120,7 @@ private final class Model: ObservableObject {
             sources = MIDIInspector.sources().filter { $0.uniqueID != nil }
             sourceID = sources.first(where: { $0.name.localizedCaseInsensitiveContains("Pocket-Private") })?.uniqueID ?? sources.first?.uniqueID
             connect()
+            refreshRecentAttempts()
             recovery = RecoveryAdvisor.assess(missingSamples: catalog.missingSampleFiles(for: loaded, in: kitDir), hasMIDIInput: !sources.isEmpty).message
         } catch { status = "No se pudo iniciar: \(error.localizedDescription)"; recovery = RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: false, hasAudio: false).message }
     }
@@ -225,6 +230,36 @@ private final class Model: ObservableObject {
             scoreHistory = try progressStore?.scores(for: exerciseID) ?? []
         } catch { progress = "No se pudo leer el progreso: \(error.localizedDescription)" }
     }
+    func refreshRecentAttempts() {
+        do {
+            let filter: ProgressFilter
+            switch progressFilter {
+            case 1: filter = .init(maximumScore: 74.999)
+            case 2: filter = .init(minimumScore: 75)
+            default: filter = .init()
+            }
+            recentAttempts = try progressStore?.attempts(filter: filter, limit: 50) ?? []
+        } catch { exportMessage = "No se pudo leer el historial: \(error.localizedDescription)" }
+    }
+    func exportProgress(format: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "xroll-progreso.\(format)"
+        if let type = UTType(filenameExtension: format) { panel.allowedContentTypes = [type] }
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            do {
+                let filter: ProgressFilter
+                switch self.progressFilter {
+                case 1: filter = .init(maximumScore: 74.999)
+                case 2: filter = .init(minimumScore: 75)
+                default: filter = .init()
+                }
+                if format == "csv" { try self.progressStore?.exportCSV(to: url, filter: filter) }
+                else { try self.progressStore?.exportJSON(to: url, filter: filter) }
+                self.exportMessage = "Exportado en \(url.lastPathComponent)."
+            } catch { self.exportMessage = "No se pudo exportar: \(error.localizedDescription)" }
+        }
+    }
     private func advice(for score: ExerciseScore) -> String {
         if score.extraCount > 0 { return "Consejo: reduce los toques extra y espera a que la nota llegue a la linea." }
         if let offset = score.meanOffsetMilliseconds, offset < -15 { return "Consejo: vas adelantado; deja caer la nota un poco mas." }
@@ -303,6 +338,9 @@ private struct ContentView: View {
                         Text(model.advice).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                         Text(model.calibrationMessage).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                         Text(model.insights).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
+                        ForEach(model.soundStatistics, id: \.sound) { statistic in
+                            Text("\(statistic.sound): \(Int(statistic.accuracy)) % · \(statistic.missed) fallos").font(.footnote).foregroundColor(.secondary)
+                        }
                         Text(model.recovery).font(.footnote).foregroundColor(.secondary).frame(width: 290, alignment: .leading)
                     }
                     ProgressChart(scores: model.scoreHistory)
@@ -311,6 +349,30 @@ private struct ContentView: View {
             }.padding(30)
             }
             }.tabItem { Text("Practicar") }
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Progreso").font(.largeTitle.bold())
+                Picker("Mostrar", selection: $model.progressFilter) {
+                    Text("Todos").tag(0)
+                    Text("Para consolidar").tag(1)
+                    Text("75 % o más").tag(2)
+                }.pickerStyle(.segmented).frame(width: 440).onChange(of: model.progressFilter) { _ in model.refreshRecentAttempts() }
+                HStack {
+                    Button("Exportar CSV") { model.exportProgress(format: "csv") }.accessibilityLabel("Exportar el progreso filtrado como CSV")
+                    Button("Exportar JSON") { model.exportProgress(format: "json") }.accessibilityLabel("Exportar el progreso filtrado como JSON")
+                }
+                Text(model.exportMessage).font(.footnote).foregroundColor(.secondary)
+                if model.recentAttempts.isEmpty { Text("No hay intentos para este filtro.").foregroundColor(.secondary) }
+                else {
+                    ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in
+                        HStack {
+                            Text(attempt.exerciseID).frame(width: 170, alignment: .leading)
+                            Text("\(attempt.bpm) BPM").frame(width: 80, alignment: .leading)
+                            Text(String(format: "%.0f %%", attempt.score)).frame(width: 65, alignment: .leading)
+                            Text("★ \(attempt.stars)")
+                        }.accessibilityElement(children: .combine).accessibilityLabel("\(attempt.exerciseID), \(attempt.bpm) pulsos por minuto, resultado \(Int(attempt.score)) por ciento, \(attempt.stars) estrellas")
+                    }
+                }
+            }.padding(30).frame(minWidth: 600, minHeight: 420, alignment: .topLeading).tabItem { Text("Progreso") }
             VStack(alignment: .leading, spacing: 18) {
                 Text("Asignar pads").font(.largeTitle.bold()); Text("El mapa se guarda para este controlador y la rejilla visual adopta sus posiciones.").foregroundColor(.secondary)
                 Picker("Entrada MIDI", selection: $model.sourceID) { Text("Sin entrada").tag(MIDIUniqueID?.none); ForEach(model.sources, id: \.uniqueID) { Text($0.name).tag(Optional($0.uniqueID)) } }.frame(width: 440).onChange(of: model.sourceID) { _ in model.selectSource() }
