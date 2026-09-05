@@ -99,7 +99,10 @@ private final class Model: ObservableObject {
         calibrating = false
     }
     private func load() {
-        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true); let kitDir = root.appendingPathComponent("Resources/Kits/hiphop_basic")
+        let workingRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let bundledRoot = Bundle.main.resourceURL?.appendingPathComponent("ProjectData", isDirectory: true)
+        let root = bundledRoot.flatMap { FileManager.default.fileExists(atPath: $0.appendingPathComponent("Resources/Kits/hiphop_basic/kit.json").path) ? $0 : nil } ?? workingRoot
+        let kitDir = root.appendingPathComponent("Resources/Kits/hiphop_basic")
         do {
             let catalog = ResourceCatalog(); let loaded = try catalog.loadKit(at: kitDir.appendingPathComponent("kit.json"))
             let newAudio = SampleAudioEngine(); try newAudio.load(kit: loaded, from: kitDir); try newAudio.start()

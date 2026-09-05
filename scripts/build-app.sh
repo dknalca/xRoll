@@ -7,8 +7,10 @@ binary="$project_root/.build/release/xroll-pads"
 
 cd "$project_root"
 swift build -c release --product xroll-pads
-mkdir -p "$output/Contents/MacOS" "$output/Contents/Resources"
+mkdir -p "$output/Contents/MacOS" "$output/Contents/Resources/ProjectData"
 cp "$binary" "$output/Contents/MacOS/xRoll"
+cp -R "$project_root/Resources" "$output/Contents/Resources/ProjectData/"
+cp -R "$project_root/data" "$output/Contents/Resources/ProjectData/"
 cat > "$output/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

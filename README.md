@@ -95,3 +95,16 @@ garantia de que el proyecto no puede relicenciarse a algo cerrado mas adelante.
 
 La comprobacion automatizada y los pasos que requieren el Mac, M-Vave y salida
 de audio estan en `docs/RELEASE_CHECKLIST.md`.
+
+## Aplicacion para macOS
+
+Con los WAV presentes en `Resources/Kits/hiphop_basic/`, crea una aplicacion
+local para macOS 12 o posterior con:
+
+```sh
+scripts/build-app.sh
+open dist/xRoll.app
+```
+
+El script incluye los recursos locales dentro del bundle. Los WAV no se
+publican en GitHub mientras su licencia siga pendiente de confirmar.
