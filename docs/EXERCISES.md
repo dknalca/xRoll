@@ -45,9 +45,9 @@ anadir otra voz.
 | 3 | Bombo desplazado | Consolida el groove clasico |
 | 4 | Charles abierto | Respiracion |
 | 5 | Palmada | Refuerzo del backbeat |
-| 6 | Aro | Adorno |
-| 7 | Toms | Rellenos |
-| 8 | Crash y ride | Acentos y continuidad |
+| 6 | Bombo a contratiempo | Independencia en semicorcheas |
+| 7 | Fill de palmada | Relleno antes del cierre |
+| 8 | Subida a 90 BPM | Consolidación del groove |
 
 ## Reparto de manos
 

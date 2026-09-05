@@ -235,6 +235,23 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: true), .ready)
     }
 
+    func testCourseProgressUnlocksOnlyAfterMasteringPreviousLevel() {
+        let exercises = (1...3).map { level in
+            Exercise(format: 1, id: "level_\(level)", title: "Nivel \(level)", family: "test", level: level, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
+        }
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, progress: [:]).map(\.status), [.available, .locked, .locked])
+        let first = ExerciseProgress(attemptCount: 1, bestScore: 76, latestScore: 76)
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, progress: ["level_1": first]).map(\.status), [.mastered, .available, .locked])
+    }
+
+    func testPracticePreferencesRoundTrip() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-preferences-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let preferences = PracticePreferences(exerciseID: "hh_03", bpm: 95, repeats: 6)
+        try PracticePreferencesStore.save(preferences, to: url)
+        XCTAssertEqual(try PracticePreferencesStore.load(from: url), preferences)
+    }
+
     func testCalibrationOffsetChangesTheJudgement() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(

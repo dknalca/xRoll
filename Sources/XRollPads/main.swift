@@ -29,6 +29,7 @@ private final class Model: ObservableObject {
     @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
     @Published var selectedBPM = 80; @Published var selectedRepeats = 4; @Published var recovery = ""; @Published var insights = ""
     @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
+    @Published var courseLevels = [CourseLevelState]()
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var monitor: Any?
@@ -68,6 +69,7 @@ private final class Model: ObservableObject {
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
         guard let exercise = configuredExercise else { return }
+        savePreferences()
         calibrating = calibration
         let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset)
         let anticipation = session.timeline.patternDurationMilliseconds * 2
@@ -117,10 +119,12 @@ private final class Model: ObservableObject {
             progressStore = try ProgressStore(url: applicationSupportURL("progress.sqlite"))
             exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: loaded); chosenID = exercises.first?.id ?? ""
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = exercises.first?.repeats ?? 4
+            loadPreferences()
             sources = MIDIInspector.sources().filter { $0.uniqueID != nil }
             sourceID = sources.first(where: { $0.name.localizedCaseInsensitiveContains("Pocket-Private") })?.uniqueID ?? sources.first?.uniqueID
             connect()
             refreshRecentAttempts()
+            refreshCourseLevels()
             recovery = RecoveryAdvisor.assess(missingSamples: catalog.missingSampleFiles(for: loaded, in: kitDir), hasMIDIInput: !sources.isEmpty).message
         } catch { status = "No se pudo iniciar: \(error.localizedDescription)"; recovery = RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: false, hasAudio: false).message }
     }
@@ -214,13 +218,15 @@ private final class Model: ObservableObject {
         do {
             try progressStore?.record(PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds))
             refreshProgress(for: exercise.id)
+            refreshRecentAttempts()
+            refreshCourseLevels()
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
-    func chooseExercise(_ exercise: Exercise) { chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; refreshProgress(for: exercise.id) }
+    func chooseExercise(_ exercise: Exercise) { guard isAvailable(exercise) else { return }; chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; savePreferences(); refreshProgress(for: exercise.id) }
     func chooseWarmup() {
         var summaries: [String: ExerciseProgress] = [:]
         for exercise in exercises { if let item = try? progressStore?.progress(for: exercise.id) { summaries[exercise.id] = item } }
-        guard let recommendation = WarmupPlanner.recommend(exercises: exercises, progress: summaries).first,
+        guard let recommendation = WarmupPlanner.recommend(exercises: exercises.filter(isAvailable), progress: summaries).first,
               let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
         chooseExercise(exercise); preview = "Calentamiento: \(recommendation.reason)."
     }
@@ -229,6 +235,32 @@ private final class Model: ObservableObject {
             if let current = try progressStore?.progress(for: exerciseID) { progress = String(format: "Progreso: %d intentos · mejor %.0f %% · ultimo %.0f %%", current.attemptCount, current.bestScore, current.latestScore) }
             scoreHistory = try progressStore?.scores(for: exerciseID) ?? []
         } catch { progress = "No se pudo leer el progreso: \(error.localizedDescription)" }
+    }
+    func isAvailable(_ exercise: Exercise) -> Bool {
+        courseLevels.first(where: { $0.exerciseID == exercise.id })?.status != .locked
+    }
+    func levelStatus(_ exercise: Exercise) -> String {
+        switch courseLevels.first(where: { $0.exerciseID == exercise.id })?.status {
+        case .mastered: return "✓"
+        case .locked: return "🔒"
+        default: return ""
+        }
+    }
+    private func refreshCourseLevels() {
+        var summaries: [String: ExerciseProgress] = [:]
+        for exercise in exercises { if let item = try? progressStore?.progress(for: exercise.id) { summaries[exercise.id] = item } }
+        courseLevels = CourseProgress.states(exercises: exercises, progress: summaries)
+        if let chosen = chosen, !isAvailable(chosen), let first = exercises.first(where: isAvailable) { chooseExercise(first) }
+    }
+    func savePreferences() {
+        let preferences = PracticePreferences(exerciseID: chosenID, bpm: selectedBPM, repeats: selectedRepeats)
+        try? PracticePreferencesStore.save(preferences, to: applicationSupportURL("practice-preferences.json"))
+    }
+    private func loadPreferences() {
+        guard let preferences = try? PracticePreferencesStore.load(from: applicationSupportURL("practice-preferences.json")) else { return }
+        if let id = preferences.exerciseID, exercises.contains(where: { $0.id == id }) { chosenID = id }
+        if let bpm = preferences.bpm { selectedBPM = min(240, max(40, bpm)) }
+        if let repeats = preferences.repeats { selectedRepeats = min(16, max(1, repeats)) }
     }
     func refreshRecentAttempts() {
         do {
@@ -322,7 +354,11 @@ private struct ContentView: View {
                         Divider()
                         Text("Ejercicios").font(.headline)
                     }
-                    ForEach(model.exercises, id: \.id) { exercise in Button("\(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }.buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)).accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(exercise.bpm) pulsos por minuto") }
+                    ForEach(model.exercises, id: \.id) { exercise in
+                        Button("\(model.levelStatus(exercise)) \(exercise.level). \(exercise.title) — \(exercise.bpm) BPM") { model.chooseExercise(exercise) }
+                            .buttonStyle(.plain).padding(5).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : .clear).clipShape(RoundedRectangle(cornerRadius: 5)).disabled(!model.isAvailable(exercise))
+                            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(exercise.bpm) pulsos por minuto, \(model.isAvailable(exercise) ? "disponible" : "bloqueado")")
+                    }
                     Button("Calentamiento recomendado") { model.chooseWarmup() }.padding(.top, 6)
                     HStack {
                         Stepper("BPM \(model.selectedBPM)", value: $model.selectedBPM, in: 40...240, step: 5)

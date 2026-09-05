@@ -46,6 +46,56 @@ public enum WarmupPlanner {
     }
 }
 
+public enum CourseLevelStatus: Equatable {
+    case locked
+    case available
+    case mastered
+}
+
+public struct CourseLevelState: Equatable {
+    public let exerciseID: String
+    public let status: CourseLevelStatus
+    public let bestScore: Double?
+}
+
+/// Mantiene una escalera sencilla para principiantes: superar un nivel al 75 %
+/// abre el siguiente; un resultado peor nunca vuelve a bloquear lo conseguido.
+public enum CourseProgress {
+    public static func states(exercises: [Exercise], progress: [String: ExerciseProgress], masteryScore: Double = 75) -> [CourseLevelState] {
+        var previousMastered = true
+        return exercises.sorted { $0.level < $1.level }.map { exercise in
+            let item = progress[exercise.id]
+            let mastered = (item?.bestScore ?? 0) >= masteryScore
+            let status: CourseLevelStatus = mastered ? .mastered : (previousMastered ? .available : .locked)
+            previousMastered = previousMastered && mastered
+            return CourseLevelState(exerciseID: exercise.id, status: status, bestScore: item?.bestScore)
+        }
+    }
+}
+
+public struct PracticePreferences: Codable, Equatable {
+    public var exerciseID: String?
+    public var bpm: Int?
+    public var repeats: Int?
+
+    public init(exerciseID: String? = nil, bpm: Int? = nil, repeats: Int? = nil) {
+        self.exerciseID = exerciseID; self.bpm = bpm; self.repeats = repeats
+    }
+}
+
+public enum PracticePreferencesStore {
+    public static func load(from url: URL) throws -> PracticePreferences {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .init() }
+        return try JSONDecoder().decode(PracticePreferences.self, from: Data(contentsOf: url))
+    }
+
+    public static func save(_ preferences: PracticePreferences, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(preferences).write(to: url, options: .atomic)
+    }
+}
+
 public struct SoundStatistics: Equatable {
     public let sound: String
     public let expected: Int
