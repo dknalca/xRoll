@@ -79,7 +79,8 @@ private final class Model: ObservableObject {
     func finishPractice() {
         guard let currentPractice = practice, let exercise = chosen else { return }
         let score = currentPractice.score
-        result = String(format: "Resultado: %.0f %% · %d estrellas · %d fallos · %d extras", score.percentage, score.stars, score.misses.count, score.extraCount)
+        let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
+        result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         if calibrating {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {

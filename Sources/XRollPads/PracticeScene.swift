@@ -30,7 +30,9 @@ final class PracticeScene: SKScene {
             line.fillColor = SKColor(white: 0.25, alpha: 1); line.strokeColor = .clear; addChild(line)
         }
         for note in timeline.notes {
-            let node = SKShapeNode(rectOf: CGSize(width: 34, height: 24), cornerRadius: 5)
+            let node = note.hand == "L"
+                ? SKShapeNode(circleOfRadius: 13)
+                : SKShapeNode(rectOf: CGSize(width: 28, height: 28), cornerRadius: 4)
             node.fillColor = note.hand == "R" ? .orange : .systemBlue
             node.strokeColor = .white
             node.isHidden = true
