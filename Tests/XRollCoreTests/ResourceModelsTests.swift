@@ -365,4 +365,11 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertNoThrow(try exercise.validate(availableSounds: ["kick", "snare"]))
     }
+
+    func testDetectsTempoFromLoopFilename() {
+        let url = URL(fileURLWithPath: "/tmp/bass 90bpm.wav")
+        let detected = LoopTempoDetector.detect(url: url)
+        XCTAssertEqual(detected?.bpm, 90)
+        XCTAssertEqual(detected?.source, "nombre del archivo")
+    }
 }

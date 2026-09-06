@@ -196,6 +196,15 @@ private struct SessionColumn: View {
                 Stepper("Duración", value: $model.selectedRepeats, in: 1...16).onChange(of: model.selectedRepeats) { _ in model.savePreferences() }
                 ActionButton("Escuchar y colocar") { model.previewExercise() }.padding(.top, 7)
                 ActionButton("Calibrar", prominence: .quiet) { model.startCalibration() }
+                VStack(alignment: .leading, spacing: 7) {
+                    Divider().overlay(Color.white.opacity(0.16)).padding(.vertical, 2)
+                    Text("ACOMPAÑAMIENTO").font(.caption.bold()).foregroundColor(.cyan)
+                    Text(model.loopStatus).font(.caption2).foregroundColor(.white.opacity(0.65)).lineLimit(2)
+                    if let sourceTempo = model.loopTempo {
+                        Text("Se ajusta de \(Int(sourceTempo.rounded())) a \(model.selectedBPM) BPM al empezar.").font(.caption2).foregroundColor(.white.opacity(0.65))
+                    }
+                    ActionButton(model.loopEnabled ? "Loop activado" : "Loop desactivado", prominence: model.loopEnabled ? .primary : .secondary) { model.toggleLoop() }
+                }
             }
             StagePanel {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)

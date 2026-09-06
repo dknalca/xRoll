@@ -32,7 +32,9 @@ final class Model: ObservableObject {
     @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
     @Published var courseLevels = [CourseLevelState]()
     @Published var tuning = PracticeTuning()
+    @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
+    private var loopPlayer: LoopPlaybackEngine?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
     private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
@@ -84,6 +86,10 @@ final class Model: ObservableObject {
         } catch { preview = error.localizedDescription }
     }
     func startPractice() { beginPractice(calibration: false) }
+    func toggleLoop() {
+        loopEnabled.toggle()
+        if !loopEnabled { loopPlayer?.stop() }
+    }
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
         guard let exercise = configuredExercise else { return }
@@ -96,12 +102,13 @@ final class Model: ObservableObject {
         practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
         practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound())
         let beat = 60_000.0 / Double(exercise.bpm)
-        let countInStart = anticipation - session.timeline.patternDurationMilliseconds
-        if countInStart >= 0 {
-            for beatIndex in 0..<4 {
-                try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
-            }
+        let countInStart = max(0, anticipation - session.timeline.patternDurationMilliseconds)
+        let totalMilliseconds = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
+        let metronomeBeats = Int(ceil((totalMilliseconds - countInStart) / beat))
+        for beatIndex in 0...metronomeBeats {
+            try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
         }
+        if loopEnabled && !calibration { try? loopPlayer?.start(atHostTime: start, targetBPM: Double(exercise.bpm)) }
         let token = UUID(); practiceToken = token
         let duration = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats) + 150
         DispatchQueue.main.asyncAfter(deadline: .now() + duration / 1_000) { [weak self] in
@@ -122,6 +129,7 @@ final class Model: ObservableObject {
         } else {
             recordAttempt(exercise: exercise, score: score)
         }
+        loopPlayer?.stop()
         self.practice = nil; practiceScene = nil; practiceToken = UUID()
         calibrating = false
     }
@@ -134,6 +142,7 @@ final class Model: ObservableObject {
             let catalog = ResourceCatalog(); let loaded = try catalog.loadKit(at: kitDir.appendingPathComponent("kit.json"))
             let newAudio = SampleAudioEngine(); try newAudio.load(kit: loaded, from: kitDir); try newAudio.start()
             kit = loaded; audio = newAudio; gm = KitNoteRouter(kit: loaded)
+            loadLoop(from: root)
             progressStore = try ProgressStore(url: applicationSupportURL("progress.sqlite"))
             exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: loaded); chosenID = exercises.first?.id ?? ""
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = exercises.first?.repeats ?? 4
@@ -161,6 +170,16 @@ final class Model: ObservableObject {
         if mapping { DispatchQueue.main.async { [weak self] in self?.capture(event) }; return }
         guard let sound = customRouter?.soundID(for: event) ?? gm?.soundID(for: event) else { return }
         play(sound, position: position(sound), volume: VelocityCurve.gain(for: UInt8(clamping: event.velocity)))
+    }
+    private func loadLoop(from root: URL) {
+        let loopDirectory = root.appendingPathComponent("Resources/Loops", isDirectory: true)
+        guard let url = try? FileManager.default.contentsOfDirectory(at: loopDirectory, includingPropertiesForKeys: nil)
+            .first(where: { ["wav", "aif", "aiff", "m4a"].contains($0.pathExtension.lowercased()) }) else { return }
+        do {
+            let player = LoopPlaybackEngine(); try player.load(url: url)
+            loopPlayer = player; loopTempo = player.detectedTempo?.bpm
+            if let tempo = loopTempo { loopStatus = "\(url.deletingPathExtension().lastPathComponent) · detectado a \(Int(tempo.rounded())) BPM" }
+        } catch { loopStatus = "No se pudo cargar el loop: \(error.localizedDescription)" }
     }
     private func capture(_ event: MIDINoteOn) {
         guard var builder else { return }; let result = builder.assign(event); self.builder = builder
@@ -228,9 +247,15 @@ final class Model: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, let current = self.practice else { return }
             let judged = current.register(.init(sound: sound, timeMilliseconds: time))
-            guard let offset = judged.offsetMilliseconds else { self.judgement = "Toque extra"; return }
+            guard let offset = judged.offsetMilliseconds else {
+                self.judgement = "Toque extra"
+                self.practiceScene?.showFeedback(sound: sound, judgement: .extra)
+                return
+            }
             let direction = offset < 0 ? "adelantado" : offset > 0 ? "atrasado" : "a tiempo"
             self.judgement = "\(judged.judgement.rawValue.capitalized) · \(Int(abs(offset))) ms \(direction)"
+            let feedbackSound = judged.expectedNote?.sound ?? sound
+            self.practiceScene?.showFeedback(sound: feedbackSound, judgement: judged.judgement)
         }
     }
     private func profileKey() -> CalibrationProfileKey {

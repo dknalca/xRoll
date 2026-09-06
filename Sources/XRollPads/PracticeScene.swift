@@ -54,4 +54,32 @@ final class PracticeScene: SKScene {
             node.position = CGPoint(x: x, y: y)
         }
     }
+
+    /// Draws the player's timing result over the matching lane at the hit line.
+    /// Circle: on time, triangle: regular, cross: extra/wrong hit.
+    func showFeedback(sound: String, judgement: RhythmJudgement) {
+        guard let slot = slotBySound[sound] else { return }
+        let node: SKShapeNode
+        switch judgement {
+        case .perfect, .good:
+            node = SKShapeNode(circleOfRadius: 18)
+            node.strokeColor = .systemGreen
+        case .regular:
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 0, y: 19)); path.addLine(to: CGPoint(x: -18, y: -14)); path.addLine(to: CGPoint(x: 18, y: -14)); path.closeSubpath()
+            node = SKShapeNode(path: path)
+            node.strokeColor = .systemYellow
+        case .miss, .extra:
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -15, y: -15)); path.addLine(to: CGPoint(x: 15, y: 15)); path.move(to: CGPoint(x: -15, y: 15)); path.addLine(to: CGPoint(x: 15, y: -15))
+            node = SKShapeNode(path: path)
+            node.strokeColor = .systemRed
+        }
+        node.lineWidth = 5
+        node.fillColor = .clear
+        node.position = CGPoint(x: (CGFloat(slot) + 0.5) * size.width / 16, y: 88)
+        node.zPosition = 10
+        addChild(node)
+        node.run(.sequence([.group([.scale(to: 1.45, duration: 0.14), .fadeAlpha(to: 0.85, duration: 0.14)]), .group([.moveBy(x: 0, y: 36, duration: 0.38), .fadeOut(withDuration: 0.38)]), .removeFromParent()]))
+    }
 }
