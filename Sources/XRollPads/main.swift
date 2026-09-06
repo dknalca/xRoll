@@ -33,6 +33,8 @@ final class Model: ObservableObject {
     @Published var courseLevels = [CourseLevelState]()
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
+    @Published var metronomeEnabled = true
+    @Published var liveTotalHits = 0; @Published var liveWellTimed = 0; @Published var liveRegular = 0; @Published var liveWrong = 0; @Published var livePercentage = 0.0
     @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
     @Published var lastTotalHits = 0; @Published var lastWellTimed = 0; @Published var lastRegular = 0; @Published var lastWrong = 0
     @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
@@ -99,8 +101,17 @@ final class Model: ObservableObject {
     }
     func dismissResults() { showingResults = false }
     func toggleLoop() {
-        loopEnabled.toggle()
-        if !loopEnabled { audio?.stopLoop() }
+        setLoopEnabled(!loopEnabled)
+    }
+    func setLoopEnabled(_ enabled: Bool) {
+        loopEnabled = enabled
+        guard enabled else { audio?.stopLoop(); return }
+        guard let practice, let exercise = configuredExercise else { return }
+        let elapsed = AudioClock.milliseconds(from: practiceStartHostTime, to: AudioGetCurrentHostTime())
+        let bar = practice.timeline.patternDurationMilliseconds
+        let nextBar = max(0, ceil(elapsed / bar) * bar - elapsed)
+        do { try audio?.startLoop(atHostTime: AudioClock.hostTime(afterMilliseconds: nextBar), targetBPM: Double(exercise.bpm)) }
+        catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
     }
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
@@ -114,13 +125,16 @@ final class Model: ObservableObject {
         let now = AudioGetCurrentHostTime()
         let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
+        liveTotalHits = 0; liveWellTimed = 0; liveRegular = 0; liveWrong = 0; livePercentage = 0
         practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels())
         let beat = 60_000.0 / Double(exercise.bpm)
         let countInStart = max(0, anticipation - session.timeline.patternDurationMilliseconds)
         let totalMilliseconds = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
         let metronomeBeats = Int(ceil((totalMilliseconds - countInStart) / beat))
-        for beatIndex in 0...metronomeBeats {
-            try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
+        if metronomeEnabled {
+            for beatIndex in 0...metronomeBeats {
+                try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
+            }
         }
         if loopEnabled && !calibration {
             do { try audio?.startLoop(atHostTime: start, targetBPM: Double(exercise.bpm)) }
@@ -280,13 +294,22 @@ final class Model: ObservableObject {
             guard let offset = judged.offsetMilliseconds else {
                 self.judgement = "Toque extra"
                 self.practiceScene?.showFeedback(sound: sound, judgement: .extra)
+                self.updateLiveStatistics(current.score)
                 return
             }
             let direction = offset < 0 ? "adelantado" : offset > 0 ? "atrasado" : "a tiempo"
             self.judgement = "\(judged.judgement.rawValue.capitalized) · \(Int(abs(offset))) ms \(direction)"
             let feedbackSound = judged.expectedNote?.sound ?? sound
             self.practiceScene?.showFeedback(sound: feedbackSound, judgement: judged.judgement)
+            self.updateLiveStatistics(current.score)
         }
+    }
+    private func updateLiveStatistics(_ score: ExerciseScore) {
+        liveTotalHits = score.hits.count
+        liveWellTimed = score.perfectCount + score.goodCount
+        liveRegular = score.regularCount
+        liveWrong = score.extraCount
+        livePercentage = score.percentage
     }
     private func profileKey() -> CalibrationProfileKey {
         let output = AudioInspector.currentOutput()
@@ -582,11 +605,61 @@ private struct PracticeRun: View {
     @ObservedObject var model: Model
     let scene: PracticeScene
     var body: some View {
-        VStack(spacing: 14) {
-            HStack { VStack(alignment: .leading) { Text("En práctica").font(.caption.bold()).foregroundColor(.secondary); Text(model.chosen?.title ?? "Práctica").font(.title.bold()) }; Spacer(); Button("Terminar") { model.finishPractice() } }
-            SpriteView(scene: scene).frame(minWidth: 850, minHeight: 450).clipShape(RoundedRectangle(cornerRadius: 16))
-            Text(model.judgement).font(.title3.bold()).frame(minHeight: 28)
-        }.padding(24)
+        ZStack {
+            LinearGradient(colors: [Color(red: 0.025, green: 0.04, blue: 0.09), Color(red: 0.075, green: 0.025, blue: 0.15)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
+            VStack(spacing: 16) {
+                HStack(alignment: .center) {
+                    HStack(spacing: 10) {
+                        AppMark(size: 38)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("EN PRÁCTICA").font(.caption.bold()).foregroundColor(.cyan)
+                            Text(model.chosen?.title ?? "Práctica").font(.title2.bold()).foregroundColor(.white)
+                        }
+                    }
+                    Spacer()
+                    Text("\(model.selectedBPM) BPM · \(model.selectedRepeats) vueltas").font(.subheadline.bold()).foregroundColor(.white.opacity(0.75))
+                    ActionButton("Terminar", prominence: .secondary) { model.finishPractice() }
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    ZStack(alignment: .bottom) {
+                        SpriteView(scene: scene).clipShape(RoundedRectangle(cornerRadius: 18))
+                        VStack(spacing: 3) {
+                            Text(model.judgement).font(.title3.bold())
+                            Text("Golpea cuando la nota llegue a la línea").font(.caption).foregroundColor(.white.opacity(0.62))
+                        }.frame(maxWidth: .infinity).padding(.vertical, 13).background(Color.black.opacity(0.66))
+                    }.overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.15), lineWidth: 1))
+                    VStack(spacing: 12) {
+                        StagePanel {
+                            Text("CONTROLES").font(.caption.bold()).foregroundColor(.cyan)
+                            Toggle("Metrónomo", isOn: $model.metronomeEnabled).toggleStyle(.switch)
+                            Toggle("Loop acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) })).toggleStyle(.switch)
+                            Divider().overlay(Color.white.opacity(0.15))
+                            Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5)
+                            Text("Tempo y metrónomo se aplican al repetir.").font(.caption2).foregroundColor(.white.opacity(0.58))
+                        }
+                        StagePanel {
+                            Text("EN TIEMPO REAL").font(.caption.bold()).foregroundColor(.cyan)
+                            Text("\(Int(model.livePercentage.rounded())) %").font(.largeTitle.bold()).foregroundColor(model.livePercentage >= 75 ? .green : model.livePercentage >= 50 ? .yellow : .white)
+                            HStack(spacing: 8) {
+                                PracticeLiveStat("Golpes", value: model.liveTotalHits, color: .white)
+                                PracticeLiveStat("Bien", value: model.liveWellTimed, color: .green)
+                                PracticeLiveStat("Reg.", value: model.liveRegular, color: .yellow)
+                                PracticeLiveStat("Mal", value: model.liveWrong, color: .red)
+                            }
+                        }
+                    }.frame(width: 260)
+                }.frame(maxHeight: .infinity)
+            }.padding(24)
+        }.foregroundColor(.white)
+    }
+}
+
+private struct PracticeLiveStat: View {
+    let title: String; let value: Int; let color: Color
+    init(_ title: String, value: Int, color: Color) { self.title = title; self.value = value; self.color = color }
+    var body: some View {
+        VStack(spacing: 1) { Text("\(value)").font(.headline).foregroundColor(color); Text(title).font(.caption2).foregroundColor(.white.opacity(0.6)) }
+            .frame(maxWidth: .infinity)
     }
 }
 
