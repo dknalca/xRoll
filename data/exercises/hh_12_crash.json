@@ -1,0 +1,8 @@
+{
+  "format": 1, "id": "hh_12_crash", "title": "Boom bap 12 - acento de crash",
+  "family": "hiphop_boombap", "level": 12, "bpm": 100, "meter": [4, 4], "bars": 1,
+  "grid": 16, "repeats": 4, "kit": "hiphop_basic", "loop": null, "offset": 0,
+  "notes": [
+    {"step":0,"sound":"kick","hand":"L"},{"step":0,"sound":"crash","hand":"R"},{"step":0,"sound":"hihat_closed","hand":"R"},{"step":1,"sound":"hihat_closed","hand":"L"},{"step":2,"sound":"hihat_closed","hand":"R"},{"step":3,"sound":"hihat_closed","hand":"L"},{"step":4,"sound":"snare","hand":"R"},{"step":4,"sound":"clap","hand":"L"},{"step":4,"sound":"hihat_closed","hand":"L"},{"step":5,"sound":"hihat_closed","hand":"R"},{"step":6,"sound":"hihat_closed","hand":"L"},{"step":7,"sound":"hihat_closed","hand":"R"},{"step":8,"sound":"hihat_closed","hand":"L"},{"step":9,"sound":"hihat_closed","hand":"R"},{"step":10,"sound":"kick","hand":"L"},{"step":10,"sound":"hihat_closed","hand":"R"},{"step":11,"sound":"kick","hand":"L"},{"step":11,"sound":"hihat_closed","hand":"L"},{"step":12,"sound":"snare","hand":"R"},{"step":12,"sound":"clap","hand":"L"},{"step":12,"sound":"hihat_closed","hand":"L"},{"step":13,"sound":"clap","hand":"R"},{"step":13,"sound":"hihat_closed","hand":"R"},{"step":14,"sound":"clap","hand":"L"},{"step":14,"sound":"hihat_closed","hand":"L"},{"step":15,"sound":"clap","hand":"R"},{"step":15,"sound":"hihat_closed","hand":"R"}
+  ]
+}

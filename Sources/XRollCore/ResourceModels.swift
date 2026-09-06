@@ -7,6 +7,7 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case unknownSound(String)
     case invalidMeter([Int])
     case invalidGrid(Int)
+    case invalidOffset(Int)
     case invalidStep(Int)
     case duplicateNote(step: Int, sound: String)
     case invalidHand(String)
@@ -25,6 +26,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "El compas \(meter) no es 4/4."
         case .invalidGrid(let grid):
             return "La rejilla \(grid) no es valida."
+        case .invalidOffset(let offset):
+            return "El desplazamiento \(offset) queda fuera del ejercicio."
         case .invalidStep(let step):
             return "El paso \(step) queda fuera del ejercicio."
         case .duplicateNote(let step, let sound):
@@ -100,6 +103,7 @@ public struct Exercise: Codable, Equatable {
         }
 
         let totalSteps = bars * grid
+        guard (0..<totalSteps).contains(offset) else { throw ResourceValidationError.invalidOffset(offset) }
         var seenNotes = Set<String>()
         for note in notes {
             guard availableSounds.contains(note.sound) else {
@@ -162,4 +166,3 @@ public struct ResourceCatalog {
         kit.sounds.map(\.file).filter { !fileManager.fileExists(atPath: directory.appendingPathComponent($0).path) }
     }
 }
-

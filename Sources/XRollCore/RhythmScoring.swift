@@ -17,13 +17,15 @@ public struct ExerciseTimeline: Equatable {
         patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
 
         var scheduled: [ScheduledExerciseNote] = []
+        let totalSteps = exercise.bars * exercise.grid
         for repeatIndex in 0..<exercise.repeats {
             for (noteIndex, note) in exercise.notes.enumerated() {
+                let shiftedStep = (note.step + exercise.offset) % totalSteps
                 scheduled.append(ScheduledExerciseNote(
                     index: repeatIndex * exercise.notes.count + noteIndex,
                     sound: note.sound,
                     hand: note.hand,
-                    timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(note.step) * stepDurationMilliseconds
+                    timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(shiftedStep) * stepDurationMilliseconds
                 ))
             }
         }

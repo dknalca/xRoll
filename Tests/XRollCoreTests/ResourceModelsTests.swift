@@ -126,6 +126,17 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(timeline.notes.map(\.timeMilliseconds), [0, 500, 2_000, 2_500])
     }
 
+    func testTimelineAppliesEntryOffsetAndWrapsWithinTheBar() {
+        let exercise = Exercise(format: 1, id: "offset", title: "Offset", family: "test", level: 1, bpm: 120, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 2, notes: [.init(step: 0, sound: "kick", hand: "L"), .init(step: 15, sound: "snare", hand: "R")])
+        let timeline = ExerciseTimeline(exercise: exercise)
+        XCTAssertEqual(timeline.notes.map(\.timeMilliseconds), [125, 250], "La nota del paso 15 vuelve al inicio tras desplazarla")
+    }
+
+    func testExerciseRejectsOffsetOutsideItsGrid() {
+        let exercise = Exercise(format: 1, id: "offset", title: "Offset", family: "test", level: 1, bpm: 120, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 16, notes: [])
+        XCTAssertThrowsError(try exercise.validate(availableSounds: []))
+    }
+
     func testAudioClockMovesForwardByTheRequestedDuration() {
         let start: UInt64 = 1_000
         XCTAssertGreaterThan(AudioClock.hostTime(afterMilliseconds: 10, from: start), start)

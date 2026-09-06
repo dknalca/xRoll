@@ -224,6 +224,10 @@ final class Model: ObservableObject {
             refreshProgress(for: exercise.id)
             refreshRecentAttempts()
             refreshCourseLevels()
+            if score.percentage >= 75,
+               let next = exercises.first(where: { $0.level == exercise.level + 1 }), isAvailable(next) {
+                result += " · Nivel \(next.level) desbloqueado"
+            }
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
     func chooseExercise(_ exercise: Exercise) { guard isAvailable(exercise) else { return }; chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; savePreferences(); refreshProgress(for: exercise.id) }

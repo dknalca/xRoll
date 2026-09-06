@@ -16,7 +16,7 @@
   "repeats":  vueltas, 4 en los basicos
   "kit":      carpeta del kit
   "loop":     nombre del loop, o null para claqueta sola
-  "offset":   entrada desplazada en pasos, 0 por defecto (futurible)
+  "offset":   entrada desplazada en pasos, 0 por defecto
   "notes": [
     { "step": indice en la rejilla, "sound": id canonico, "hand": "L", "R" o null }
   ]
@@ -26,10 +26,9 @@
 `step` va de 0 a `bars * grid - 1`. En una rejilla de 16 y un compas, el primer
 tiempo es 0, el segundo 4, el tercero 8 y el cuarto 12.
 
-`offset` esta reservado para la variante de **entrada desplazada**: empezar el
-patron por el segundo tiempo o por la contra en vez de por el principio. La
-sonoridad cambia por completo y es un ejercicio excelente. No se implementa
-todavia pero el campo existe para no romper ficheros mas adelante.
+`offset` aplica una **entrada desplazada**: el patrón empieza en el paso indicado
+en vez de hacerlo en el primer tiempo. El valor debe estar dentro de la rejilla;
+si una nota se desplaza más allá del final del compás, vuelve al principio.
 
 ## Progresion por escalera
 
@@ -48,6 +47,10 @@ anadir otra voz.
 | 6 | Bombo a contratiempo | Independencia en semicorcheas |
 | 7 | Fill de palmada | Relleno antes del cierre |
 | 8 | Subida a 90 BPM | Consolidación del groove |
+| 9 | Entrada a contratiempo | Leer el mismo patrón desde otra posición |
+| 10 | Charles en semicorcheas | Control de subdivisión |
+| 11 | Subida a 100 BPM | Mantener precisión al acelerar |
+| 12 | Crash de entrada | Acento y comienzo del compás |
 
 ## Reparto de manos
 
