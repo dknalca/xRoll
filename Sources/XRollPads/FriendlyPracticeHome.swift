@@ -209,9 +209,25 @@ private struct SessionColumn: View {
             StagePanel {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)
                 if let percentage = model.lastScorePercentage {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(Int(percentage.rounded())) %").font(.title.bold()).foregroundColor(percentage >= 75 ? .green : percentage >= 50 ? .yellow : .red)
-                        Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.headline).foregroundColor(.yellow)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("\(Int(percentage.rounded())) %").font(.title.bold()).foregroundColor(percentage >= 75 ? .green : percentage >= 50 ? .yellow : .red)
+                            Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.headline).foregroundColor(.yellow)
+                        }
+                        Text(String(format: "Puntuación: %.1f / %d", model.lastPoints, model.lastPossiblePoints)).font(.headline)
+                        HStack(spacing: 8) {
+                            ScoreStat("Golpes", value: model.lastTotalHits, color: .white)
+                            ScoreStat("Bien", value: model.lastWellTimed, color: .green)
+                            ScoreStat("Regular", value: model.lastRegular, color: .yellow)
+                            ScoreStat("Mal", value: model.lastWrong, color: .red)
+                        }
+                        HStack(spacing: 8) {
+                            ActionButton("↻ Repetir", prominence: .secondary) { model.repeatPractice() }
+                            if model.nextExerciseTitle != nil {
+                                ActionButton("Siguiente", prominence: .primary) { model.moveToSuggestedExercise() }
+                            }
+                        }
+                        if let next = model.nextExerciseTitle { Text("Has conseguido estrellas. Siguiente: \(next)").font(.caption2).foregroundColor(.green) }
                     }.padding(.top, 3)
                 }
                 Text(model.result.isEmpty ? "Sin intentos todavía" : model.result).font(.caption).padding(.top, 2)
@@ -219,6 +235,19 @@ private struct SessionColumn: View {
                 Text(model.insights).font(.caption2).foregroundColor(.white.opacity(0.58))
             }
         }
+    }
+}
+
+private struct ScoreStat: View {
+    let title: String
+    let value: Int
+    let color: Color
+    init(_ title: String, value: Int, color: Color) { self.title = title; self.value = value; self.color = color }
+    var body: some View {
+        VStack(spacing: 1) {
+            Text("\(value)").font(.headline).foregroundColor(color)
+            Text(title).font(.caption2).foregroundColor(.white.opacity(0.62))
+        }.frame(maxWidth: .infinity)
     }
 }
 

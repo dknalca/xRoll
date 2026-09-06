@@ -34,8 +34,9 @@ final class Model: ObservableObject {
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
     @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
+    @Published var lastTotalHits = 0; @Published var lastWellTimed = 0; @Published var lastRegular = 0; @Published var lastWrong = 0
+    @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
-    private var loopPlayer: LoopPlaybackEngine?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
     private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
@@ -82,22 +83,28 @@ final class Model: ObservableObject {
         guard let exercise = configuredExercise, let audio else { return }
         do {
             audio.stopScheduledSounds()
-            loopPlayer?.stop()
+            audio.stopLoop()
             let timeline = ExerciseTimeline(exercise: exercise); let base = AudioClock.hostTime(afterMilliseconds: 500)
             for note in timeline.notes { try audio.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: base)) }
             preview = "Reproduciendo \(exercise.title), sin puntuacion."
         } catch { preview = error.localizedDescription }
     }
     func startPractice() { beginPractice(calibration: false) }
+    func repeatPractice() { beginPractice(calibration: false) }
+    func moveToSuggestedExercise() {
+        guard let next = exercises.first(where: { $0.title == nextExerciseTitle }) else { return }
+        chosenID = next.id; selectedBPM = next.bpm; selectedRepeats = next.repeats; preview = ""
+        savePreferences(); refreshProgress(for: next.id)
+    }
     func toggleLoop() {
         loopEnabled.toggle()
-        if !loopEnabled { loopPlayer?.stop() }
+        if !loopEnabled { audio?.stopLoop() }
     }
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
         guard let exercise = configuredExercise else { return }
         audio?.stopScheduledSounds()
-        loopPlayer?.stop()
+        audio?.stopLoop()
         savePreferences()
         calibrating = calibration
         let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset + tuning.manualTimingOffsetMilliseconds, scoringWindows: calibration ? nil : tuning.scoringWindows)
@@ -105,7 +112,7 @@ final class Model: ObservableObject {
         let now = AudioGetCurrentHostTime()
         let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
-        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound())
+        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels())
         let beat = 60_000.0 / Double(exercise.bpm)
         let countInStart = max(0, anticipation - session.timeline.patternDurationMilliseconds)
         let totalMilliseconds = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
@@ -114,7 +121,7 @@ final class Model: ObservableObject {
             try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
         }
         if loopEnabled && !calibration {
-            do { try loopPlayer?.start(atHostTime: start, targetBPM: Double(exercise.bpm)) }
+            do { try audio?.startLoop(atHostTime: start, targetBPM: Double(exercise.bpm)) }
             catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
         }
         let token = UUID(); practiceToken = token
@@ -127,6 +134,13 @@ final class Model: ObservableObject {
         guard let currentPractice = practice, let exercise = configuredExercise else { return }
         let score = currentPractice.score
         lastScorePercentage = score.percentage; lastScoreStars = score.stars
+        lastTotalHits = score.hits.count
+        lastWellTimed = score.perfectCount + score.goodCount
+        lastRegular = score.regularCount
+        lastWrong = score.misses.count + score.extraCount
+        lastPoints = Double(score.perfectCount) + Double(score.goodCount) * 0.7 + Double(score.regularCount) * 0.4
+        lastPossiblePoints = currentPractice.timeline.notes.count
+        nextExerciseTitle = score.stars >= 1 ? exercises.first(where: { $0.level == exercise.level + 1 })?.title : nil
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
@@ -138,7 +152,7 @@ final class Model: ObservableObject {
         } else {
             recordAttempt(exercise: exercise, score: score)
         }
-        loopPlayer?.stop()
+        audio?.stopLoop()
         self.practice = nil; practiceScene = nil; practiceToken = UUID()
         calibrating = false
     }
@@ -185,8 +199,9 @@ final class Model: ObservableObject {
         guard let url = try? FileManager.default.contentsOfDirectory(at: loopDirectory, includingPropertiesForKeys: nil)
             .first(where: { ["wav", "aif", "aiff", "m4a"].contains($0.pathExtension.lowercased()) }) else { return }
         do {
-            let player = LoopPlaybackEngine(); try player.load(url: url)
-            loopPlayer = player; loopTempo = player.detectedTempo?.bpm
+            guard let audio else { return }
+            try audio.loadLoop(url: url)
+            loopTempo = audio.loopTempo?.bpm
             if let tempo = loopTempo { loopStatus = "\(url.deletingPathExtension().lastPathComponent) · detectado a \(Int(tempo.rounded())) BPM" }
         } catch { loopStatus = "No se pudo cargar el loop: \(error.localizedDescription)" }
     }
@@ -250,6 +265,9 @@ final class Model: ObservableObject {
         for pad in positions { if let sound = name(pad) { result[sound] = pad.row * 4 + pad.column } }
         return result
     }
+    private func soundLabels() -> [String: String] {
+        Dictionary(uniqueKeysWithValues: kit?.sounds.map { ($0.id, $0.label) } ?? [])
+    }
     private func record(_ sound: String, hostTime: UInt64) {
         guard practice != nil else { return }
         let time = AudioClock.milliseconds(from: practiceStartHostTime, to: hostTime)
@@ -311,7 +329,7 @@ final class Model: ObservableObject {
     func chooseExercise(_ exercise: Exercise) {
         guard isAvailable(exercise) else { return }
         if practice != nil { finishPractice() }
-        audio?.stopScheduledSounds(); loopPlayer?.stop(); practiceToken = UUID(); practiceScene = nil
+        audio?.stopScheduledSounds(); audio?.stopLoop(); practiceToken = UUID(); practiceScene = nil
         chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; preview = ""
         savePreferences(); refreshProgress(for: exercise.id)
     }

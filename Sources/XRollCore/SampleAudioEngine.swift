@@ -6,6 +6,7 @@ public enum SampleAudioEngineError: LocalizedError {
     case sampleTooLong(String)
     case unableToReadSample(String)
     case soundNotLoaded(String)
+    case loopNotLoaded
 
     public var errorDescription: String? {
         switch self {
@@ -17,6 +18,8 @@ public enum SampleAudioEngineError: LocalizedError {
             return "No se puede cargar el sample \(file)."
         case .soundNotLoaded(let sound):
             return "El sonido \(sound) no esta cargado."
+        case .loopNotLoaded:
+            return "El loop no está cargado."
         }
     }
 }
@@ -36,11 +39,19 @@ public final class SampleAudioEngine {
     }
 
     private let engine = AVAudioEngine()
+    private let loopPlayer = AVAudioPlayerNode()
+    private let loopTimePitch = AVAudioUnitTimePitch()
     private let voicesPerSound: Int
     private var sounds: [String: LoadedSound] = [:]
+    private var loopBuffer: AVAudioPCMBuffer?
+    public private(set) var loopTempo: LoopTempo?
 
     public init(voicesPerSound: Int = 4) {
         self.voicesPerSound = max(1, voicesPerSound)
+        engine.attach(loopPlayer)
+        engine.attach(loopTimePitch)
+        engine.connect(loopPlayer, to: loopTimePitch, format: nil)
+        engine.connect(loopTimePitch, to: engine.mainMixerNode, format: nil)
     }
 
     public func load(kit: KitManifest, from directory: URL) throws {
@@ -87,6 +98,7 @@ public final class SampleAudioEngine {
     public func stop() {
         engine.stop()
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
+        loopPlayer.stop()
     }
 
     /// Cancels preview and metronome buffers while keeping the audio engine ready
@@ -94,6 +106,27 @@ public final class SampleAudioEngine {
     public func stopScheduledSounds() {
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
     }
+
+    public func loadLoop(url: URL) throws {
+        let file = try AVAudioFile(forReading: url)
+        guard file.length <= AVAudioFramePosition(UInt32.max), let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
+            throw SampleAudioEngineError.loopNotLoaded
+        }
+        try file.read(into: buffer)
+        loopBuffer = buffer
+        loopTempo = LoopTempoDetector.detect(url: url)
+    }
+
+    public func startLoop(atHostTime hostTime: UInt64, targetBPM: Double, volume: Float = 0.72) throws {
+        guard let loopBuffer, let sourceBPM = loopTempo?.bpm, sourceBPM > 0 else { throw SampleAudioEngineError.loopNotLoaded }
+        loopPlayer.stop()
+        loopTimePitch.rate = Float(targetBPM / sourceBPM)
+        loopPlayer.volume = min(1, max(0, volume))
+        loopPlayer.scheduleBuffer(loopBuffer, at: AVAudioTime(hostTime: hostTime), options: .loops)
+        loopPlayer.play(at: AVAudioTime(hostTime: hostTime))
+    }
+
+    public func stopLoop() { loopPlayer.stop() }
 
     public func play(soundID: String, volume: Float = 1) throws {
         guard let sound = sounds[soundID] else {

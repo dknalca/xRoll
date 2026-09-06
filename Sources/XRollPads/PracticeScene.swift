@@ -7,13 +7,15 @@ final class PracticeScene: SKScene {
     private let startHostTime: UInt64
     private let anticipationMilliseconds: Double
     private let slotBySound: [String: Int]
+    private let soundLabels: [String: String]
     private var noteNodes: [(ScheduledExerciseNote, SKShapeNode)] = []
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int]) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String]) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.slotBySound = slotBySound
+        self.soundLabels = soundLabels
         super.init(size: CGSize(width: 960, height: 520))
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -28,6 +30,17 @@ final class PracticeScene: SKScene {
             let x = CGFloat(index) * size.width / 16
             let line = SKShapeNode(rect: CGRect(x: x, y: 0, width: 1, height: size.height))
             line.fillColor = SKColor(white: 0.25, alpha: 1); line.strokeColor = .clear; addChild(line)
+        }
+        for (sound, slot) in slotBySound {
+            let label = SKLabelNode(text: soundLabels[sound] ?? sound)
+            label.fontName = "Avenir Next Demi Bold"
+            label.fontSize = 13
+            label.fontColor = .white
+            label.verticalAlignmentMode = .center
+            label.horizontalAlignmentMode = .center
+            label.position = CGPoint(x: (CGFloat(slot) + 0.5) * size.width / 16, y: 28)
+            label.zPosition = 2
+            addChild(label)
         }
         for note in timeline.notes {
             let node = note.hand == "L"
