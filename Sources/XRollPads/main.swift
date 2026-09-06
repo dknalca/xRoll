@@ -357,7 +357,8 @@ private struct Panel<Content: View>: View {
     let content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
-        content.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) { content }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 14))
     }
@@ -518,12 +519,30 @@ private struct MappingHome: View {
 
 private struct ContentView: View {
     @StateObject private var model = Model()
+    @State private var section = 0
     var body: some View {
-        TabView {
-            Group { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else { PracticeHome(model: model) } }.tabItem { Text("Practicar") }
-            ProgressHome(model: model).tabItem { Text("Progreso") }
-            MappingHome(model: model).tabItem { Text("Mapear pads") }
-        }.frame(minWidth: 900, minHeight: 650)
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Text("xRoll").font(.headline.bold()).padding(.trailing, 12)
+                navigationButton("Practicar", index: 0)
+                navigationButton("Progreso", index: 1)
+                navigationButton("Mapear pads", index: 2)
+                Spacer()
+            }.padding(.horizontal, 18).padding(.vertical, 9).background(Color(nsColor: .windowBackgroundColor))
+            Divider()
+            Group {
+                if section == 0 { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else { PracticeHome(model: model) } }
+                else if section == 1 { ProgressHome(model: model) }
+                else { MappingHome(model: model) }
+            }
+        }.frame(minWidth: 960, minHeight: 650)
+    }
+
+    private func navigationButton(_ title: String, index: Int) -> some View {
+        Button(title) { section = index }
+            .buttonStyle(.plain).padding(.horizontal, 12).padding(.vertical, 6)
+            .background(section == index ? Color.accentColor.opacity(0.18) : Color.clear)
+            .clipShape(Capsule())
     }
 }
 

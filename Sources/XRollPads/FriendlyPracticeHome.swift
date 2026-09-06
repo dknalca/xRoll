@@ -7,7 +7,8 @@ struct StagePanel<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
 
     var body: some View {
-        content.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) { content }
+            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white.opacity(0.075))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 16))
