@@ -24,6 +24,63 @@ struct AppMark: View {
     }
 }
 
+enum ActionButtonProminence {
+    case primary
+    case secondary
+    case quiet
+}
+
+/// Buttons in xRoll never use the system's light macOS button background.  The
+/// explicit colours keep their label legible in every dark panel and state.
+struct ActionButton: View {
+    @Environment(\.isEnabled) private var isEnabled
+    let title: String
+    var prominence: ActionButtonProminence = .secondary
+    let action: () -> Void
+
+    init(_ title: String, prominence: ActionButtonProminence = .secondary, action: @escaping () -> Void) {
+        self.title = title
+        self.prominence = prominence
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .foregroundColor(labelColor)
+                .background(backgroundColor)
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(borderColor, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.45)
+    }
+
+    private var labelColor: Color {
+        prominence == .primary ? Color(red: 0.02, green: 0.07, blue: 0.11) : .white
+    }
+
+    private var backgroundColor: Color {
+        switch prominence {
+        case .primary: return Color(red: 0.10, green: 0.76, blue: 0.95)
+        case .secondary: return Color.white.opacity(0.13)
+        case .quiet: return Color.clear
+        }
+    }
+
+    private var borderColor: Color {
+        switch prominence {
+        case .primary: return Color.white.opacity(0.22)
+        case .secondary: return Color.white.opacity(0.25)
+        case .quiet: return Color.white.opacity(0.18)
+        }
+    }
+}
+
 struct PracticeHome: View {
     @ObservedObject var model: Model
 
@@ -114,7 +171,7 @@ private struct PlayerColumn: View {
                         Text(model.preview.isEmpty ? "Escucha el patrón o empieza cuando quieras." : model.preview).font(.caption).foregroundColor(.white.opacity(0.58))
                     }
                     Spacer()
-                    Button("▶  Empezar") { model.startPractice() }.buttonStyle(.borderedProminent).tint(.cyan).controlSize(.large)
+                    ActionButton("▶  Empezar", prominence: .primary) { model.startPractice() }
                 }
             }
             StagePanel {
@@ -137,8 +194,8 @@ private struct SessionColumn: View {
                 Divider().overlay(Color.white.opacity(0.16)).padding(.vertical, 5)
                 Text("\(model.selectedRepeats) vueltas").font(.headline)
                 Stepper("Duración", value: $model.selectedRepeats, in: 1...16).onChange(of: model.selectedRepeats) { _ in model.savePreferences() }
-                Button("Escuchar y colocar") { model.previewExercise() }.padding(.top, 7)
-                Button("Calibrar") { model.startCalibration() }.buttonStyle(.borderless).foregroundColor(.white.opacity(0.74))
+                ActionButton("Escuchar y colocar") { model.previewExercise() }.padding(.top, 7)
+                ActionButton("Calibrar", prominence: .quiet) { model.startCalibration() }
             }
             StagePanel {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)

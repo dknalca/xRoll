@@ -492,7 +492,10 @@ private struct ProgressHome: View {
             Text("Progreso").font(.largeTitle.bold())
             Text("Revisa tus intentos y guarda una copia cuando quieras.").foregroundColor(.white.opacity(0.65))
             Picker("Mostrar", selection: $model.progressFilter) { Text("Todos").tag(0); Text("Para consolidar").tag(1); Text("75 % o más").tag(2) }.pickerStyle(.segmented).frame(width: 460).onChange(of: model.progressFilter) { _ in model.refreshRecentAttempts() }
-            HStack { Button("Exportar CSV") { model.exportProgress(format: "csv") }; Button("Exportar JSON") { model.exportProgress(format: "json") } }
+            HStack(spacing: 10) {
+                ActionButton("Exportar CSV") { model.exportProgress(format: "csv") }
+                ActionButton("Exportar JSON") { model.exportProgress(format: "json") }
+            }
             Text(model.exportMessage).font(.caption).foregroundColor(.white.opacity(0.65))
             StagePanel {
                 if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65)) }
@@ -517,7 +520,9 @@ private struct MappingHome: View {
                     Text("1. Elige el M‑Vave").font(.headline)
                     Picker("Entrada MIDI", selection: $model.sourceID) { Text("Sin entrada").tag(MIDIUniqueID?.none); ForEach(model.sources, id: \.uniqueID) { Text($0.name).tag(Optional($0.uniqueID)) } }.onChange(of: model.sourceID) { _ in model.selectSource() }
                     Text("2. Pulsa empezar y golpea el pad que te indique xRoll.").font(.headline).padding(.top, 8)
-                    Button(model.mapping ? "Cancelar asignación" : "Empezar asignación") { model.mapping ? model.cancelMapping() : model.startMapping() }.buttonStyle(.borderedProminent).disabled(model.sourceID == nil).padding(.top, 4)
+                    ActionButton(model.mapping ? "Cancelar asignación" : "Empezar asignación", prominence: model.mapping ? .secondary : .primary) { model.mapping ? model.cancelMapping() : model.startMapping() }
+                        .disabled(model.sourceID == nil)
+                        .padding(.top, 4)
                     Text(model.mapMessage.isEmpty ? "La asignación se guarda automáticamente al completar los seis golpes." : model.mapMessage).font(.caption).foregroundColor(.white.opacity(0.65)).padding(.top, 5)
                 }
                 StagePanel { Text("Orden recomendado").font(.headline); Text("Abajo: bombo · caja · palmada\nEncima: charles cerrado · charles abierto · crash").font(.subheadline).padding(.top, 4) }
@@ -558,7 +563,7 @@ private struct SettingsHome: View {
                             Stepper("Compensación manual: \(Int(model.tuning.manualTimingOffsetMilliseconds)) ms", value: $model.tuning.manualTimingOffsetMilliseconds, in: -200...200, step: 1)
                             HStack { Text("Volumen de cuenta"); Slider(value: $model.tuning.countInVolume, in: 0...1); Text("\(Int(model.tuning.countInVolume * 100)) %").frame(width: 42, alignment: .trailing) }
                             Stepper("Destello de pad: \(model.tuning.padFlashMilliseconds) ms", value: $model.tuning.padFlashMilliseconds, in: 30...500, step: 10)
-                            Button("Restablecer valores de Debug") { model.resetTuning() }
+                            ActionButton("Restablecer valores de Debug", prominence: .secondary) { model.resetTuning() }
                         }
                     }.onChange(of: model.tuning) { _ in model.saveTuning() }
                     Spacer()
