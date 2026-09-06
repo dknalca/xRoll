@@ -535,7 +535,7 @@ private struct ContentView: View {
                 else if section == 1 { ProgressHome(model: model) }
                 else { MappingHome(model: model) }
             }
-        }.frame(minWidth: 960, minHeight: 650)
+        }.background(WindowResizeSupport()).frame(minWidth: 960, minHeight: 650)
     }
 
     private func navigationButton(_ title: String, index: Int) -> some View {
@@ -543,6 +543,18 @@ private struct ContentView: View {
             .buttonStyle(.plain).padding(.horizontal, 12).padding(.vertical, 6)
             .background(section == index ? Color.accentColor.opacity(0.18) : Color.clear)
             .clipShape(Capsule())
+    }
+}
+
+private struct WindowResizeSupport: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            window.styleMask.insert(.resizable)
+            window.minSize = NSSize(width: 960, height: 650)
+            window.standardWindowButton(.zoomButton)?.isEnabled = true
+        }
     }
 }
 
