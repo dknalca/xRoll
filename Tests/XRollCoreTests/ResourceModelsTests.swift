@@ -269,6 +269,18 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(VelocityCurve.gain(for: 127), 1, accuracy: 0.0001)
     }
 
+    func testTuningClampsAndPersists() throws {
+        let tuning = PracticeTuning(debugEnabled: true, anticipationBars: 8, perfectWindowMilliseconds: 80, goodWindowMilliseconds: 20, regularWindowMilliseconds: 10, manualTimingOffsetMilliseconds: 500, countInVolume: 2, padFlashMilliseconds: 1)
+        XCTAssertEqual(tuning.anticipationBars, 4)
+        XCTAssertEqual(tuning.goodWindowMilliseconds, 80)
+        XCTAssertEqual(tuning.regularWindowMilliseconds, 80)
+        XCTAssertEqual(tuning.manualTimingOffsetMilliseconds, 200)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-tuning-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try PracticeTuningStore.save(tuning, to: url)
+        XCTAssertEqual(try PracticeTuningStore.load(from: url), tuning)
+    }
+
     func testCalibrationOffsetChangesTheJudgement() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(

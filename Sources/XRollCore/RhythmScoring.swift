@@ -47,6 +47,15 @@ public struct ScoringWindows: Equatable {
         goodMilliseconds = min(65, regularMilliseconds)
         perfectMilliseconds = min(35, goodMilliseconds)
     }
+
+    public init(perfectMilliseconds: Double, goodMilliseconds: Double, regularMilliseconds: Double) {
+        let perfect = max(0, perfectMilliseconds)
+        let good = max(perfect, goodMilliseconds)
+        let regular = max(good, regularMilliseconds)
+        self.perfectMilliseconds = perfect
+        self.goodMilliseconds = good
+        self.regularMilliseconds = regular
+    }
 }
 
 public enum RhythmJudgement: String, Equatable {
@@ -102,9 +111,10 @@ public enum RhythmScorer {
         bpm: Int,
         grid: Int,
         hits: [TimedPadHit],
-        calibrationOffsetMilliseconds: Double = 0
+        calibrationOffsetMilliseconds: Double = 0,
+        scoringWindows: ScoringWindows? = nil
     ) -> ExerciseScore {
-        let windows = ScoringWindows(bpm: bpm, grid: grid)
+        let windows = scoringWindows ?? ScoringWindows(bpm: bpm, grid: grid)
         var pending = Set(timeline.notes.map(\.index))
         var results: [ScoredPadHit] = []
 

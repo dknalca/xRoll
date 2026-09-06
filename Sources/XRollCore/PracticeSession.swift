@@ -5,13 +5,15 @@ public final class PracticeSession {
     public let bpm: Int
     public let grid: Int
     public let calibrationOffsetMilliseconds: Double
+    public let scoringWindows: ScoringWindows?
     public private(set) var hits: [TimedPadHit] = []
 
-    public init(exercise: Exercise, calibrationOffsetMilliseconds: Double = 0) {
+    public init(exercise: Exercise, calibrationOffsetMilliseconds: Double = 0, scoringWindows: ScoringWindows? = nil) {
         timeline = ExerciseTimeline(exercise: exercise)
         bpm = exercise.bpm
         grid = exercise.grid
         self.calibrationOffsetMilliseconds = calibrationOffsetMilliseconds
+        self.scoringWindows = scoringWindows
     }
 
     @discardableResult
@@ -26,7 +28,8 @@ public final class PracticeSession {
             bpm: bpm,
             grid: grid,
             hits: hits,
-            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: scoringWindows
         )
     }
 }

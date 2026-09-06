@@ -30,6 +30,7 @@ final class Model: ObservableObject {
     @Published var selectedBPM = 80; @Published var selectedRepeats = 4; @Published var recovery = ""; @Published var insights = ""
     @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
     @Published var courseLevels = [CourseLevelState]()
+    @Published var tuning = PracticeTuning()
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var monitor: Any?
@@ -75,8 +76,8 @@ final class Model: ObservableObject {
         guard let exercise = configuredExercise else { return }
         savePreferences()
         calibrating = calibration
-        let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset)
-        let anticipation = session.timeline.patternDurationMilliseconds * 2
+        let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset + tuning.manualTimingOffsetMilliseconds, scoringWindows: calibration ? nil : tuning.scoringWindows)
+        let anticipation = session.timeline.patternDurationMilliseconds * Double(tuning.anticipationBars)
         let now = AudioGetCurrentHostTime()
         let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
@@ -85,7 +86,7 @@ final class Model: ObservableObject {
         let countInStart = anticipation - session.timeline.patternDurationMilliseconds
         if countInStart >= 0 {
             for beatIndex in 0..<4 {
-                try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now))
+                try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
             }
         }
         let token = UUID(); practiceToken = token
@@ -124,6 +125,7 @@ final class Model: ObservableObject {
             exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: loaded); chosenID = exercises.first?.id ?? ""
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = exercises.first?.repeats ?? 4
             loadPreferences()
+            loadTuning()
             sources = MIDIInspector.sources().filter { $0.uniqueID != nil }
             sourceID = sources.first(where: { $0.name.localizedCaseInsensitiveContains("Pocket-Private") })?.uniqueID ?? sources.first?.uniqueID
             connect()
@@ -171,7 +173,7 @@ final class Model: ObservableObject {
         return kit.flatMap { kit in kit.sounds.first(where: { $0.id == sound }).flatMap { note in positions.first { $0.note == note.gmNote } } }
     }
     private func play(_ sound: String, position: PadPosition?, volume: Float = 1) {
-        guard let audio else { return }; do { try audio.play(soundID: sound, volume: volume); record(sound, hostTime: AudioGetCurrentHostTime()); guard let position else { return }; let key = "\(position.row):\(position.column)"; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
+        guard let audio else { return }; do { try audio.play(soundID: sound, volume: volume); record(sound, hostTime: AudioGetCurrentHostTime()); guard let position else { return }; let key = "\(position.row):\(position.column)"; let flashDuration = Double(tuning.padFlashMilliseconds) / 1_000; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + flashDuration) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
     }
     private func slotsBySound() -> [String: Int] {
         var result: [String: Int] = [:]
@@ -270,6 +272,9 @@ final class Model: ObservableObject {
         if let bpm = preferences.bpm { selectedBPM = min(240, max(40, bpm)) }
         if let repeats = preferences.repeats { selectedRepeats = min(16, max(1, repeats)) }
     }
+    func saveTuning() { try? PracticeTuningStore.save(tuning, to: applicationSupportURL("tuning.json")) }
+    func resetTuning() { tuning = PracticeTuning(); saveTuning() }
+    private func loadTuning() { tuning = (try? PracticeTuningStore.load(from: applicationSupportURL("tuning.json"))) ?? PracticeTuning() }
     func refreshRecentAttempts() {
         do {
             let filter: ProgressFilter
@@ -481,39 +486,85 @@ private struct PracticeRun: View {
 private struct ProgressHome: View {
     @ObservedObject var model: Model
     var body: some View {
+        ZStack {
+        Color(red: 0.035, green: 0.05, blue: 0.10).ignoresSafeArea()
         VStack(alignment: .leading, spacing: 16) {
             Text("Progreso").font(.largeTitle.bold())
-            Text("Revisa tus intentos y guarda una copia cuando quieras.").foregroundColor(.secondary)
+            Text("Revisa tus intentos y guarda una copia cuando quieras.").foregroundColor(.white.opacity(0.65))
             Picker("Mostrar", selection: $model.progressFilter) { Text("Todos").tag(0); Text("Para consolidar").tag(1); Text("75 % o más").tag(2) }.pickerStyle(.segmented).frame(width: 460).onChange(of: model.progressFilter) { _ in model.refreshRecentAttempts() }
             HStack { Button("Exportar CSV") { model.exportProgress(format: "csv") }; Button("Exportar JSON") { model.exportProgress(format: "json") } }
-            Text(model.exportMessage).font(.caption).foregroundColor(.secondary)
-            Panel {
-                if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.secondary) }
+            Text(model.exportMessage).font(.caption).foregroundColor(.white.opacity(0.65))
+            StagePanel {
+                if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65)) }
                 else { ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in HStack { Text(attempt.exerciseID).frame(width: 180, alignment: .leading); Text("\(attempt.bpm) BPM").frame(width: 80, alignment: .leading); Text(String(format: "%.0f %%", attempt.score)).frame(width: 70, alignment: .leading); Text("★ \(attempt.stars)") }.padding(.vertical, 3) } }
             }
             Spacer()
-        }.padding(28).frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+        }.foregroundColor(.white).padding(28).frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+        }
     }
 }
 
 private struct MappingHome: View {
     @ObservedObject var model: Model
     var body: some View {
+        ZStack {
+        Color(red: 0.035, green: 0.05, blue: 0.10).ignoresSafeArea()
         HStack(alignment: .top, spacing: 22) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Configura tus pads").font(.largeTitle.bold())
-                Text("Asignaremos seis sonidos siguiendo la misma posición que ves en tu controlador.").foregroundColor(.secondary)
-                Panel {
+                Text("Asignaremos seis sonidos siguiendo la misma posición que ves en tu controlador.").foregroundColor(.white.opacity(0.65))
+                StagePanel {
                     Text("1. Elige el M‑Vave").font(.headline)
                     Picker("Entrada MIDI", selection: $model.sourceID) { Text("Sin entrada").tag(MIDIUniqueID?.none); ForEach(model.sources, id: \.uniqueID) { Text($0.name).tag(Optional($0.uniqueID)) } }.onChange(of: model.sourceID) { _ in model.selectSource() }
                     Text("2. Pulsa empezar y golpea el pad que te indique xRoll.").font(.headline).padding(.top, 8)
                     Button(model.mapping ? "Cancelar asignación" : "Empezar asignación") { model.mapping ? model.cancelMapping() : model.startMapping() }.buttonStyle(.borderedProminent).disabled(model.sourceID == nil).padding(.top, 4)
-                    Text(model.mapMessage.isEmpty ? "La asignación se guarda automáticamente al completar los seis golpes." : model.mapMessage).font(.caption).foregroundColor(.secondary).padding(.top, 5)
+                    Text(model.mapMessage.isEmpty ? "La asignación se guarda automáticamente al completar los seis golpes." : model.mapMessage).font(.caption).foregroundColor(.white.opacity(0.65)).padding(.top, 5)
                 }
-                Panel { Text("Orden recomendado").font(.headline); Text("Abajo: bombo · caja · palmada\nEncima: charles cerrado · charles abierto · crash").font(.subheadline).padding(.top, 4) }
+                StagePanel { Text("Orden recomendado").font(.headline); Text("Abajo: bombo · caja · palmada\nEncima: charles cerrado · charles abierto · crash").font(.subheadline).padding(.top, 4) }
             }.frame(width: 390)
-            Panel { VStack(alignment: .leading) { Text("Vista del controlador").font(.headline); Text("La esquina inferior izquierda es el bombo.").font(.caption).foregroundColor(.secondary); Grid(model: model).frame(width: 390).padding(.top, 10) } }
-        }.padding(28).frame(minWidth: 820, minHeight: 560, alignment: .topLeading)
+            StagePanel { VStack(alignment: .leading) { Text("Vista del controlador").font(.headline); Text("La esquina inferior izquierda es el bombo.").font(.caption).foregroundColor(.white.opacity(0.65)); Grid(model: model).frame(width: 390).padding(.top, 10) } }
+        }.foregroundColor(.white).padding(28).frame(minWidth: 820, minHeight: 560, alignment: .topLeading)
+        }
+    }
+}
+
+private struct SettingsHome: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        ZStack {
+            Color(red: 0.035, green: 0.05, blue: 0.10).ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        AppMark(size: 52)
+                        VStack(alignment: .leading) {
+                            Text("Ajustes").font(.largeTitle.bold())
+                            Text("Preferencias de práctica y afinado técnico.").foregroundColor(.white.opacity(0.65))
+                        }
+                    }
+                    StagePanel {
+                        Text("Práctica").font(.headline)
+                        Text("BPM y vueltas se guardan desde la pantalla de práctica.").font(.caption).foregroundColor(.white.opacity(0.65))
+                    }
+                    StagePanel {
+                        Toggle("Activar Debug", isOn: $model.tuning.debugEnabled).font(.headline)
+                        Text("Se guardan localmente y afectan a la siguiente práctica.").font(.caption).foregroundColor(.white.opacity(0.65))
+                        if model.tuning.debugEnabled {
+                            Divider().overlay(Color.white.opacity(0.16))
+                            Stepper("Anticipación: \(model.tuning.anticipationBars) compases", value: $model.tuning.anticipationBars, in: 1...4)
+                            Stepper("Perfecto: \(Int(model.tuning.perfectWindowMilliseconds)) ms", value: $model.tuning.perfectWindowMilliseconds, in: 5...100, step: 1)
+                            Stepper("Bien: \(Int(model.tuning.goodWindowMilliseconds)) ms", value: $model.tuning.goodWindowMilliseconds, in: 5...150, step: 1)
+                            Stepper("Regular: \(Int(model.tuning.regularWindowMilliseconds)) ms", value: $model.tuning.regularWindowMilliseconds, in: 5...250, step: 1)
+                            Stepper("Compensación manual: \(Int(model.tuning.manualTimingOffsetMilliseconds)) ms", value: $model.tuning.manualTimingOffsetMilliseconds, in: -200...200, step: 1)
+                            HStack { Text("Volumen de cuenta"); Slider(value: $model.tuning.countInVolume, in: 0...1); Text("\(Int(model.tuning.countInVolume * 100)) %").frame(width: 42, alignment: .trailing) }
+                            Stepper("Destello de pad: \(model.tuning.padFlashMilliseconds) ms", value: $model.tuning.padFlashMilliseconds, in: 30...500, step: 10)
+                            Button("Restablecer valores de Debug") { model.resetTuning() }
+                        }
+                    }.onChange(of: model.tuning) { _ in model.saveTuning() }
+                    Spacer()
+                }.foregroundColor(.white).padding(30).frame(maxWidth: 760, alignment: .leading)
+            }
+        }
     }
 }
 
@@ -523,17 +574,20 @@ private struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
+                AppMark(size: 26)
                 Text("xRoll").font(.headline.bold()).padding(.trailing, 12)
                 navigationButton("Practicar", index: 0)
                 navigationButton("Progreso", index: 1)
                 navigationButton("Mapear pads", index: 2)
+                navigationButton("Ajustes", index: 3)
                 Spacer()
-            }.padding(.horizontal, 18).padding(.vertical, 9).background(Color(nsColor: .windowBackgroundColor))
-            Divider()
+            }.foregroundColor(.white).padding(.horizontal, 18).padding(.vertical, 9).background(Color(red: 0.025, green: 0.035, blue: 0.075))
+            Divider().overlay(Color.white.opacity(0.12))
             Group {
                 if section == 0 { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else { PracticeHome(model: model) } }
                 else if section == 1 { ProgressHome(model: model) }
-                else { MappingHome(model: model) }
+                else if section == 2 { MappingHome(model: model) }
+                else { SettingsHome(model: model) }
             }
         }.background(WindowResizeSupport()).frame(minWidth: 960, minHeight: 650)
     }
@@ -542,7 +596,7 @@ private struct ContentView: View {
         Button(title) { section = index }
             .buttonStyle(.plain).padding(.horizontal, 12).padding(.vertical, 6)
             .background(section == index ? Color.accentColor.opacity(0.18) : Color.clear)
-            .clipShape(Capsule())
+            .foregroundColor(.white.opacity(section == index ? 1 : 0.72)).clipShape(Capsule())
     }
 }
 

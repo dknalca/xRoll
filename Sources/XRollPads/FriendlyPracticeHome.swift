@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import XRollCore
 
@@ -12,6 +13,14 @@ struct StagePanel<Content: View>: View {
             .background(Color.white.opacity(0.075))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct AppMark: View {
+    var size: CGFloat = 34
+    var body: some View {
+        Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high)
+            .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.23))
     }
 }
 
@@ -39,6 +48,7 @@ private struct PracticeHeader: View {
     var body: some View {
         HStack {
             HStack(spacing: 10) {
+                AppMark(size: 38)
                 Text("xRoll").font(.largeTitle.bold())
                 Text("FINGER DRUMMING").font(.caption.bold()).foregroundColor(.cyan)
             }
