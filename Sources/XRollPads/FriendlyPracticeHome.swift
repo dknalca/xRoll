@@ -103,6 +103,43 @@ struct PracticeHome: View {
     }
 }
 
+struct ResultsHome: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Color(red: 0.035, green: 0.05, blue: 0.10), Color(red: 0.08, green: 0.035, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
+            VStack(spacing: 20) {
+                AppMark(size: 62)
+                Text("Ejercicio terminado").font(.largeTitle.bold()).foregroundColor(.white)
+                Text(model.chosen?.title ?? "Práctica").font(.title3).foregroundColor(.white.opacity(0.72))
+                StagePanel {
+                    HStack(alignment: .firstTextBaseline, spacing: 16) {
+                        Text("\(Int((model.lastScorePercentage ?? 0).rounded())) %").font(.system(size: 52, weight: .bold)).foregroundColor((model.lastScorePercentage ?? 0) >= 75 ? .green : (model.lastScorePercentage ?? 0) >= 50 ? .yellow : .red)
+                        Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.title).foregroundColor(.yellow)
+                    }
+                    Text(String(format: "Puntuación: %.1f / %d", model.lastPoints, model.lastPossiblePoints)).font(.title3.bold())
+                    HStack(spacing: 18) {
+                        ScoreStat("Golpes", value: model.lastTotalHits, color: .white)
+                        ScoreStat("Bien", value: model.lastWellTimed, color: .green)
+                        ScoreStat("Regular", value: model.lastRegular, color: .yellow)
+                        ScoreStat("Mal", value: model.lastWrong, color: .red)
+                    }.padding(.vertical, 5)
+                    Text(model.advice).font(.subheadline).foregroundColor(.white.opacity(0.72))
+                }.frame(maxWidth: 560)
+                if let next = model.nextExerciseTitle {
+                    Text("Has conseguido estrellas. Puedes pasar a: \(next)").font(.headline).foregroundColor(.green)
+                }
+                HStack(spacing: 12) {
+                    ActionButton("↻ Repetir", prominence: .secondary) { model.repeatPractice() }
+                    if model.nextExerciseTitle != nil { ActionButton("Siguiente ejercicio", prominence: .primary) { model.moveToSuggestedExercise() } }
+                    ActionButton("Volver", prominence: .quiet) { model.dismissResults() }
+                }
+            }.foregroundColor(.white).padding(32).frame(maxWidth: 700)
+        }
+    }
+}
+
 private struct PracticeHeader: View {
     @ObservedObject var model: Model
     var body: some View {

@@ -36,6 +36,7 @@ final class Model: ObservableObject {
     @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
     @Published var lastTotalHits = 0; @Published var lastWellTimed = 0; @Published var lastRegular = 0; @Published var lastWrong = 0
     @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
+    @Published var showingResults = false
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
@@ -90,12 +91,13 @@ final class Model: ObservableObject {
         } catch { preview = error.localizedDescription }
     }
     func startPractice() { beginPractice(calibration: false) }
-    func repeatPractice() { beginPractice(calibration: false) }
+    func repeatPractice() { showingResults = false; beginPractice(calibration: false) }
     func moveToSuggestedExercise() {
         guard let next = exercises.first(where: { $0.title == nextExerciseTitle }) else { return }
         chosenID = next.id; selectedBPM = next.bpm; selectedRepeats = next.repeats; preview = ""
-        savePreferences(); refreshProgress(for: next.id)
+        showingResults = false; savePreferences(); refreshProgress(for: next.id)
     }
+    func dismissResults() { showingResults = false }
     func toggleLoop() {
         loopEnabled.toggle()
         if !loopEnabled { audio?.stopLoop() }
@@ -151,6 +153,7 @@ final class Model: ObservableObject {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {
             recordAttempt(exercise: exercise, score: score)
+            showingResults = true
         }
         audio?.stopLoop()
         self.practice = nil; practiceScene = nil; practiceToken = UUID()
@@ -330,7 +333,7 @@ final class Model: ObservableObject {
         guard isAvailable(exercise) else { return }
         if practice != nil { finishPractice() }
         audio?.stopScheduledSounds(); audio?.stopLoop(); practiceToken = UUID(); practiceScene = nil
-        chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; preview = ""
+        showingResults = false; chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; preview = ""
         savePreferences(); refreshProgress(for: exercise.id)
     }
     func chooseWarmup() {
@@ -699,7 +702,7 @@ private struct ContentView: View {
             }.foregroundColor(.white).padding(.horizontal, 18).padding(.vertical, 9).background(Color(red: 0.025, green: 0.035, blue: 0.075))
             Divider().overlay(Color.white.opacity(0.12))
             Group {
-                if section == 0 { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else { PracticeHome(model: model) } }
+                if section == 0 { if let scene = model.practiceScene { PracticeRun(model: model, scene: scene) } else if model.showingResults { ResultsHome(model: model) } else { PracticeHome(model: model) } }
                 else if section == 1 { ProgressHome(model: model) }
                 else if section == 2 { MappingHome(model: model) }
                 else { SettingsHome(model: model) }
