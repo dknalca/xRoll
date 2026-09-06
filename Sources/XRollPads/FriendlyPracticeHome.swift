@@ -208,7 +208,13 @@ private struct SessionColumn: View {
             }
             StagePanel {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)
-                Text(model.result.isEmpty ? "Sin intentos todavía" : model.result).font(.caption).padding(.top, 5)
+                if let percentage = model.lastScorePercentage {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("\(Int(percentage.rounded())) %").font(.title.bold()).foregroundColor(percentage >= 75 ? .green : percentage >= 50 ? .yellow : .red)
+                        Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.headline).foregroundColor(.yellow)
+                    }.padding(.top, 3)
+                }
+                Text(model.result.isEmpty ? "Sin intentos todavía" : model.result).font(.caption).padding(.top, 2)
                 Text(model.advice).font(.caption2).foregroundColor(.white.opacity(0.58)).padding(.top, 4)
                 Text(model.insights).font(.caption2).foregroundColor(.white.opacity(0.58))
             }

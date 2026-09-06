@@ -89,6 +89,12 @@ public final class SampleAudioEngine {
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
     }
 
+    /// Cancels preview and metronome buffers while keeping the audio engine ready
+    /// for the next exercise.
+    public func stopScheduledSounds() {
+        sounds.values.flatMap(\.voices).forEach { $0.stop() }
+    }
+
     public func play(soundID: String, volume: Float = 1) throws {
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)

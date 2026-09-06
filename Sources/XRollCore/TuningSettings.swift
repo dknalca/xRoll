@@ -12,7 +12,7 @@ public struct PracticeTuning: Codable, Equatable {
     public var countInVolume: Double
     public var padFlashMilliseconds: Int
 
-    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 95, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, padFlashMilliseconds: Int = 120) {
+    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 120, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, padFlashMilliseconds: Int = 120) {
         self.debugEnabled = debugEnabled
         self.anticipationBars = min(4, max(1, anticipationBars))
         self.perfectWindowMilliseconds = min(100, max(5, perfectWindowMilliseconds))

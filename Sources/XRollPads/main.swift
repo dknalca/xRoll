@@ -33,6 +33,7 @@ final class Model: ObservableObject {
     @Published var courseLevels = [CourseLevelState]()
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
+    @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var loopPlayer: LoopPlaybackEngine?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
@@ -80,6 +81,8 @@ final class Model: ObservableObject {
     func previewExercise() {
         guard let exercise = configuredExercise, let audio else { return }
         do {
+            audio.stopScheduledSounds()
+            loopPlayer?.stop()
             let timeline = ExerciseTimeline(exercise: exercise); let base = AudioClock.hostTime(afterMilliseconds: 500)
             for note in timeline.notes { try audio.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: base)) }
             preview = "Reproduciendo \(exercise.title), sin puntuacion."
@@ -93,6 +96,8 @@ final class Model: ObservableObject {
     func startCalibration() { beginPractice(calibration: true) }
     private func beginPractice(calibration: Bool) {
         guard let exercise = configuredExercise else { return }
+        audio?.stopScheduledSounds()
+        loopPlayer?.stop()
         savePreferences()
         calibrating = calibration
         let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset + tuning.manualTimingOffsetMilliseconds, scoringWindows: calibration ? nil : tuning.scoringWindows)
@@ -108,7 +113,10 @@ final class Model: ObservableObject {
         for beatIndex in 0...metronomeBeats {
             try? audio?.schedule(soundID: "hihat_closed", atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume))
         }
-        if loopEnabled && !calibration { try? loopPlayer?.start(atHostTime: start, targetBPM: Double(exercise.bpm)) }
+        if loopEnabled && !calibration {
+            do { try loopPlayer?.start(atHostTime: start, targetBPM: Double(exercise.bpm)) }
+            catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
+        }
         let token = UUID(); practiceToken = token
         let duration = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats) + 150
         DispatchQueue.main.asyncAfter(deadline: .now() + duration / 1_000) { [weak self] in
@@ -118,6 +126,7 @@ final class Model: ObservableObject {
     func finishPractice() {
         guard let currentPractice = practice, let exercise = configuredExercise else { return }
         let score = currentPractice.score
+        lastScorePercentage = score.percentage; lastScoreStars = score.stars
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
@@ -299,7 +308,13 @@ final class Model: ObservableObject {
             }
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
-    func chooseExercise(_ exercise: Exercise) { guard isAvailable(exercise) else { return }; chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; savePreferences(); refreshProgress(for: exercise.id) }
+    func chooseExercise(_ exercise: Exercise) {
+        guard isAvailable(exercise) else { return }
+        if practice != nil { finishPractice() }
+        audio?.stopScheduledSounds(); loopPlayer?.stop(); practiceToken = UUID(); practiceScene = nil
+        chosenID = exercise.id; selectedBPM = exercise.bpm; selectedRepeats = exercise.repeats; preview = ""
+        savePreferences(); refreshProgress(for: exercise.id)
+    }
     func chooseWarmup() {
         var summaries: [String: ExerciseProgress] = [:]
         for exercise in exercises { if let item = try? progressStore?.progress(for: exercise.id) { summaries[exercise.id] = item } }
@@ -341,7 +356,11 @@ final class Model: ObservableObject {
     }
     func saveTuning() { try? PracticeTuningStore.save(tuning, to: applicationSupportURL("tuning.json")) }
     func resetTuning() { tuning = PracticeTuning(); saveTuning() }
-    private func loadTuning() { tuning = (try? PracticeTuningStore.load(from: applicationSupportURL("tuning.json"))) ?? PracticeTuning() }
+    private func loadTuning() {
+        var loaded = (try? PracticeTuningStore.load(from: applicationSupportURL("tuning.json"))) ?? PracticeTuning()
+        if !loaded.debugEnabled && loaded.regularWindowMilliseconds < 120 { loaded.regularWindowMilliseconds = 120 }
+        tuning = loaded
+    }
     func refreshRecentAttempts() {
         do {
             let filter: ProgressFilter

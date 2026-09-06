@@ -59,7 +59,8 @@ public final class LoopPlaybackEngine {
         guard let buffer, let sourceBPM = detectedTempo?.bpm, sourceBPM > 0 else { return }
         if !engine.isRunning { try engine.start() }
         player.stop()
-        timePitch.rate = Float(targetBPM / sourceBPM * 100)
+        // AVAudioUnitTimePitch uses 1.0 as normal speed, not percentages.
+        timePitch.rate = Float(targetBPM / sourceBPM)
         player.volume = min(1, max(0, volume))
         player.scheduleBuffer(buffer, at: AVAudioTime(hostTime: hostTime), options: .loops)
         player.play(at: AVAudioTime(hostTime: hostTime))
