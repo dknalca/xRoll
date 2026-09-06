@@ -25,6 +25,7 @@ final class Model: ObservableObject {
     @Published var exercises = [Exercise](); @Published var chosenID = ""; @Published var preview = ""
     @Published var sources = [MIDIEndpointDescription](); @Published var sourceID: MIDIUniqueID?
     @Published var mapping = false; @Published var mapMessage = ""
+    @Published var keyboardMapping = false; @Published var keyboardMapMessage = ""; @Published private(set) var keyboardKeys = [String: String]()
     @Published var practiceScene: PracticeScene?; @Published var judgement = ""; @Published var result = ""
     @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
     @Published var selectedBPM = 80; @Published var selectedRepeats = 4; @Published var recovery = ""; @Published var insights = ""
@@ -33,14 +34,17 @@ final class Model: ObservableObject {
     @Published var tuning = PracticeTuning()
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?
     private var custom: PadMap?; private var customRouter: PadMapRouter?; private var input: MIDIInputSession?
-    private var builder: PadMapBuilder?; private var monitor: Any?
+    private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
     private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
     private var progressStore: ProgressStore?; private var calibrationOffset: Double = 0; private var calibrating = false
 
     init() {
         load()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard !event.isARepeat, let key = event.charactersIgnoringModifiers?.uppercased(), let pad = positions.first(where: { $0.key == key }) else { return event }
+            guard !event.isARepeat, let key = event.charactersIgnoringModifiers?.uppercased(), !key.isEmpty else { return event }
+            if self?.keyboardMapping == true { self?.captureKeyboardKey(key); return nil }
+            if let sound = self?.keyboardKeys[key] { self?.play(sound, position: self?.position(sound), volume: 0.85); return nil }
+            guard self?.keyboardKeys.isEmpty ?? true, let pad = positions.first(where: { $0.key == key }) else { return event }
             self?.trigger(pad); return nil
         }
     }
@@ -62,6 +66,15 @@ final class Model: ObservableObject {
         mapping = true; mapMessage = "Golpea el pad para bombo."
     }
     func cancelMapping() { mapping = false; builder = nil; mapMessage = "Asignacion cancelada." }
+    func startKeyboardMapping() {
+        keyboardMapping = true; keyboardCapture = [:]
+        keyboardMapMessage = "Pulsa la tecla para bombo. Se asignarán seis sonidos."
+    }
+    func cancelKeyboardMapping() { keyboardMapping = false; keyboardCapture = [:]; keyboardMapMessage = "Asignación de teclado cancelada." }
+    fileprivate func keyboardLabel(for pad: PadPosition) -> String {
+        guard !keyboardKeys.isEmpty, let sound = name(pad) else { return pad.key }
+        return keyboardKeys.first(where: { $0.value == sound })?.key ?? "—"
+    }
     func previewExercise() {
         guard let exercise = configuredExercise, let audio else { return }
         do {
@@ -126,6 +139,7 @@ final class Model: ObservableObject {
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = exercises.first?.repeats ?? 4
             loadPreferences()
             loadTuning()
+            loadKeyboardMap()
             sources = MIDIInspector.sources().filter { $0.uniqueID != nil }
             sourceID = sources.first(where: { $0.name.localizedCaseInsensitiveContains("Pocket-Private") })?.uniqueID ?? sources.first?.uniqueID
             connect()
@@ -156,9 +170,37 @@ final class Model: ObservableObject {
         case .complete(let map): save(map)
         }
     }
+    private func captureKeyboardKey(_ key: String) {
+        guard let nextSound = PadMapBuilder.suggestedSteps.dropFirst(keyboardCapture.count).first?.sound else { return }
+        guard keyboardCapture[key] == nil else { keyboardMapMessage = "La tecla (key) ya está asignada. Pulsa otra para (displayName(nextSound))."; return }
+        keyboardCapture[key] = nextSound
+        let remaining = PadMapBuilder.suggestedSteps.count - keyboardCapture.count
+        if remaining == 0 {
+            keyboardKeys = keyboardCapture
+            saveKeyboardMap()
+            keyboardMapping = false
+            keyboardCapture = [:]
+            keyboardMapMessage = "Teclado guardado. Ya puedes practicar con esas seis teclas."
+        } else if let following = PadMapBuilder.suggestedSteps.dropFirst(keyboardCapture.count).first {
+            keyboardMapMessage = "\(displayName(nextSound)): \(key). Quedan \(remaining). Pulsa la tecla para \(displayName(following.sound))."
+        }
+    }
     private func nextPrompt() -> String { builder?.nextStep.map { "Golpea el pad para \($0.sound)." } ?? "" }
     private func mapURL(_ id: Int) -> URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("xRoll/padmaps/\(id).padmap") }
     private func applicationSupportURL(_ file: String) -> URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("xRoll/\(file)") }
+    private func loadKeyboardMap() {
+        let url = applicationSupportURL("keyboard-map.json")
+        guard let data = try? Data(contentsOf: url), let map = try? JSONDecoder().decode([String: String].self, from: data), map.count == PadMapBuilder.suggestedSteps.count else { return }
+        keyboardKeys = map
+    }
+    private func saveKeyboardMap() {
+        let url = applicationSupportURL("keyboard-map.json")
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(keyboardKeys).write(to: url, options: .atomic)
+        } catch { keyboardMapMessage = "No se pudo guardar el teclado: \(error.localizedDescription)" }
+    }
     private func loadMap(_ id: MIDIUniqueID) {
         guard let kit else { return }; let url = mapURL(Int(id)); guard FileManager.default.fileExists(atPath: url.path) else { custom = nil; customRouter = nil; return }
         do { let map = try PadMapStore.load(at: url, availableSounds: Set(kit.sounds.map(\.id))); custom = map; customRouter = PadMapRouter(padMap: map) } catch { status = "Mapa invalido: \(error.localizedDescription)" }
@@ -320,10 +362,10 @@ struct Grid: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 9), count: 4), spacing: 9) {
             ForEach(positions.sorted { $0.row > $1.row || ($0.row == $1.row && $0.column < $1.column) }) { pad in
                 let name = model.name(pad); let active = model.active.contains("\(pad.row):\(pad.column)")
-                VStack(spacing: 5) { Text(model.displayName(name)).font(.subheadline.bold()).lineLimit(1); Text(pad.key).font(.caption.bold()).opacity(0.65) }
+                VStack(spacing: 5) { Text(model.displayName(name)).font(.subheadline.bold()).lineLimit(1); Text(model.keyboardLabel(for: pad)).font(.caption.bold()).opacity(0.65) }
                     .frame(maxWidth: .infinity, minHeight: 76).background(active ? Color.white.opacity(0.95) : padColor(for: name)).foregroundColor(active ? .black : (name == nil ? .white.opacity(0.38) : .white)).clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(active ? Color.white : Color.white.opacity(name == nil ? 0.08 : 0.18), lineWidth: active ? 3 : 1))
-                    .accessibilityElement(children: .ignore).accessibilityLabel(name.map { "Pad \($0), tecla \(pad.key)" } ?? "Pad sin asignar, tecla \(pad.key)")
+                    .accessibilityElement(children: .ignore).accessibilityLabel(name.map { "Pad \($0), tecla \(model.keyboardLabel(for: pad))" } ?? "Pad sin asignar, tecla \(model.keyboardLabel(for: pad))")
             }
         }
     }
@@ -524,6 +566,12 @@ private struct MappingHome: View {
                         .disabled(model.sourceID == nil)
                         .padding(.top, 4)
                     Text(model.mapMessage.isEmpty ? "La asignación se guarda automáticamente al completar los seis golpes." : model.mapMessage).font(.caption).foregroundColor(.white.opacity(0.65)).padding(.top, 5)
+                }
+                StagePanel {
+                    Text("3. Teclado del Mac").font(.headline)
+                    Text("Puedes practicar sin controlador. Pulsa una tecla distinta para cada uno de los seis sonidos.").font(.caption).foregroundColor(.white.opacity(0.65))
+                    ActionButton(model.keyboardMapping ? "Cancelar teclado" : "Mapear teclado", prominence: model.keyboardMapping ? .secondary : .primary) { model.keyboardMapping ? model.cancelKeyboardMapping() : model.startKeyboardMapping() }
+                    Text(model.keyboardMapMessage.isEmpty ? "Sin asignación personalizada: se usa la cuadrícula Z–V, A–F, Q–R y 1–4." : model.keyboardMapMessage).font(.caption).foregroundColor(.white.opacity(0.65))
                 }
                 StagePanel { Text("Orden recomendado").font(.headline); Text("Abajo: bombo · caja · palmada\nEncima: charles cerrado · charles abierto · crash").font(.subheadline).padding(.top, 4) }
             }.frame(width: 390)
