@@ -10,7 +10,7 @@ struct StagePanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) { content }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.075))
+            .background(Color.white.opacity(0.12))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -29,15 +29,18 @@ struct PracticeHome: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.035, green: 0.05, blue: 0.10), Color(red: 0.08, green: 0.035, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
-            VStack(spacing: 14) {
-                PracticeHeader(model: model)
-                HStack(alignment: .top, spacing: 14) {
-                    CoursePanel(model: model).frame(width: 225)
-                    PlayerColumn(model: model).frame(maxWidth: .infinity)
-                    SessionColumn(model: model).frame(width: 245)
+            LinearGradient(colors: [Color(red: 0.035, green: 0.05, blue: 0.10), Color(red: 0.08, green: 0.035, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            ScrollView {
+                VStack(spacing: 16) {
+                    PracticeHeader(model: model)
+                    HStack(alignment: .top, spacing: 14) {
+                        CoursePanel(model: model).frame(width: 225)
+                        PlayerColumn(model: model).frame(maxWidth: .infinity)
+                        SessionColumn(model: model).frame(width: 245)
+                    }.padding(.horizontal, 20)
+                    PracticeFooter(model: model)
                 }
-                PracticeFooter(model: model)
+                .padding(.bottom, 12)
             }.foregroundColor(.white)
         }
     }
@@ -57,7 +60,7 @@ private struct PracticeHeader: View {
                 Circle().fill(model.status.contains("MIDI") ? Color.green : Color.orange).frame(width: 8, height: 8)
                 Text(model.status).font(.caption.bold()).foregroundColor(.white.opacity(0.76))
             }
-        }.padding(.horizontal, 24).padding(.top, 16)
+        }.padding(.horizontal, 24).padding(.top, 22)
     }
 }
 
@@ -141,7 +144,7 @@ private struct SessionColumn: View {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)
                 Text(model.result.isEmpty ? "Sin intentos todavía" : model.result).font(.caption).padding(.top, 5)
                 Text(model.advice).font(.caption2).foregroundColor(.white.opacity(0.58)).padding(.top, 4)
-                ProgressChart(scores: model.scoreHistory).padding(.top, 6)
+                Text(model.insights).font(.caption2).foregroundColor(.white.opacity(0.58))
             }
         }
     }
