@@ -93,6 +93,20 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertThrowsError(try map.validate(availableSounds: ["kick", "snare"]))
     }
 
+    func testPadMapV2AllowsSeveralPadsForOneSoundAndMigratesV1() throws {
+        let legacy = PadMap(device: "Pad", deviceUID: 42, created: "2026-09-10", pads: [
+            .init(sound: "kick", number: 36, channel: 10, row: 0, column: 0)
+        ])
+        let migrated = PadMapV2(migrating: legacy)
+        XCTAssertEqual(migrated.format, 2)
+        XCTAssertEqual(migrated.pads.first?.id, "r0c0")
+
+        let drum = PadLayoutFactory.make(.drumKit, device: .init(name: "Pad", uid: 42))
+        try drum.validate(availableSounds: ["kick", "rim", "snare", "clap", "tom_low", "hihat_closed", "hihat_open", "tom_high", "crash", "ride"])
+        XCTAssertEqual(drum.pads.filter { $0.sound == "kick" }.count, 2)
+        XCTAssertEqual(PadMapV2Router(drum).soundID(for: MIDINoteOn(hostTime: 0, channel: 10, note: 37, velocity: 100)), "kick")
+    }
+
     func testPadMapBuilderRejectsDuplicateAndCompletes() {
         var builder = PadMapBuilder(
             device: "Pad",
@@ -150,13 +164,22 @@ final class ResourceModelsTests: XCTestCase {
         let catalog = ResourceCatalog()
         let kit = try catalog.loadKit(at: root.appendingPathComponent("Resources/Kits/hiphop_basic/kit.json"))
         let router = KitNoteRouter(kit: kit)
+        XCTAssertEqual(router.soundID(for: 37), "rim")
         XCTAssertEqual(router.soundID(for: 41), "tom_low")
         XCTAssertEqual(router.soundID(for: 48), "tom_high")
         XCTAssertEqual(router.soundID(for: 51), "ride")
         let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
-        XCTAssertEqual(exercises.count, 15)
-        XCTAssertEqual(exercises.first?.title, "Boom bap 1 - bombo y caja")
+        XCTAssertEqual(exercises.count, 72)
+        XCTAssertEqual(exercises.first?.title, "I-01 · Bombo y caja")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
+    }
+
+    func testWarnsWhenCommunityMIDIIntroducesTooMuchAtOnce() {
+        let exercise = Exercise(format: 1, id: "dense", title: "Dense", family: "midi", level: 1, bpm: 120, meter: [4, 4], bars: 1, grid: 16, repeats: 8, kit: "kit", loop: nil, offset: 0, notes: [
+            .init(step: 0, sound: "kick"), .init(step: 0, sound: "snare"), .init(step: 0, sound: "hihat_closed"), .init(step: 0, sound: "clap"), .init(step: 1, sound: "kick")
+        ])
+        let warnings = PedagogicalMIDIValidator.warnings(for: exercise)
+        XCTAssertGreaterThanOrEqual(warnings.count, 3)
     }
 
     func testScoresJudgementsExtrasAndMisses() {

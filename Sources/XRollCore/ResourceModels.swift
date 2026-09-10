@@ -73,10 +73,20 @@ public struct KitManifest: Codable, Equatable {
 }
 
 public struct Exercise: Codable, Equatable {
+    public struct Target: Codable, Equatable {
+        public enum Kind: String, Codable { case any, role, pad }
+        public let type: Kind
+        public let value: String?
+        public init(type: Kind = .any, value: String? = nil) { self.type = type; self.value = value }
+    }
     public struct Note: Codable, Equatable {
         public let step: Int
         public let sound: String
         public let hand: String?
+        public let target: Target?
+        /// MIDI velocity is optional so legacy/community files remain valid.
+        public let velocity: Int?
+        public init(step: Int, sound: String, hand: String? = nil, target: Target? = nil, velocity: Int? = nil) { self.step = step; self.sound = sound; self.hand = hand; self.target = target; self.velocity = velocity }
     }
 
     public let format: Int
@@ -121,6 +131,8 @@ public struct Exercise: Codable, Equatable {
             if let hand = note.hand, hand != "L" && hand != "R" {
                 throw ResourceValidationError.invalidHand(hand)
             }
+            if let velocity = note.velocity, !(1...127).contains(velocity) { throw ResourceValidationError.invalidStep(velocity) }
+            if let target = note.target, target.type != .any, target.value?.isEmpty != false { throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio") }
             let key = "\(note.step):\(note.sound)"
             guard seenNotes.insert(key).inserted else {
                 throw ResourceValidationError.duplicateNote(step: note.step, sound: note.sound)

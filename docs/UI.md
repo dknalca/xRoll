@@ -105,3 +105,24 @@ es audible.
 El teclado del portatil funciona como pads. Sirve para desarrollar sin hardware
 y para que alguien pruebe la app sin comprar nada. Su calibracion de latencia se
 guarda por separado.
+
+## Dirección visual vigente
+
+La especificación detallada está en [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). La experiencia se organiza alrededor de Inicio, Curso, Preparación, Práctica, Resultado, Progreso y Equipo.
+
+Durante la ejecución solo se muestran nombre, BPM, vuelta y pausa. El score acumulado y las estrellas no compiten con la siguiente nota.
+
+## Resultado diagnóstico
+
+Orden:
+1. diagnóstico en lenguaje claro;
+2. precisión, tendencia y consistencia;
+3. microscopio temporal;
+4. resultado por voz/rol/subdivisión;
+5. recomendación y acciones.
+
+## Layouts
+
+`Equipo → Pads y layout` permite elegir Core, Drum Kit, Mirror, Studio/GM o Custom. Cada preset tiene vista 4×4, prueba en vivo, orientación y estado de compatibilidad con cursos.
+
+En layouts con duplicados, los 16 carriles se conservan. Una nota por sonido usa un carril recomendado e ilumina alternativas válidas.

@@ -31,6 +31,7 @@ y aro.
 Resources/Kits/hiphop_basic/
     kit.json
     kick.wav
+    rim.wav
     snare.wav
     clap.wav
     hihat_closed.wav

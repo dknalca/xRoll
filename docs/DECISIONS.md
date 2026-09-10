@@ -177,3 +177,39 @@ Referencias consultadas el 5 de septiembre de 2026:
 - https://melodics.com/how-it-works
 - https://support.melodics.com/en/articles/6777061-get-started-with-melodics
 - https://support.melodics.com/en/articles/8051176-the-melodics-approach
+
+## D-019 - La propuesta es diagnóstico, no solo puntuación
+
+El resultado prioriza precisión, tendencia, consistencia y una recomendación. Las estrellas permanecen como resumen secundario.
+
+## D-020 - Latencia técnica y sesgo humano se separan
+
+La calibración no debe convertir la tendencia personal del músico en «latencia» y borrarla del diagnóstico. Se almacenan `systemLatencyMs`, `userCalibrationBiasMs` y `scoringCompensationMs` por separado.
+
+## D-021 - La interfaz sigue «Estudio musical moderno»
+
+Interfaz oscura, profesional y precisa. Azul/naranja Okabe-Ito quedan reservados para manos. Durante la práctica se minimiza todo lo que compita con las notas.
+
+## D-022 - El currículo tiene tronco común y rutas por género
+
+Primero pulso, subdivisión, coordinación, síncopa y fraseo. Después hip-hop, rock, funk, blues/shuffle y jazz. Cada nivel introduce una dificultad principal.
+
+## D-023 - Aprender exige transferencia
+
+Los bloques terminan con ayudas reducidas. Superar siguiendo notas no demuestra que el groove se haya interiorizado.
+
+## D-024 - xRoll ofrece layouts funcionales seleccionables
+
+Core es el predeterminado de iniciación; Drum Kit favorece técnica de batería; Mirror favorece alternancia; Studio/GM favorece interoperabilidad; Custom adapta cualquiera.
+
+## D-025 - `.padmap` admite varios pads por sonido
+
+La versión 2 separa sonido, posición, rol e input MIDI. Los objetivos pueden dirigirse a cualquier pad del sonido, a un rol o a una posición concreta.
+
+## D-026 - La orientación zurda es una transformación
+
+Diestra/zurda no duplica presets. Cada layout declara si admite reflexión horizontal y cómo conservar compatibilidad MIDI.
+
+## D-027 - Los ejercicios integrados son JSON y los comunitarios entran por MIDI
+
+JSON conserva metadatos pedagógicos, roles, ayudas y dominio. MIDI es formato de importación comunitaria y se convierte a un modelo interno validado.

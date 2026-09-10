@@ -22,6 +22,7 @@ public enum PadMapCaptureResult: Equatable {
 public struct PadMapBuilder {
     public static let suggestedSteps = [
         PadMapCaptureStep(sound: "kick", row: 0, column: 0),
+        PadMapCaptureStep(sound: "rim", row: 0, column: 1),
         PadMapCaptureStep(sound: "snare", row: 0, column: 2),
         PadMapCaptureStep(sound: "clap", row: 0, column: 3),
         PadMapCaptureStep(sound: "tom_low", row: 1, column: 1),

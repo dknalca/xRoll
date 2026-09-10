@@ -7,8 +7,8 @@ Medidas desde el instante exacto de la rejilla, ya compensada la latencia.
 | Juicio | Ventana | Valor por nota |
 |---|---|---|
 | Perfecto | +/- 35 ms | 1,0 |
-| Bien | +/- 65 ms | 0,7 |
-| Regular | +/- 95 ms | 0,4 |
+| Bien | +/- 65 ms | 0,85 |
+| Regular | +/- 95 ms | 0,70 |
 | Fallo | mas alla | 0,0 |
 
 Regular existe para que un principiante no se lleve cero constantemente.
@@ -32,8 +32,8 @@ perfecto= min(35, bien)
 
 ## Toques de mas
 
-Cada golpe que no corresponde a ninguna nota de la rejilla resta el equivalente
-a media nota perfecta. Un golpe suelto no arruina el ejercicio, pero martillear
+Cada golpe que no corresponde a ninguna nota de la rejilla resta 0,25 puntos.
+Un golpe suelto no arruina el ejercicio, pero martillear
 los pads no puede salir rentable.
 
 Un golpe dentro de la ventana de una nota que **ya fue golpeada** cuenta como
@@ -55,7 +55,7 @@ toque de mas, no como segundo intento.
 puntuacion = (obtenido - penalizaciones) / posible * 100
 ```
 
-`obtenido` es la suma de los valores por nota y cada toque de mas penaliza 0,5.
+`obtenido` es la suma de los valores por nota y cada toque de más penaliza 0,25.
 `posible` es el numero de notas del ejercicio, contando todas las vueltas. Se
 muestra el resultado neto junto al total alcanzable, ademas del porcentaje.
 
@@ -117,7 +117,7 @@ perfil deja de aplicarse y se solicita una nueva calibracion.
 
 ## Historial
 
-SQLite, una fila por intento:
+SQLite, una fila por intento (más un JSON de estadísticas por sonido):
 
 ```
 id  exercise_id  timestamp  bpm  score  stars  perfect  good  regular  miss  extra  mean_offset_ms
@@ -126,3 +126,35 @@ id  exercise_id  timestamp  bpm  score  stars  perfect  good  regular  miss  ext
 Con eso salen el contador de veces realizadas, la mejor puntuacion y la curva de
 progreso. `mean_offset_ms` permite ademas ensenar si alguien esta corrigiendo su
 tendencia a adelantarse, que es informacion mas util que la puntuacion.
+
+## Diagnóstico robusto
+
+Además de `mean_offset_ms`, las nuevas sesiones guardan el resultado por sonido.
+En cada resultado se calculan mediana, dispersión y percentil 95 para mostrar
+una recomendación, y Ghost Coach combina el sonido más débil con el sesgo.
+El desglose histórico por rol, subdivisión, vuelta y transición sigue pendiente.
+
+La media no se utiliza sola: errores positivos y negativos pueden cancelarse.
+
+## Latencia y sesgo
+
+```text
+offset_bruto = golpe - objetivo
+offset_tecnico = offset_bruto - systemLatencyMs
+offset_puntuado = offset_bruto - scoringCompensationMs
+sesgo_observado = mediana(offset_tecnico)
+```
+
+`userCalibrationBiasMs` se muestra como observación y no se aplica automáticamente como compensación permanente.
+
+## Matching
+
+La asociación greedy sigue permitida en patrones no ambiguos. En notas consecutivas del mismo sonido con ventanas solapadas se usa una ventana global que minimiza offset, fallos y extras de forma determinista.
+
+## Simultaneidad
+
+Para objetivos simultáneos se registra la separación entre impactos, además del juicio individual. Iniciación usa umbrales tolerantes; cursos posteriores pueden endurecerlos.
+
+## Layouts duplicados
+
+Un objetivo `any` acepta cualquier pad que resuelva el sonido. Un objetivo de rol o pad exige coincidencia técnica, aunque el audio producido sea el mismo.

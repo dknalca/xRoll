@@ -34,7 +34,7 @@ public enum MIDIExerciseLoader {
         var meter = [4, 4]
         var title: String?
         var endTick = 0
-        var hits: [(tick: Int, note: Int)] = []
+        var hits: [(tick: Int, note: Int, velocity: Int)] = []
 
         for _ in 0..<tracks {
             guard reader.readASCII(count: 4) == "MTrk" else { throw MIDIExerciseError.invalidFile("falta MTrk") }
@@ -50,20 +50,24 @@ public enum MIDIExerciseLoader {
 
         guard meter == [4, 4] else { throw MIDIExerciseError.unsupportedMeter }
         let noteToSound = Dictionary(uniqueKeysWithValues: kit.sounds.map { ($0.gmNote, $0.id) })
-        let ticksPerStep = Double(division) / 4
+        let sixteenthTicks = Double(division) / 4
+        let tripletTicks = Double(division) / 3
+        let usesTriplets = hits.contains { abs(Double($0.tick).truncatingRemainder(dividingBy: sixteenthTicks)) > 0.01 } && hits.allSatisfy { abs(Double($0.tick).truncatingRemainder(dividingBy: tripletTicks)) < 0.01 }
+        let grid = usesTriplets ? 12 : 16
+        let ticksPerStep = Double(division) * 4 / Double(grid)
         let notes = hits.compactMap { hit -> Exercise.Note? in
             guard let sound = noteToSound[hit.note] else { return nil }
             let step = Int((Double(hit.tick) / ticksPerStep).rounded())
-            return Exercise.Note(step: step, sound: sound, hand: suggestedHand(for: sound, step: step))
+            return Exercise.Note(step: step, sound: sound, hand: suggestedHand(for: sound, step: step), velocity: hit.velocity)
         }
         guard !notes.isEmpty else { throw MIDIExerciseError.noPlayableNotes }
-        let totalSteps = max(16, Int(ceil(Double(max(endTick, hits.map(\.tick).max() ?? 0)) / ticksPerStep / 16)) * 16)
+        let totalSteps = max(grid, Int(ceil(Double(max(endTick, hits.map(\.tick).max() ?? 0)) / ticksPerStep / Double(grid))) * grid)
         let bpm = max(1, Int((60_000_000 / Double(tempo)).rounded()))
         let fileID = url.deletingPathExtension().lastPathComponent
         let exercise = Exercise(
             format: 1, id: fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
             family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / 16,
-            grid: 16, repeats: 4, kit: kit.id, loop: nil, offset: 0, notes: notes
+            grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes
         )
         try exercise.validate(availableSounds: Set(kit.sounds.map(\.id)))
         return exercise
@@ -72,14 +76,15 @@ public enum MIDIExerciseLoader {
     private static func suggestedHand(for sound: String, step: Int) -> String {
         switch sound {
         case "kick", "clap": return "L"
+        case "rim": return "R"
         case "hihat_closed", "hihat_open": return step.isMultiple(of: 4) ? "R" : "L"
         default: return "R"
         }
     }
 
-    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempo: Int?, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int)]) {
+    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempo: Int?, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)]) {
         var reader = MIDIReader(bytes: bytes)
-        var tick = 0; var runningStatus: UInt8?; var tempo: Int?; var meter: [Int]?; var title: String?; var hits: [(Int, Int)] = []
+        var tick = 0; var runningStatus: UInt8?; var tempo: Int?; var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []
         while !reader.isAtEnd {
             tick += try reader.readVariableLength()
             let first = try reader.readByte()
@@ -99,7 +104,7 @@ public enum MIDIExerciseLoader {
             let command = status & 0xF0
             let data1 = try firstData ?? reader.readByte()
             let data2: UInt8? = (command == 0xC0 || command == 0xD0) ? nil : try reader.readByte()
-            if command == 0x90, let data2, data2 > 0 { hits.append((tick, Int(data1))) }
+            if command == 0x90, let data2, data2 > 0 { hits.append((tick, Int(data1), Int(data2))) }
         }
         return (tempo, meter, title, tick, hits)
     }

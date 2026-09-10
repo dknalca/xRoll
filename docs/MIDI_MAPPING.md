@@ -107,3 +107,23 @@ Se ignoran las repeticiones automaticas de tecla. El teclado sirve para probar y
 practicar sin controlador, aunque algunos teclados no registran todas las
 combinaciones simultaneas y la interfaz debe explicarlo sin convertirlo en un
 fallo de puntuacion misterioso.
+
+## Evolución a layouts múltiples
+
+La regla v1 «cada sonido aparece como máximo una vez» queda sustituida por `.padmap` v2. Un sonido puede tener varios pads; una entrada MIDI concreta sigue siendo única.
+
+El sistema separa:
+- sonido reproducido;
+- posición física;
+- rol técnico opcional;
+- mensaje MIDI.
+
+Presets y editor se especifican en [PAD_LAYOUTS.md](PAD_LAYOUTS.md); formato y migración en [PADMAP_V2.md](PADMAP_V2.md).
+
+## Resolución de una entrada
+
+1. CoreMIDI entrega mensaje, número y canal.
+2. `LayoutEngine` localiza un pad físico.
+3. El pad resuelve sonido y rol.
+4. El motor de ejercicios compara contra objetivo por sonido, rol o pad.
+5. El render ilumina la posición física realmente golpeada.

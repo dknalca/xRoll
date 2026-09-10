@@ -8,6 +8,7 @@ final class PracticeScene: SKScene {
     private let anticipationMilliseconds: Double
     private let slotBySound: [String: Int]
     private let soundLabels: [String: String]
+    private let showsSoundLabels: Bool
     private var noteNodes: [(ScheduledExerciseNote, SKShapeNode)] = []
     private var pulseLines: [(timeMilliseconds: Double, node: SKShapeNode)] = []
     private let hitY: CGFloat = 82
@@ -15,12 +16,13 @@ final class PracticeScene: SKScene {
     private let beatLabel = SKLabelNode()
     private let progressFill = SKSpriteNode(color: .systemCyan, size: .zero)
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String]) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.slotBySound = slotBySound
         self.soundLabels = soundLabels
+        self.showsSoundLabels = showsSoundLabels
         super.init(size: CGSize(width: 960, height: 520))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 0.018, green: 0.035, blue: 0.085, alpha: 1)
@@ -138,15 +140,17 @@ final class PracticeScene: SKScene {
             target.zPosition = 5
             addChild(target)
 
-            let label = SKLabelNode(text: soundLabels[sound] ?? sound)
-            label.fontName = "Avenir Next Demi Bold"
-            label.fontSize = 12
-            label.fontColor = .white
-            label.verticalAlignmentMode = .center
-            label.horizontalAlignmentMode = .center
-            label.position = CGPoint(x: x, y: 36)
-            label.zPosition = 6
-            addChild(label)
+            if showsSoundLabels {
+                let label = SKLabelNode(text: soundLabels[sound] ?? sound)
+                label.fontName = "Avenir Next Demi Bold"
+                label.fontSize = 12
+                label.fontColor = .white
+                label.verticalAlignmentMode = .center
+                label.horizontalAlignmentMode = .center
+                label.position = CGPoint(x: x, y: 36)
+                label.zPosition = 6
+                addChild(label)
+            }
         }
         for note in timeline.notes {
             let node = note.hand == "L"
@@ -208,6 +212,7 @@ final class PracticeScene: SKScene {
     private func color(forSound sound: String) -> SKColor {
         switch sound {
         case "kick": return SKColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1)
+        case "rim": return SKColor(red: 0.78, green: 0.59, blue: 0.25, alpha: 1)
         case "snare": return SKColor(red: 1.0, green: 0.37, blue: 0.48, alpha: 1)
         case "clap": return SKColor(red: 0.72, green: 0.48, blue: 1.0, alpha: 1)
         case "hihat_closed", "hihat_open": return SKColor(red: 0.42, green: 0.92, blue: 0.58, alpha: 1)

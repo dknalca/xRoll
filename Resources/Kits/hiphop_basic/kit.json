@@ -11,6 +11,13 @@
       "choke_group": null
     },
     {
+      "id": "rim",
+      "label": "Aro",
+      "file": "rim.wav",
+      "gm_note": 37,
+      "choke_group": null
+    },
+    {
       "id": "snare",
       "label": "Caja",
       "file": "snare.wav",

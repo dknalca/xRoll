@@ -42,3 +42,14 @@ tempo, subdivisión y sonido nuevo en el mismo nivel.
 
 Incluye autor, licencia y una breve descripción junto al archivo en la página o
 repositorio donde lo compartas. No distribuyas audio ajeno dentro del MIDI.
+
+## Relación con los ejercicios integrados
+
+Los ejercicios integrados usan el mismo formato MIDI que los comunitarios. La
+app los carga desde `data/exercises/`; los ejercicios importados se copian al
+almacenamiento local y se añaden al final del catálogo sin bloquearse por la
+progresión base. Los JSON anteriores se archivan y no se cargan.
+
+## Informe didáctico de importación
+
+xRoll informa ya de polifonía, número de sonidos, semicorcheas, tempo alto y longitud. Un archivo técnicamente válido puede recibir advertencias pedagógicas, pero no se bloquea: el autor conserva la decisión final.

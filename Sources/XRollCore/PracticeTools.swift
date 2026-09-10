@@ -103,7 +103,7 @@ public enum PracticePreferencesStore {
     }
 }
 
-public struct SoundStatistics: Equatable {
+public struct SoundStatistics: Codable, Equatable {
     public let sound: String
     public let expected: Int
     public let perfect: Int
@@ -116,11 +116,21 @@ public struct SoundStatistics: Equatable {
 public struct PracticeInsights: Equatable {
     public let timingLabel: String
     public let soundStatistics: [SoundStatistics]
+    public let medianOffsetMilliseconds: Double?
+    public let medianAbsoluteDeviationMilliseconds: Double?
+    public let percentile95AbsoluteMilliseconds: Double?
 
     public init(score: ExerciseScore) {
-        let offsets = score.hits.compactMap(\.offsetMilliseconds)
+        let offsets = score.hits.compactMap(\.offsetMilliseconds).sorted()
         let mean = offsets.isEmpty ? 0 : offsets.reduce(0, +) / Double(offsets.count)
         timingLabel = mean < -15 ? "Tiendes a adelantar el golpe" : mean > 15 ? "Tiendes a retrasar el golpe" : "Tu pulso está centrado"
+        guard !offsets.isEmpty else { medianOffsetMilliseconds = nil; medianAbsoluteDeviationMilliseconds = nil; percentile95AbsoluteMilliseconds = nil; soundStatistics = []; return }
+        let median = offsets[offsets.count / 2]
+        medianOffsetMilliseconds = median
+        let deviations = offsets.map { abs($0 - median) }.sorted()
+        medianAbsoluteDeviationMilliseconds = deviations[deviations.count / 2]
+        let absolute = offsets.map(abs).sorted()
+        percentile95AbsoluteMilliseconds = absolute[min(absolute.count - 1, Int((Double(absolute.count - 1) * 0.95).rounded(.up)))]
         let sounds = Set(score.hits.compactMap { $0.expectedNote?.sound }).union(score.misses.map(\.sound))
         soundStatistics = sounds.sorted().map { sound in
             let judged = score.hits.filter { $0.expectedNote?.sound == sound }
@@ -130,6 +140,40 @@ public struct PracticeInsights: Equatable {
                                    regular: judged.filter { $0.judgement == .regular }.count,
                                    missed: score.misses.filter { $0.sound == sound }.count)
         }
+    }
+}
+
+public enum PracticeHelp: String, CaseIterable, Codable {
+    case full, normal, reduced
+    public var label: String { switch self { case .full: return "Completa"; case .normal: return "Normal"; case .reduced: return "Reducida" } }
+}
+
+/// Primera capa del Ghost Coach: convierte el último patrón en una instrucción
+/// concreta y reproducible antes de mostrar una visualización temporal completa.
+public enum GhostCoach {
+    public static func cue(score: ExerciseScore, insights: PracticeInsights) -> String {
+        guard let weak = insights.soundStatistics.min(by: { $0.accuracy < $1.accuracy }) else { return "Completa una vuelta para que Ghost Coach pueda comparar tu interpretación." }
+        let direction = (score.meanOffsetMilliseconds ?? 0) < -12 ? "retrasando ligeramente" : (score.meanOffsetMilliseconds ?? 0) > 12 ? "anticipando ligeramente" : "manteniendo el pulso"
+        return "Ghost Coach: reproduce el patrón y repite " + weak.sound + " " + direction + "; es la voz con más margen de mejora."
+    }
+}
+
+public struct AutopilotRecommendation: Equatable {
+    public let message: String
+    public let bpmAdjustment: Int
+    public let repeats: Int
+    public let help: PracticeHelp
+}
+
+public enum PracticeAutopilot {
+    public static func recommend(score: ExerciseScore, insights: PracticeInsights, bpm: Int, repeats: Int) -> AutopilotRecommendation {
+        let offsets = score.hits.compactMap(\.offsetMilliseconds)
+        let mean = offsets.isEmpty ? 0 : offsets.reduce(0, +) / Double(offsets.count)
+        let spread = offsets.isEmpty ? 0 : offsets.map { abs($0 - mean) }.reduce(0, +) / Double(offsets.count)
+        if spread > 45 { return .init(message: "Hay variación entre golpes: baja el tempo y toca una vuelta corta.", bpmAdjustment: -6, repeats: 2, help: .full) }
+        if let weakest = insights.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weakest.accuracy < 70 { return .init(message: "Aísla \(weakest.sound) antes de integrar el patrón.", bpmAdjustment: 0, repeats: 2, help: .normal) }
+        if score.percentage >= 85 { return .init(message: "Vas sólido: sube un poco el tempo o reduce ayudas.", bpmAdjustment: 4, repeats: repeats, help: .reduced) }
+        return .init(message: "Repite el patrón con la misma configuración y centra cada golpe.", bpmAdjustment: 0, repeats: repeats, help: .normal)
     }
 }
 

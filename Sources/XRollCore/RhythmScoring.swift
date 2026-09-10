@@ -4,6 +4,7 @@ public struct ScheduledExerciseNote: Equatable {
     public let index: Int
     public let sound: String
     public let hand: String?
+    public let target: Exercise.Target?
     public let timeMilliseconds: Double
 }
 
@@ -25,6 +26,7 @@ public struct ExerciseTimeline: Equatable {
                     index: repeatIndex * exercise.notes.count + noteIndex,
                     sound: note.sound,
                     hand: note.hand,
+                    target: note.target,
                     timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(shiftedStep) * stepDurationMilliseconds
                 ))
             }
@@ -81,10 +83,12 @@ public enum RhythmJudgement: String, Equatable {
 public struct TimedPadHit: Equatable {
     public let sound: String
     public let timeMilliseconds: Double
+    public let role: String?
+    public let padID: String?
+    public let velocity: UInt8?
 
-    public init(sound: String, timeMilliseconds: Double) {
-        self.sound = sound
-        self.timeMilliseconds = timeMilliseconds
+    public init(sound: String, timeMilliseconds: Double, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
+        self.sound = sound; self.timeMilliseconds = timeMilliseconds; self.role = role; self.padID = padID; self.velocity = velocity
     }
 }
 
@@ -123,7 +127,7 @@ public enum RhythmScorer {
 
         for hit in hits.sorted(by: { $0.timeMilliseconds < $1.timeMilliseconds }) {
             let candidates = timeline.notes.filter { note in
-                guard pending.contains(note.index), note.sound == hit.sound else { return false }
+                guard pending.contains(note.index), note.sound == hit.sound, target(note.target, matches: hit) else { return false }
                 let scoredOffset = hit.timeMilliseconds - note.timeMilliseconds - calibrationOffsetMilliseconds
                 return abs(scoredOffset) <= windows.regularMilliseconds
             }
@@ -168,5 +172,10 @@ public enum RhythmScorer {
             stars: stars,
             meanOffsetMilliseconds: meanOffset
         )
+    }
+
+    private static func target(_ target: Exercise.Target?, matches hit: TimedPadHit) -> Bool {
+        guard let target else { return true }
+        switch target.type { case .any: return true; case .role: return target.value == hit.role; case .pad: return target.value == hit.padID }
     }
 }

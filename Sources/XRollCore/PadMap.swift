@@ -107,6 +107,26 @@ public struct PadMapRouter {
 }
 
 public enum PadMapStore {
+    public static func loadV2(at url: URL, availableSounds: Set<String>) throws -> PadMapV2 {
+        let data = try Data(contentsOf: url)
+        let format = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["format"] as? Int
+        if format == 2 {
+            let map = try JSONDecoder().decode(PadMapV2.self, from: data)
+            try map.validate(availableSounds: availableSounds)
+            return map
+        }
+        let legacy = try JSONDecoder().decode(PadMap.self, from: data)
+        try legacy.validate(availableSounds: availableSounds)
+        return PadMapV2(migrating: legacy)
+    }
+
+    public static func save(_ padMap: PadMapV2, to url: URL, availableSounds: Set<String>) throws {
+        try padMap.validate(availableSounds: availableSounds)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(padMap).write(to: url, options: .atomic)
+    }
+
     public static func load(at url: URL, availableSounds: Set<String>) throws -> PadMap {
         let padMap = try JSONDecoder().decode(PadMap.self, from: Data(contentsOf: url))
         try padMap.validate(availableSounds: availableSounds)

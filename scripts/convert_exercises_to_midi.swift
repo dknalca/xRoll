@@ -5,7 +5,7 @@ struct Exercise: Decodable {
     let id: String; let title: String; let bpm: Int; let notes: [Note]
 }
 
-let gmNotes = ["kick": 36, "snare": 38, "clap": 39, "tom_low": 41, "hihat_closed": 42, "hihat_open": 46, "tom_high": 48, "crash": 49, "ride": 51]
+let gmNotes = ["kick": 36, "rim": 37, "snare": 38, "clap": 39, "tom_low": 41, "hihat_closed": 42, "hihat_open": 46, "tom_high": 48, "crash": 49, "ride": 51]
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
 let directory = root.appendingPathComponent("data/exercises", isDirectory: true)
 let encoder = JSONDecoder()
