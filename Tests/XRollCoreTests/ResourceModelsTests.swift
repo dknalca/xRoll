@@ -154,7 +154,7 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(router.soundID(for: 48), "tom_high")
         XCTAssertEqual(router.soundID(for: 51), "ride")
         let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
-        XCTAssertEqual(exercises.count, 12)
+        XCTAssertEqual(exercises.count, 15)
         XCTAssertEqual(exercises.first?.title, "Boom bap 1 - bombo y caja")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
     }

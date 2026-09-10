@@ -1,0 +1,11 @@
+{
+  "id": "hh_15_ride",
+  "title": "Boom bap 15 - ride a negras",
+  "bpm": 80,
+  "notes": [
+    {"step": 0, "sound": "kick"}, {"step": 0, "sound": "ride"},
+    {"step": 4, "sound": "snare"}, {"step": 4, "sound": "ride"},
+    {"step": 8, "sound": "kick"}, {"step": 8, "sound": "ride"},
+    {"step": 12, "sound": "snare"}, {"step": 12, "sound": "ride"}
+  ]
+}
