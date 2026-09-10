@@ -7,7 +7,14 @@ public struct PracticeConfiguration: Equatable {
 
     public init(exercise: Exercise, bpm: Int? = nil, repeats: Int? = nil) {
         self.bpm = min(240, max(40, bpm ?? exercise.bpm))
-        self.repeats = min(16, max(1, repeats ?? exercise.repeats))
+        self.repeats = Self.normalizedRepeats(repeats ?? exercise.repeats)
+    }
+
+    /// Practice lengths double each time, making short checks and long focused
+    /// sessions equally quick to choose.
+    public static func normalizedRepeats(_ value: Int) -> Int {
+        let options = [1, 2, 4, 8, 16]
+        return options.first(where: { $0 >= value }) ?? 16
     }
 
     public func applying(to exercise: Exercise) -> Exercise {
@@ -39,7 +46,7 @@ public enum WarmupPlanner {
             let item = progress[exercise.id]
             let reason: String
             if item == nil { reason = "Aún no lo has practicado" }
-            else if (item?.latestScore ?? 0) < 75 { reason = "Conviene consolidarlo" }
+            else if (item?.latestScore ?? 0) < 70 { reason = "Conviene consolidarlo" }
             else { reason = "Repaso para mantener el pulso" }
             return WarmupRecommendation(exerciseID: exercise.id, title: exercise.title, bpm: exercise.bpm, reason: reason)
         }
@@ -58,10 +65,10 @@ public struct CourseLevelState: Equatable {
     public let bestScore: Double?
 }
 
-/// Mantiene una escalera sencilla para principiantes: superar un nivel al 75 %
+/// Mantiene una escalera sencilla para principiantes: superar un nivel al 70 %
 /// abre el siguiente; un resultado peor nunca vuelve a bloquear lo conseguido.
 public enum CourseProgress {
-    public static func states(exercises: [Exercise], progress: [String: ExerciseProgress], masteryScore: Double = 75) -> [CourseLevelState] {
+    public static func states(exercises: [Exercise], progress: [String: ExerciseProgress], masteryScore: Double = 70) -> [CourseLevelState] {
         var previousMastered = true
         return exercises.sorted { $0.level < $1.level }.map { exercise in
             let item = progress[exercise.id]

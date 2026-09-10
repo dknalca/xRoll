@@ -142,6 +142,23 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertGreaterThan(AudioClock.hostTime(afterMilliseconds: 10, from: start), start)
     }
 
+    func testLoadsTheBundledMIDIExerciseCatalog() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalog = ResourceCatalog()
+        let kit = try catalog.loadKit(at: root.appendingPathComponent("Resources/Kits/hiphop_basic/kit.json"))
+        let router = KitNoteRouter(kit: kit)
+        XCTAssertEqual(router.soundID(for: 41), "tom_low")
+        XCTAssertEqual(router.soundID(for: 48), "tom_high")
+        XCTAssertEqual(router.soundID(for: 51), "ride")
+        let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
+        XCTAssertEqual(exercises.count, 12)
+        XCTAssertEqual(exercises.first?.title, "Boom bap 1 - bombo y caja")
+        XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
+    }
+
     func testScoresJudgementsExtrasAndMisses() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(
@@ -162,8 +179,8 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertEqual(score.hits.map(\.judgement), [.perfect, .extra, .regular])
         XCTAssertTrue(score.misses.isEmpty)
-        XCTAssertEqual(score.percentage, 45, accuracy: 0.001)
-        XCTAssertEqual(score.stars, 0)
+        XCTAssertEqual(score.percentage, 72.5, accuracy: 0.001)
+        XCTAssertEqual(score.stars, 2)
         XCTAssertEqual(score.meanOffsetMilliseconds!, 45, accuracy: 0.001)
     }
 
@@ -227,6 +244,7 @@ final class ResourceModelsTests: XCTestCase {
         let configured = PracticeConfiguration(exercise: exercise, bpm: 300, repeats: 0).applying(to: exercise)
         XCTAssertEqual(configured.bpm, 240)
         XCTAssertEqual(configured.repeats, 1)
+        XCTAssertEqual(PracticeConfiguration(exercise: exercise, repeats: 7).repeats, 8)
         XCTAssertEqual(ExerciseTimeline(exercise: configured).stepDurationMilliseconds, 62.5, accuracy: 0.001)
     }
 
@@ -251,7 +269,7 @@ final class ResourceModelsTests: XCTestCase {
             Exercise(format: 1, id: "level_\(level)", title: "Nivel \(level)", family: "test", level: level, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         }
         XCTAssertEqual(CourseProgress.states(exercises: exercises, progress: [:]).map(\.status), [.available, .locked, .locked])
-        let first = ExerciseProgress(attemptCount: 1, bestScore: 76, latestScore: 76)
+        let first = ExerciseProgress(attemptCount: 1, bestScore: 70, latestScore: 70)
         XCTAssertEqual(CourseProgress.states(exercises: exercises, progress: ["level_1": first]).map(\.status), [.mastered, .available, .locked])
     }
 
@@ -270,11 +288,12 @@ final class ResourceModelsTests: XCTestCase {
     }
 
     func testTuningClampsAndPersists() throws {
-        let tuning = PracticeTuning(debugEnabled: true, anticipationBars: 8, perfectWindowMilliseconds: 80, goodWindowMilliseconds: 20, regularWindowMilliseconds: 10, manualTimingOffsetMilliseconds: 500, countInVolume: 2, padFlashMilliseconds: 1)
+        let tuning = PracticeTuning(debugEnabled: true, anticipationBars: 8, perfectWindowMilliseconds: 80, goodWindowMilliseconds: 20, regularWindowMilliseconds: 10, manualTimingOffsetMilliseconds: 500, countInVolume: 2, metronomePitchSemitones: 30, padFlashMilliseconds: 1)
         XCTAssertEqual(tuning.anticipationBars, 4)
         XCTAssertEqual(tuning.goodWindowMilliseconds, 80)
         XCTAssertEqual(tuning.regularWindowMilliseconds, 80)
         XCTAssertEqual(tuning.manualTimingOffsetMilliseconds, 200)
+        XCTAssertEqual(tuning.metronomePitchSemitones, 24)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-tuning-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try PracticeTuningStore.save(tuning, to: url)

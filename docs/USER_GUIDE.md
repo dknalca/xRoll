@@ -4,7 +4,8 @@
 
 1. Abre `dist/xRoll.app` o ejecuta `swift run xroll-pads` desde la raíz.
 2. Conecta el M-Vave antes de abrir la aplicación. Si no aparece, usa la
-   pestaña **Mapear pads** para elegir la entrada y asignar los seis sonidos.
+   pestaña **Mapear pads** para elegir la entrada y asignar los sonidos que
+   tenga tu controlador; puedes omitir los que no uses.
 3. En **Practicar**, elige un ejercicio. Ajusta BPM y vueltas si hace falta.
 4. Usa **Escuchar y colocar** para oír el patrón. Después pulsa
    **Empezar práctica**. Hay dos compases para prepararse.

@@ -30,4 +30,5 @@ cat > "$output/Contents/Info.plist" <<'PLIST'
   <key>LSMinimumSystemVersion</key><string>12.0</string>
 </dict></plist>
 PLIST
+touch "$output"
 echo "Aplicacion creada: $output"

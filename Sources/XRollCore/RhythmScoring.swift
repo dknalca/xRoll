@@ -68,8 +68,11 @@ public enum RhythmJudgement: String, Equatable {
     public var value: Double {
         switch self {
         case .perfect: return 1
-        case .good: return 0.7
-        case .regular: return 0.4
+        // A regular hit is still a correctly placed hit. It should encourage a
+        // beginner to improve timing, not make a mostly correct pattern feel
+        // like a failure.
+        case .good: return 0.85
+        case .regular: return 0.7
         case .miss, .extra: return 0
         }
     }
@@ -150,12 +153,14 @@ public enum RhythmScorer {
 
         let misses = timeline.notes.filter { pending.contains($0.index) }
         let earned = results.reduce(0) { $0 + $1.judgement.value }
-        let penalty = Double(results.filter { $0.judgement == .extra }.count) * 0.5
+        // Extras must matter, but a single accidental tap should not outweigh
+        // the credit earned by a valid, if loose, hit.
+        let penalty = Double(results.filter { $0.judgement == .extra }.count) * 0.25
         let possible = Double(timeline.notes.count)
         let percentage = possible == 0 ? 0 : min(100, max(0, (earned - penalty) / possible * 100))
         let offsets = results.compactMap(\.offsetMilliseconds)
         let meanOffset = offsets.isEmpty ? nil : offsets.reduce(0, +) / Double(offsets.count)
-        let stars = percentage >= 90 ? 3 : percentage >= 75 ? 2 : percentage >= 50 ? 1 : 0
+        let stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 50 ? 1 : 0
         return ExerciseScore(
             hits: results,
             misses: misses,

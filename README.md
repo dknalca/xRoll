@@ -37,11 +37,12 @@ indicado y sirve para la medicion fisica de la fase 0. No se puede ejecutar hast
 incorporar los WAV definitivos.
 
 `xroll-play-kit` usa el mapa GM del `kit.json`: bombo 36, caja 38, palmada 39,
-charles cerrado 42, charles abierto 46 y crash 49. Para descubrir las notas de
+tom grave 41, charles cerrado 42, charles abierto 46, tom agudo 48, crash 49 y
+ride 51. Para descubrir las notas de
 un controlador que se haya reconfigurado, se inicia una vez con `--log-events`.
 Un `.padmap` valida que cada sonido, posicion y nota/canal solo aparezcan una vez.
-`xroll-map-pads` crea ese archivo guiando seis golpes: bombo, caja, palmada,
-charles cerrado, charles abierto y crash.
+`xroll-map-pads` crea ese archivo guiando los sonidos del kit; se pueden omitir
+los que no tenga el controlador.
 
 `xroll-pads` abre la ventana principal. La pestaña **Practicar** permite elegir
 un ejercicio, escucharlo sin puntuacion y tocar los seis sonidos con el M-Vave o

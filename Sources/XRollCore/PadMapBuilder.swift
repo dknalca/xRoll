@@ -14,6 +14,7 @@ public struct PadMapCaptureStep: Equatable {
 
 public enum PadMapCaptureResult: Equatable {
     case assigned(sound: String, remaining: Int)
+    case skipped(sound: String, remaining: Int)
     case duplicate(note: Int, channel: Int, existingSound: String)
     case complete(PadMap)
 }
@@ -23,9 +24,12 @@ public struct PadMapBuilder {
         PadMapCaptureStep(sound: "kick", row: 0, column: 0),
         PadMapCaptureStep(sound: "snare", row: 0, column: 2),
         PadMapCaptureStep(sound: "clap", row: 0, column: 3),
+        PadMapCaptureStep(sound: "tom_low", row: 1, column: 1),
         PadMapCaptureStep(sound: "hihat_closed", row: 1, column: 2),
         PadMapCaptureStep(sound: "hihat_open", row: 2, column: 2),
-        PadMapCaptureStep(sound: "crash", row: 3, column: 1)
+        PadMapCaptureStep(sound: "tom_high", row: 3, column: 0),
+        PadMapCaptureStep(sound: "crash", row: 3, column: 1),
+        PadMapCaptureStep(sound: "ride", row: 3, column: 3)
     ]
 
     private let device: String
@@ -33,6 +37,7 @@ public struct PadMapBuilder {
     private let created: String
     private let steps: [PadMapCaptureStep]
     private var pads: [PadMap.Pad] = []
+    private var stepIndex = 0
 
     public init(device: String, deviceUID: Int, created: String, steps: [PadMapCaptureStep] = suggestedSteps) {
         self.device = device
@@ -41,7 +46,10 @@ public struct PadMapBuilder {
         self.steps = steps
     }
 
-    public var nextStep: PadMapCaptureStep? { steps.dropFirst(pads.count).first }
+    public var nextStep: PadMapCaptureStep? {
+        guard stepIndex < steps.count else { return nil }
+        return steps[stepIndex]
+    }
 
     public mutating func assign(_ event: MIDINoteOn) -> PadMapCaptureResult {
         guard let step = nextStep else {
@@ -57,7 +65,15 @@ public struct PadMapBuilder {
             row: step.row,
             column: step.column
         ))
+        stepIndex += 1
         let map = PadMap(device: device, deviceUID: deviceUID, created: created, pads: pads)
-        return nextStep == nil ? .complete(map) : .assigned(sound: step.sound, remaining: steps.count - pads.count)
+        return nextStep == nil ? .complete(map) : .assigned(sound: step.sound, remaining: steps.count - stepIndex)
+    }
+
+    public mutating func skip() -> PadMapCaptureResult? {
+        guard let step = nextStep else { return nil }
+        stepIndex += 1
+        let map = PadMap(device: device, deviceUID: deviceUID, created: created, pads: pads)
+        return nextStep == nil ? .complete(map) : .skipped(sound: step.sound, remaining: steps.count - stepIndex)
     }
 }

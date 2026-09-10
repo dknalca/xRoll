@@ -35,13 +35,17 @@ Resources/Kits/hiphop_basic/
     clap.wav
     hihat_closed.wav
     hihat_open.wav
+    tom_lo.wav
+    tom_hi.wav
     crash.wav
+    ride.wav
 ```
 
 Minusculas, guion bajo, sin acentos ni espacios.
 
-El kit inicial incluye solo esos seis sonidos. Los demas identificadores se
-anadiran cuando existan sus WAV y ejercicios que los necesiten.
+El kit inicial incluye bombo, caja, palmada, charles cerrado y abierto, dos
+toms, crash y ride. Los demas identificadores se anadiran cuando existan sus
+WAV y ejercicios que los necesiten.
 
 **Ningun nombre de fichero aparece en el codigo.** El codigo lee kit.json. Anadir
 un kit debe consistir en soltar una carpeta.

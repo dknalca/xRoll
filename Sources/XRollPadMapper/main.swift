@@ -49,6 +49,8 @@ do {
         case .assigned(let sound, let remaining):
             print("Asignado \(sound): nota \(event.note), canal \(event.channel). Quedan \(remaining).")
             printNextStep()
+        case .skipped:
+            break
         case .duplicate(let note, let channel, let existingSound):
             print("La nota \(note), canal \(channel), ya corresponde a \(existingSound). Golpea otro pad.")
         case .complete(let map):

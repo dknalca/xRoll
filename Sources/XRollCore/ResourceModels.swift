@@ -94,6 +94,12 @@ public struct Exercise: Codable, Equatable {
     public let offset: Int
     public let notes: [Note]
 
+    public init(format: Int, id: String, title: String, family: String, level: Int, bpm: Int, meter: [Int], bars: Int, grid: Int, repeats: Int, kit: String, loop: String?, offset: Int, notes: [Note]) {
+        self.format = format; self.id = id; self.title = title; self.family = family; self.level = level
+        self.bpm = bpm; self.meter = meter; self.bars = bars; self.grid = grid; self.repeats = repeats
+        self.kit = kit; self.loop = loop; self.offset = offset; self.notes = notes
+    }
+
     public func validate(availableSounds: Set<String>) throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
         guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
@@ -143,15 +149,12 @@ public struct ResourceCatalog {
             at: directory,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension.lowercased() == "json" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        ).filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
 
         let availableSounds = Set(kit.sounds.map(\.id))
-        let exercises = try urls.map { url -> Exercise in
-            let exercise = try decoder.decode(Exercise.self, from: Data(contentsOf: url))
+        let exercises = try urls.enumerated().map { index, url -> Exercise in
+            let exercise = try MIDIExerciseLoader.load(url: url, kit: kit, level: index + 1)
             try exercise.validate(availableSounds: availableSounds)
-            guard exercise.kit == kit.id else {
-                throw ResourceValidationError.emptyIdentifier("kit incorrecto en \(url.lastPathComponent)")
-            }
             return exercise
         }
 

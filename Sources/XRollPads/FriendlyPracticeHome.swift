@@ -115,7 +115,7 @@ struct ResultsHome: View {
                 Text(model.chosen?.title ?? "Práctica").font(.title3).foregroundColor(.white.opacity(0.72))
                 StagePanel {
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        Text("\(Int((model.lastScorePercentage ?? 0).rounded())) %").font(.system(size: 52, weight: .bold)).foregroundColor((model.lastScorePercentage ?? 0) >= 75 ? .green : (model.lastScorePercentage ?? 0) >= 50 ? .yellow : .red)
+                        Text("\(Int((model.lastScorePercentage ?? 0).rounded())) %").font(.system(size: 52, weight: .bold)).foregroundColor((model.lastScorePercentage ?? 0) >= 70 ? .green : (model.lastScorePercentage ?? 0) >= 50 ? .yellow : .red)
                         Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.title).foregroundColor(.yellow)
                     }
                     Text(String(format: "Puntuación: %.1f / %d", model.lastPoints, model.lastPossiblePoints)).font(.title3.bold())
@@ -126,6 +126,8 @@ struct ResultsHome: View {
                         ScoreStat("Mal", value: model.lastWrong, color: .red)
                     }.padding(.vertical, 5)
                     Text(model.advice).font(.subheadline).foregroundColor(.white.opacity(0.72))
+                    Text(model.weakestSoundFeedback).font(.subheadline).foregroundColor(.yellow)
+                    Text(model.nextPracticeRecommendation).font(.subheadline).foregroundColor(.cyan)
                 }.frame(maxWidth: 560)
                 if let next = model.nextExerciseTitle {
                     Text("Has conseguido estrellas. Puedes pasar a: \(next)").font(.headline).foregroundColor(.green)
@@ -153,6 +155,7 @@ private struct PracticeHeader: View {
             HStack(spacing: 7) {
                 Circle().fill(model.status.contains("MIDI") ? Color.green : Color.orange).frame(width: 8, height: 8)
                 Text(model.status).font(.caption.bold()).foregroundColor(.white.opacity(0.76))
+                ActionButton("↻ MIDI", prominence: .secondary) { model.refreshMIDIDevices() }
             }
         }.padding(.horizontal, 24).padding(.top, 22)
     }
@@ -212,6 +215,18 @@ private struct PlayerColumn: View {
                 }
             }
             StagePanel {
+                Text("EN ESTE NIVEL").font(.caption.bold()).foregroundColor(.cyan)
+                Text(model.lessonGoal).font(.subheadline.weight(.semibold))
+                HStack(spacing: 6) {
+                    ForEach(model.lessonPattern, id: \.self) { item in
+                        Text(item).font(.caption.bold()).padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(Color.white.opacity(0.10)).clipShape(Capsule())
+                    }
+                }
+                Text("Por vuelta · aprende una idea nueva antes de sumar la siguiente.")
+                    .font(.caption2).foregroundColor(.white.opacity(0.58))
+            }
+            StagePanel {
                 HStack { Text("TU CONTROLADOR").font(.caption.bold()).foregroundColor(.cyan); Spacer(); Text("4 × 4").font(.caption).foregroundColor(.white.opacity(0.5)) }
                 Grid(model: model).padding(.top, 12)
                 Text("Bombo, caja y palmada abajo. Charles y crash encima.").font(.caption).foregroundColor(.white.opacity(0.55)).padding(.top, 8)
@@ -225,14 +240,24 @@ private struct SessionColumn: View {
     var body: some View {
         VStack(spacing: 14) {
             StagePanel {
+                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
                 Text("SESIÓN").font(.caption.bold()).foregroundColor(.cyan)
                 Text("\(model.selectedBPM) BPM").font(.title.bold()).padding(.top, 4)
                 Stepper("Tempo", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in model.savePreferences() }
                 Divider().overlay(Color.white.opacity(0.16)).padding(.vertical, 5)
                 Text("\(model.selectedRepeats) vueltas").font(.headline)
-                Stepper("Duración", value: $model.selectedRepeats, in: 1...16).onChange(of: model.selectedRepeats) { _ in model.savePreferences() }
+                repeatStepper(model: model)
+                Picker("Enfoque", selection: $model.practiceFragment) {
+                    Text("Compás completo").tag(0)
+                    Text("1ª mitad").tag(1)
+                    Text("2ª mitad").tag(2)
+                }.pickerStyle(.segmented)
                 ActionButton("Escuchar y colocar") { model.previewExercise() }.padding(.top, 7)
-                ActionButton("Calibrar", prominence: .quiet) { model.startCalibration() }
+                ActionButton("Calibración guiada", prominence: .secondary) { model.startCalibration() }
+                Text("Ajusta el tiempo de respuesta de este controlador y salida de audio.")
+                    .font(.caption2).foregroundColor(.white.opacity(0.58))
+                }
                 VStack(alignment: .leading, spacing: 7) {
                     Divider().overlay(Color.white.opacity(0.16)).padding(.vertical, 2)
                     Text("ACOMPAÑAMIENTO").font(.caption.bold()).foregroundColor(.cyan)
@@ -242,13 +267,14 @@ private struct SessionColumn: View {
                     }
                     ActionButton(model.loopEnabled ? "Loop activado" : "Loop desactivado", prominence: model.loopEnabled ? .primary : .secondary) { model.toggleLoop() }
                 }
+                }
             }
             StagePanel {
                 Text("ÚLTIMO INTENTO").font(.caption.bold()).foregroundColor(.cyan)
                 if let percentage = model.lastScorePercentage {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("\(Int(percentage.rounded())) %").font(.title.bold()).foregroundColor(percentage >= 75 ? .green : percentage >= 50 ? .yellow : .red)
+                            Text("\(Int(percentage.rounded())) %").font(.title.bold()).foregroundColor(percentage >= 70 ? .green : percentage >= 50 ? .yellow : .red)
                             Text(String(repeating: "★", count: model.lastScoreStars) + String(repeating: "☆", count: 3 - model.lastScoreStars)).font(.headline).foregroundColor(.yellow)
                         }
                         Text(String(format: "Puntuación: %.1f / %d", model.lastPoints, model.lastPossiblePoints)).font(.headline)
@@ -270,9 +296,18 @@ private struct SessionColumn: View {
                 Text(model.result.isEmpty ? "Sin intentos todavía" : model.result).font(.caption).padding(.top, 2)
                 Text(model.advice).font(.caption2).foregroundColor(.white.opacity(0.58)).padding(.top, 4)
                 Text(model.insights).font(.caption2).foregroundColor(.white.opacity(0.58))
+                Text(model.weakestSoundFeedback).font(.caption2).foregroundColor(.yellow)
+                Text(model.nextPracticeRecommendation).font(.caption2).foregroundColor(.cyan)
             }
         }
     }
+}
+
+private func repeatStepper(model: Model) -> some View {
+    Stepper("Duración", value: Binding(
+        get: { Model.repeatOptions.firstIndex(of: model.selectedRepeats) ?? 0 },
+        set: { model.setRepeats(Model.repeatOptions[$0]) }
+    ), in: 0...(Model.repeatOptions.count - 1))
 }
 
 private struct ScoreStat: View {

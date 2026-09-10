@@ -46,11 +46,50 @@ public struct AudioOutputDescription: Equatable {
     public let outputLatency: TimeInterval
 }
 
+public struct AudioOutputDeviceDescription: Equatable, Identifiable {
+    public let deviceID: AudioDeviceID
+    public let name: String
+    public let uid: String
+    public var id: String { uid }
+}
+
 public enum AudioInspector {
+    public static func outputDevices() -> [AudioOutputDeviceDescription] {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size = UInt32()
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr else {
+            return []
+        }
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var devices = Array(repeating: AudioDeviceID(), count: count)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &devices) == noErr else {
+            return []
+        }
+        return devices.compactMap { deviceID in
+            guard hasOutputStreams(deviceID), let uid = deviceStringProperty(for: deviceID, selector: kAudioDevicePropertyDeviceUID) else {
+                return nil
+            }
+            return AudioOutputDeviceDescription(
+                deviceID: deviceID,
+                name: deviceStringProperty(for: deviceID, selector: kAudioObjectPropertyName) ?? "Salida de audio sin nombre",
+                uid: uid
+            )
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public static func defaultOutputDeviceID() -> AudioDeviceID? {
+        defaultOutputDevice()
+    }
+
     public static func currentOutput() -> AudioOutputDescription {
         let engine = AVAudioEngine()
         let format = engine.outputNode.inputFormat(forBus: 0)
-        let deviceID = defaultOutputDeviceID()
+        let deviceID = defaultOutputDevice()
         return AudioOutputDescription(
             deviceID: deviceID,
             deviceName: deviceID.flatMap { deviceStringProperty(for: $0, selector: kAudioObjectPropertyName) },
@@ -63,7 +102,7 @@ public enum AudioInspector {
         )
     }
 
-    private static func defaultOutputDeviceID() -> AudioDeviceID? {
+    private static func defaultOutputDevice() -> AudioDeviceID? {
         var deviceID = AudioDeviceID()
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
         var address = AudioObjectPropertyAddress(
@@ -80,6 +119,16 @@ public enum AudioInspector {
             &deviceID
         )
         return status == noErr ? deviceID : nil
+    }
+
+    private static func hasOutputStreams(_ deviceID: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size = UInt32()
+        return AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size) == noErr && size > 0
     }
 
     private static func bufferFrameSize(for deviceID: AudioDeviceID) -> UInt32? {

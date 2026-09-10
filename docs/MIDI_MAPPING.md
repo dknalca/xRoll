@@ -88,7 +88,9 @@ centro, el usuario hace una transposicion mental en cada nota, que es
 exactamente la carga cognitiva que la memoria espacial deberia eliminar.
 
 El .padmap no es un menu de configuracion: es la fuente de verdad de la
-disposicion visual.
+disposicion visual. El asistente actual pide los nueve sonidos disponibles del
+kit inicial: bombo, caja, palmada, tom grave, charles cerrado y abierto, tom
+agudo, crash y ride.
 
 ## Teclado del portatil
 

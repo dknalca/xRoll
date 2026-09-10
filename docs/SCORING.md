@@ -67,7 +67,7 @@ una puntuacion negativa.
 | Estrellas | Umbral |
 |---|---|
 | 3 | 90 % o mas |
-| 2 | 75 % o mas |
+| 2 | 70 % o mas |
 | 1 | 50 % o mas |
 
 Una estrella al 50 y no al 60 es deliberado: el principiante honesto se lleva

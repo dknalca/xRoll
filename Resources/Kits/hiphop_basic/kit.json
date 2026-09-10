@@ -25,6 +25,13 @@
       "choke_group": null
     },
     {
+      "id": "tom_low",
+      "label": "Tom grave",
+      "file": "tom_lo.wav",
+      "gm_note": 41,
+      "choke_group": null
+    },
+    {
       "id": "hihat_closed",
       "label": "Charles cerrado",
       "file": "hihat_closed.wav",
@@ -43,6 +50,20 @@
       "label": "Crash",
       "file": "crash.wav",
       "gm_note": 49,
+      "choke_group": null
+    },
+    {
+      "id": "tom_high",
+      "label": "Tom agudo",
+      "file": "tom_hi.wav",
+      "gm_note": 48,
+      "choke_group": null
+    },
+    {
+      "id": "ride",
+      "label": "Ride",
+      "file": "ride.wav",
+      "gm_note": 51,
       "choke_group": null
     }
   ]

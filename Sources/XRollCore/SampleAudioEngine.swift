@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import Foundation
 
 public enum SampleAudioEngineError: LocalizedError {
@@ -7,6 +8,7 @@ public enum SampleAudioEngineError: LocalizedError {
     case unableToReadSample(String)
     case soundNotLoaded(String)
     case loopNotLoaded
+    case unableToSelectOutputDevice(OSStatus)
 
     public var errorDescription: String? {
         switch self {
@@ -20,6 +22,8 @@ public enum SampleAudioEngineError: LocalizedError {
             return "El sonido \(sound) no esta cargado."
         case .loopNotLoaded:
             return "El loop no está cargado."
+        case .unableToSelectOutputDevice(let status):
+            return "No se pudo seleccionar la salida de audio (\(status))."
         }
     }
 }
@@ -41,6 +45,8 @@ public final class SampleAudioEngine {
     private let engine = AVAudioEngine()
     private let loopPlayer = AVAudioPlayerNode()
     private let loopTimePitch = AVAudioUnitTimePitch()
+    private let metronomePlayer = AVAudioPlayerNode()
+    private let metronomeTimePitch = AVAudioUnitTimePitch()
     private let voicesPerSound: Int
     private var sounds: [String: LoadedSound] = [:]
     private var loopBuffer: AVAudioPCMBuffer?
@@ -50,8 +56,12 @@ public final class SampleAudioEngine {
         self.voicesPerSound = max(1, voicesPerSound)
         engine.attach(loopPlayer)
         engine.attach(loopTimePitch)
+        engine.attach(metronomePlayer)
+        engine.attach(metronomeTimePitch)
         engine.connect(loopPlayer, to: loopTimePitch, format: nil)
         engine.connect(loopTimePitch, to: engine.mainMixerNode, format: nil)
+        engine.connect(metronomePlayer, to: metronomeTimePitch, format: nil)
+        engine.connect(metronomeTimePitch, to: engine.mainMixerNode, format: nil)
     }
 
     public func load(kit: KitManifest, from directory: URL) throws {
@@ -95,16 +105,37 @@ public final class SampleAudioEngine {
         try engine.start()
     }
 
+    public func setOutputDevice(_ deviceID: AudioDeviceID) throws {
+        let wasRunning = engine.isRunning
+        if wasRunning { engine.stop() }
+        guard let audioUnit = engine.outputNode.audioUnit else {
+            throw SampleAudioEngineError.unableToSelectOutputDevice(-1)
+        }
+        var selectedDevice = deviceID
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &selectedDevice,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        guard status == noErr else { throw SampleAudioEngineError.unableToSelectOutputDevice(status) }
+        if wasRunning { try engine.start() }
+    }
+
     public func stop() {
         engine.stop()
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
         loopPlayer.stop()
+        metronomePlayer.stop()
     }
 
     /// Cancels preview and metronome buffers while keeping the audio engine ready
     /// for the next exercise.
     public func stopScheduledSounds() {
         sounds.values.flatMap(\.voices).forEach { $0.stop() }
+        metronomePlayer.stop()
     }
 
     public func loadLoop(url: URL) throws {
@@ -157,5 +188,17 @@ public final class SampleAudioEngine {
         voice.volume = min(1, max(0, volume))
         voice.scheduleBuffer(sound.buffer, at: AVAudioTime(hostTime: hostTime), options: [])
         if !voice.isPlaying { voice.play() }
+    }
+
+    /// Schedules the click through its own pitch unit so the metronome can be
+    /// tuned without transposing drum pads or the accompaniment.
+    public func scheduleMetronome(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
+        guard let sound = sounds[soundID] else {
+            throw SampleAudioEngineError.soundNotLoaded(soundID)
+        }
+        metronomeTimePitch.pitch = min(1_200, max(-1_200, pitchCents))
+        metronomePlayer.volume = min(1, max(0, volume))
+        metronomePlayer.scheduleBuffer(sound.buffer, at: AVAudioTime(hostTime: hostTime), options: [])
+        if !metronomePlayer.isPlaying { metronomePlayer.play() }
     }
 }
