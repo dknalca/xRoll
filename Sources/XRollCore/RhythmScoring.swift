@@ -2,20 +2,28 @@ import Foundation
 
 public struct ScheduledExerciseNote: Equatable {
     public let index: Int
+    public let step: Int
     public let sound: String
     public let hand: String?
     public let target: Exercise.Target?
+    public let velocity: Int?
     public let timeMilliseconds: Double
 }
 
 public struct ExerciseTimeline: Equatable {
     public let stepDurationMilliseconds: Double
+    /// Duración de un compás. La escena usa este valor para mostrar una sola
+    /// rejilla legible aunque una frase MIDI tenga varios compases.
+    public let barDurationMilliseconds: Double
     public let patternDurationMilliseconds: Double
+    public let bars: Int
     public let notes: [ScheduledExerciseNote]
 
     public init(exercise: Exercise) {
         stepDurationMilliseconds = 60_000 / Double(exercise.bpm) * 4 / Double(exercise.grid)
+        barDurationMilliseconds = stepDurationMilliseconds * Double(exercise.grid)
         patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
+        bars = exercise.bars
 
         var scheduled: [ScheduledExerciseNote] = []
         let totalSteps = exercise.bars * exercise.grid
@@ -24,9 +32,11 @@ public struct ExerciseTimeline: Equatable {
                 let shiftedStep = (note.step + exercise.offset) % totalSteps
                 scheduled.append(ScheduledExerciseNote(
                     index: repeatIndex * exercise.notes.count + noteIndex,
+                    step: shiftedStep,
                     sound: note.sound,
                     hand: note.hand,
                     target: note.target,
+                    velocity: note.velocity,
                     timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(shiftedStep) * stepDurationMilliseconds
                 ))
             }
@@ -60,7 +70,7 @@ public struct ScoringWindows: Equatable {
     }
 }
 
-public enum RhythmJudgement: String, Equatable {
+public enum RhythmJudgement: String, Codable, Equatable {
     case perfect
     case good
     case regular
@@ -76,6 +86,52 @@ public enum RhythmJudgement: String, Equatable {
         case .good: return 0.85
         case .regular: return 0.7
         case .miss, .extra: return 0
+        }
+    }
+}
+
+/// Evento inmutable persistido para reconstruir una sesión sin depender de la UI.
+/// Un registro `.miss` no tiene ejecución; uno `.extra` no tiene objetivo.
+public struct HitRecord: Codable, Equatable {
+    public let sequence: Int
+    public let judgement: RhythmJudgement
+    public let expectedSound: String?
+    public let expectedStep: Int?
+    public let expectedTimeMilliseconds: Double?
+    public let expectedVelocity: Int?
+    public let hand: String?
+    public let target: Exercise.Target?
+    public let actualSound: String?
+    public let actualTimeMilliseconds: Double?
+    public let actualVelocity: Int?
+    public let role: String?
+    public let padID: String?
+    public let offsetMilliseconds: Double?
+
+    public static func records(from score: ExerciseScore) -> [HitRecord] {
+        var result = score.hits.enumerated().map { sequence, scored in
+            HitRecord(sequence: sequence, judgement: scored.judgement,
+                      expectedSound: scored.expectedNote?.sound, expectedStep: scored.expectedNote?.step,
+                      expectedTimeMilliseconds: scored.expectedNote?.timeMilliseconds,
+                      expectedVelocity: scored.expectedNote?.velocity, hand: scored.expectedNote?.hand, target: scored.expectedNote?.target,
+                      actualSound: scored.hit.sound, actualTimeMilliseconds: scored.hit.timeMilliseconds,
+                      actualVelocity: scored.hit.velocity.map(Int.init), role: scored.hit.role,
+                      padID: scored.hit.padID, offsetMilliseconds: scored.offsetMilliseconds)
+        }
+        let base = result.count
+        result += score.misses.enumerated().map { offset, note in
+            HitRecord(sequence: base + offset, judgement: .miss, expectedSound: note.sound,
+                      expectedStep: note.step, expectedTimeMilliseconds: note.timeMilliseconds,
+                      expectedVelocity: note.velocity, hand: note.hand, target: note.target,
+                      actualSound: nil, actualTimeMilliseconds: nil, actualVelocity: nil,
+                      role: nil, padID: nil, offsetMilliseconds: nil)
+        }
+        return result.sorted {
+            let lhs = $0.actualTimeMilliseconds ?? $0.expectedTimeMilliseconds ?? .greatestFiniteMagnitude
+            let rhs = $1.actualTimeMilliseconds ?? $1.expectedTimeMilliseconds ?? .greatestFiniteMagnitude
+            return lhs == rhs ? $0.sequence < $1.sequence : lhs < rhs
+        }.enumerated().map { index, item in
+            HitRecord(sequence: index, judgement: item.judgement, expectedSound: item.expectedSound, expectedStep: item.expectedStep, expectedTimeMilliseconds: item.expectedTimeMilliseconds, expectedVelocity: item.expectedVelocity, hand: item.hand, target: item.target, actualSound: item.actualSound, actualTimeMilliseconds: item.actualTimeMilliseconds, actualVelocity: item.actualVelocity, role: item.role, padID: item.padID, offsetMilliseconds: item.offsetMilliseconds)
         }
     }
 }

@@ -1,9 +1,0 @@
-{
-  "id": "hh_13_tom_grave",
-  "title": "Boom bap 13 - tom grave",
-  "bpm": 80,
-  "notes": [
-    {"step": 0, "sound": "kick"}, {"step": 4, "sound": "snare"},
-    {"step": 8, "sound": "kick"}, {"step": 12, "sound": "tom_low"}
-  ]
-}

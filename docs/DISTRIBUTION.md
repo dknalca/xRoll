@@ -1,7 +1,8 @@
 # Distribución de xRoll
 
 El código se publica con etiquetas `v*`. GitHub ejecuta las pruebas en macOS y
-crea un borrador de release con las notas de `docs/RELEASE_NOTES_0.1.0.md`.
+crea un borrador de release. Las notas se redactan para cada etiqueta: no se
+mantiene una plantilla de una versión anterior en el repositorio.
 
 ## Publicación de una versión
 

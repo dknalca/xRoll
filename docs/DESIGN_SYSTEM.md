@@ -63,10 +63,9 @@ Barra lateral:
 PRÁCTICA
   Inicio
   Curso
-  Biblioteca
+  Redobles
 ANÁLISIS
   Progreso
-  Sesiones
 EQUIPO
   Pads y layout
   Audio y latencia
@@ -79,7 +78,9 @@ EQUIPO
 Responde «¿qué debería practicar ahora?». Incluye recomendación principal, motivo, duración, continuidad del curso y problema que necesita atención.
 
 ### Curso
-Ruta por capítulos. Cada tarjeta muestra habilidad nueva, mejor resultado, BPM, duración y estado: disponible, sólido, dominado o transferido.
+Ruta por capítulos. La cabecera muestra nivel actual y niveles dominados; cada
+bloque muestra su progreso, el siguiente escalón y una puerta al ritmo
+completo. Las voces aisladas viven dentro de Preparación.
 
 ### Preparación
 Objetivo, tempo, vueltas, ayudas, duración y estado compacto del equipo. Una acción principal.

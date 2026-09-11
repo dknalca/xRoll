@@ -42,12 +42,13 @@ Definida en [INITIATION.md](INITIATION.md).
 
 | Nivel | Nombre | Dificultad nueva | Sonidos | BPM |
 |---:|---|---|---|---:|
-| 1.1 | Cuatro en el suelo | Pulso constante | Bombo | 72 |
-| 1.2 | El backbeat | Caja en 2 y 4 | Bombo + caja | 72 |
-| 1.3 | Mantén el pulso | Charles a negras | + HH cerrado | 72 |
-| 1.4 | El motor del groove | Charles a corcheas | mismos | 72 |
-| 1.5 | Bombo doble | Variación de bombo | mismos | 72 |
-| 1.6 | Primer control | Aumento de tempo | mismos | 82 |
+| 1.1 | Bombo y caja estables | Esqueleto completo | Bombo + caja | 70 |
+| 1.2 | Segundo bombo | Una variación sin cambiar la caja | mismos | 70 |
+| 1.3 | Charles a negras | Primera guía continua | + HH cerrado | 70 |
+| 1.4 | Primera corchea | Un único «y» de charles | mismos | 70 |
+| 1.5 | Charles a corcheas | Motor completo | mismos | 70 |
+| 1.6 | Bombo doble | Variación de bombo | mismos | 70 |
+| Niveles 2–3 | Consolidar y acelerar | El mismo ritmo a 100 y 120 BPM | mismos | 100 / 120 |
 
 ### Subdivisión y lectura
 

@@ -135,6 +135,41 @@ public final class MIDIInputSession {
     }
 }
 
+/// Keeps an app informed when CoreMIDI publishes or removes endpoints. This
+/// matters especially for BLE pads: macOS may add the source a moment after
+/// the Bluetooth connection itself succeeds.
+public final class MIDISetupMonitor {
+    private var client = MIDIClientRef()
+    private let onChange: () -> Void
+
+    public init(onChange: @escaping () -> Void) throws {
+        self.onChange = onChange
+        var createdClient = MIDIClientRef()
+        let status = MIDIClientCreate(
+            "xRoll MIDI Setup Monitor" as CFString,
+            midiSetupNotificationProc,
+            Unmanaged.passUnretained(self).toOpaque(),
+            &createdClient
+        )
+        guard status == noErr else { throw MIDIInputError.coreMIDI(status) }
+        client = createdClient
+    }
+
+    deinit {
+        if client != 0 { MIDIClientDispose(client) }
+    }
+
+    fileprivate func receivedSetupChange() { onChange() }
+}
+
+private func midiSetupNotificationProc(
+    _ notification: UnsafePointer<MIDINotification>,
+    _ refCon: UnsafeMutableRawPointer?
+) {
+    guard let refCon else { return }
+    Unmanaged<MIDISetupMonitor>.fromOpaque(refCon).takeUnretainedValue().receivedSetupChange()
+}
+
 private func midiReadProc(
     _ packetList: UnsafePointer<MIDIPacketList>,
     _ readProcRefCon: UnsafeMutableRawPointer?,

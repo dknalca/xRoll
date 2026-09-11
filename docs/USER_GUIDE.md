@@ -10,6 +10,25 @@
 4. Usa **Escuchar y colocar** para oír el patrón. Después pulsa
    **Empezar práctica**. Hay dos compases para prepararse.
 
+## Redobles y transiciones
+
+En **Redobles**, cada idea tiene dos prácticas consecutivas: **Solo el
+redoble** para aprender el gesto, y **Dentro de un ritmo** para tocarlo entre
+dos grooves sencillos y resolver con crash. La ruta actual incluye caja a
+corcheas, bajada de toms, caja en semicorcheas y redoble lineal con bombo.
+
+## Entrenar con D-A-I-T
+
+En Preparación elige la fase que necesitas:
+
+- **Descubrir:** escucha y localiza sin puntuación.
+- **Aislar:** reduce el tempo 20 %, usa dos vueltas y trabaja una voz.
+- **Integrar:** devuelve el patrón completo a su contexto.
+- **Transferir:** acompaña el charles sin verlo ni puntuarlo.
+
+El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
+3+1 compases, 2+2 o sólo un pulso ancla. Empieza siempre por guía total.
+
 ## Calentamiento y progreso
 
 **Calentamiento recomendado** selecciona un nivel nuevo o un resultado bajo.

@@ -12,8 +12,9 @@ let exercises = [
     // descomponerlo sin convertir el catálogo en ejercicios de un solo pad.
     ExerciseDefinition(filename: "00_i_01_bombo_caja", title: "I-01 · Bombo y caja", bpm: 68, notes: [(0, 36), (4, 38), (8, 36), (12, 38)]),
     ExerciseDefinition(filename: "00_i_02_charles_negras", title: "I-02 · Añade charles", bpm: 68, notes: [(0, 36), (0, 42), (4, 38), (4, 42), (8, 36), (8, 42), (12, 38), (12, 42)]),
-    ExerciseDefinition(filename: "00_i_03_ritmo_completo", title: "I-03 · Ritmo completo · vía rápida", bpm: 72, notes: [(0, 36), (0, 42), (2, 42), (4, 38), (4, 42), (6, 42), (8, 36), (8, 42), (10, 42), (12, 38), (12, 42), (14, 42)]),
-    ExerciseDefinition(filename: "00_i_04_transferencia", title: "I-04 · Consolidar el groove", bpm: 72, notes: [(0, 36), (0, 42), (2, 42), (4, 38), (4, 42), (6, 42), (8, 36), (8, 42), (10, 42), (12, 38), (12, 42), (14, 42)])
+    // Las tres velocidades del ritmo completo viven dentro de Preparación;
+    // solo existe una tarjeta en el curso para evitar duplicados visuales.
+    ExerciseDefinition(filename: "00_i_03_ritmo_completo", title: "I-03 · Ritmo completo", bpm: 72, notes: [(0, 36), (0, 42), (2, 42), (4, 38), (4, 42), (6, 42), (8, 36), (8, 42), (10, 42), (12, 38), (12, 42), (14, 42)])
 ]
 
 func vlq(_ value: Int) -> [UInt8] {

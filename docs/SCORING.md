@@ -117,22 +117,36 @@ perfil deja de aplicarse y se solicita una nueva calibracion.
 
 ## Historial
 
-SQLite, una fila por intento (más un JSON de estadísticas por sonido):
+SQLite, una fila por intento, con estadísticas agregadas y el vector de
+eventos de la sesión:
 
 ```
-id  exercise_id  timestamp  bpm  score  stars  perfect  good  regular  miss  extra  mean_offset_ms
+id  exercise_id  timestamp  bpm  score  stars  perfect  good  regular  miss  extra  mean_offset_ms  sound_stats_json  hit_records_json  training_context_json
 ```
 
 Con eso salen el contador de veces realizadas, la mejor puntuacion y la curva de
 progreso. `mean_offset_ms` permite ademas ensenar si alguien esta corrigiendo su
 tendencia a adelantarse, que es informacion mas util que la puntuacion.
 
+`hit_records_json` conserva, en orden temporal, un `HitRecord` por golpe o
+fallo: objetivo (sonido, paso, tiempo, mano, destino y velocity), ejecución
+(sonido, tiempo, rol, pad y velocity) y su juicio/desvío. Los fallos no llevan
+ejecución y los extras no llevan objetivo. Así una sesión puede reconstruirse y
+analizarse sin SpriteKit; los historiales anteriores siguen siendo válidos y se
+leen con una colección de eventos vacía.
+
+`training_context_json` acompaña a los intentos nuevos con fase D-A-I-T, nivel
+de Gap Metronome y estado de guía visual. Permite evaluar maestría sin inferir
+la intención de una pantalla o una versión concreta de la interfaz.
+
 ## Diagnóstico robusto
 
 Además de `mean_offset_ms`, las nuevas sesiones guardan el resultado por sonido.
 En cada resultado se calculan mediana, dispersión y percentil 95 para mostrar
 una recomendación, y Ghost Coach combina el sonido más débil con el sesgo.
-El desglose histórico por rol, subdivisión, vuelta y transición sigue pendiente.
+El registro detallado se agrupa en Análisis por sonido, mano, rol, pad,
+subdivisión, vuelta y transición. La prioridad combina precisión y cantidad de
+evidencia; pocas notas no se presentan como una conclusión fuerte.
 
 La media no se utiliza sola: errores positivos y negativos pueden cancelarse.
 

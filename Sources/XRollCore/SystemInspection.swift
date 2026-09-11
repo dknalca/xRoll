@@ -10,18 +10,28 @@ public struct MIDIEndpointDescription: Equatable {
 
 public enum MIDIInspector {
     public static func sources() -> [MIDIEndpointDescription] {
-        (0..<MIDIGetNumberOfSources()).compactMap { index in
+        var seen = Set<MIDIUniqueID>()
+        return (0..<MIDIGetNumberOfSources()).compactMap { index in
             let endpoint = MIDIGetSource(index)
             guard endpoint != 0 else { return nil }
 
-            var name: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(endpoint, kMIDIPropertyName, &name)
+            // Drivers disagree on whether the useful label lives in Name or
+            // DisplayName. Prefer DisplayName and always give a distinct,
+            // stable fallback instead of several "sin nombre" entries.
+            let displayName = stringProperty(endpoint, selector: kMIDIPropertyDisplayName)
+            let endpointName = stringProperty(endpoint, selector: kMIDIPropertyName)
             var uniqueID: Int32 = 0
             let status = MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyUniqueID, &uniqueID)
 
+            // Some drivers expose a valid CoreMIDI source but omit
+            // kMIDIPropertyUniqueID. Do not hide that controller from the UI:
+            // the endpoint reference is stable for the current connection and
+            // lets the user select and connect it after a refresh.
+            let identifier: MIDIUniqueID = status == noErr ? uniqueID : Int32(bitPattern: UInt32(endpoint))
+            guard seen.insert(identifier).inserted else { return nil }
             return MIDIEndpointDescription(
-                name: name?.takeRetainedValue() as String? ?? "Dispositivo MIDI sin nombre",
-                uniqueID: status == noErr ? uniqueID : nil
+                name: displayName ?? endpointName ?? "Entrada MIDI \(index + 1)",
+                uniqueID: identifier
             )
         }
     }
@@ -30,8 +40,15 @@ public enum MIDIInspector {
         (0..<MIDIGetNumberOfSources()).map(MIDIGetSource).first { endpoint in
             var endpointID: MIDIUniqueID = 0
             let status = MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyUniqueID, &endpointID)
-            return status == noErr && endpointID == uniqueID
+            return (status == noErr && endpointID == uniqueID) || (status != noErr && Int32(bitPattern: UInt32(endpoint)) == uniqueID)
         }
+    }
+
+    private static func stringProperty(_ object: MIDIObjectRef, selector: CFString) -> String? {
+        var value: Unmanaged<CFString>?
+        guard MIDIObjectGetStringProperty(object, selector, &value) == noErr,
+              let value else { return nil }
+        return value.takeRetainedValue() as String
     }
 }
 

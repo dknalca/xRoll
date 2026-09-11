@@ -22,6 +22,8 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 - [USER_GUIDE.md](USER_GUIDE.md): guía de uso.
 
 ### Currículo
+- [PEDAGOGY_AND_TRAINING.md](PEDAGOGY_AND_TRAINING.md): marco didáctico y
+  requisitos del motor de entrenamiento; fuente de verdad pedagógica.
 - [CURRICULUM.md](CURRICULUM.md): programa completo y rutas por género.
 - [INITIATION.md](INITIATION.md): bloque «De cero a tu primer groove».
 - [EXERCISES.md](EXERCISES.md): formato y validación de ejercicios.
@@ -45,10 +47,11 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 Para evitar contradicciones:
 
 1. Las decisiones vigentes están en `DECISIONS.md`.
-2. Todos los ejercicios activos, integrados y comunitarios, son Standard MIDI
-   Files. El cargador los convierte al modelo interno; los JSON históricos viven
-   fuera del catálogo activo.
-3. El layout describe funciones físicas; el mapeo MIDI describe los mensajes del dispositivo.
-4. La latencia técnica y el sesgo humano se almacenan por separado.
-5. El catálogo activo contiene 72 ejercicios MIDI: tronco común, Hip-hop,
+2. El marco didáctico vigente está en `PEDAGOGY_AND_TRAINING.md`.
+3. Todos los ejercicios activos, integrados y comunitarios, son Standard MIDI
+   Files. El cargador los convierte al modelo interno; no existe un segundo
+   catálogo ni formato histórico distribuido.
+4. El layout describe funciones físicas; el mapeo MIDI describe los mensajes del dispositivo.
+5. La latencia técnica y el sesgo humano se almacenan por separado.
+6. El catálogo activo contiene 56 ejercicios MIDI: tronco común, Hip-hop,
    Rock, Funk, Blues/Shuffle y Jazz. El test de recursos verifica el conteo.

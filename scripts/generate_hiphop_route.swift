@@ -5,7 +5,7 @@ let q = [0, 4, 8, 12]
 let eighths = [0, 2, 4, 6, 8, 10, 12, 14]
 let sixteenths = Array(0...15)
 let exercises = [
-    RouteExercise(file: "10_hh_01_boom_bap", title: "Hip-hop 1 · Boom bap", bpm: 72, bars: 1, notes: q.map { ($0, 42) } + [(0,36),(4,38),(8,36),(12,38)]),
+    RouteExercise(file: "10_hh_01_boom_bap", title: "Hip-hop 1 · Boom bap con aro", bpm: 72, bars: 1, notes: q.map { ($0, 42) } + [(0,36),(4,37),(8,36),(12,37)]),
     RouteExercise(file: "10_hh_02_bombo_sincopado", title: "Hip-hop 2 · Bombo sincopado", bpm: 72, bars: 1, notes: q.map { ($0,42) } + [(0,36),(6,36),(8,36),(12,38),(4,38)]),
     RouteExercise(file: "10_hh_03_silencio", title: "Hip-hop 3 · El valor del silencio", bpm: 72, bars: 1, notes: [(0,42),(4,42),(8,42)] + [(0,36),(4,38),(8,36),(12,38)]),
     RouteExercise(file: "10_hh_04_aro", title: "Hip-hop 4 · Aro y palmada", bpm: 72, bars: 1, notes: q.map { ($0,42) } + [(0,36),(4,37),(8,36),(12,39)]),

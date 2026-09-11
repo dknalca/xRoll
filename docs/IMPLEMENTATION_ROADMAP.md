@@ -2,7 +2,8 @@
 
 ## Completado en código
 
-- Catálogo activo MIDI con 72 ejercicios y pruebas de recursos.
+- Catálogo activo MIDI con 56 ejercicios sin variantes duplicadas;
+  la versión archivada se conserva fuera del catálogo activo.
 - Curso por bloques: iniciación, fundamentos, subdivisión, coordinación,
   grooves, Hip-hop, Rock, Funk, Blues/Shuffle y Jazz.
 - Preparación, ayudas completa/normal/reducida, capas, transferencia y ruta
@@ -17,14 +18,19 @@
   repetido, Autopilot, práctica correctiva y Ghost Coach básico.
 - Importación MIDI comunitaria con validación técnica y avisos pedagógicos.
 - Lectura de velocity y detección de rejilla ternaria de 12 pasos en MIDI.
+- Diagnóstico histórico derivado de `HitRecord` por mano, rol, pad,
+  subdivisión, vuelta y transición; microscopio objetivo/ejecución.
+- Rescate Whale: aislamiento de micro-célula alrededor de un error, tempo al
+  80 % y acompañamiento del resto del compás.
+- Evaluación informativa de velocity y cuatro sellos de dominio: precisión,
+  elasticidad, pulso interno y memoria.
 
 ## Próxima capa técnica
 
-- Persistir diagnóstico por mano, rol, pad, subdivisión, vuelta y transición.
-- Microscopio temporal visual y Ghost Coach comparativo (objetivo vs. ejecución).
-- Evaluación opcional de velocity, ghost notes y articulación.
 - Rejilla ternaria nativa en el editor, miniaturas y generador curricular.
 - Presets específicos por modelo de controlador, respaldados por pruebas reales.
+- Análisis fino de ghost notes y articulación cuando haya ejercicios MIDI que
+  definan esas expectativas de forma consistente.
 
 ## Validación manual obligatoria antes de publicar
 

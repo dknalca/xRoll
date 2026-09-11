@@ -16,11 +16,15 @@ public struct PracticeAttempt: Codable, Equatable {
     public let extra: Int
     public let meanOffsetMilliseconds: Double?
     public let soundStatistics: [SoundStatistics]
+    public let hitRecords: [HitRecord]
+    public let trainingContext: TrainingContext
 
-    public init(exerciseID: String, timestamp: Date, bpm: Int, score: Double, stars: Int, perfect: Int, good: Int, regular: Int, miss: Int, extra: Int, meanOffsetMilliseconds: Double?, soundStatistics: [SoundStatistics] = []) {
+    public init(exerciseID: String, timestamp: Date, bpm: Int, score: Double, stars: Int, perfect: Int, good: Int, regular: Int, miss: Int, extra: Int, meanOffsetMilliseconds: Double?, soundStatistics: [SoundStatistics] = [], hitRecords: [HitRecord] = [], trainingContext: TrainingContext = .init()) {
         self.exerciseID = exerciseID; self.timestamp = timestamp; self.bpm = bpm; self.score = score; self.stars = stars
         self.perfect = perfect; self.good = good; self.regular = regular; self.miss = miss; self.extra = extra; self.meanOffsetMilliseconds = meanOffsetMilliseconds
         self.soundStatistics = soundStatistics
+        self.hitRecords = hitRecords
+        self.trainingContext = trainingContext
     }
 }
 
@@ -58,18 +62,20 @@ public final class ProgressStore {
           bpm INTEGER NOT NULL, score REAL NOT NULL, stars INTEGER NOT NULL,
           perfect INTEGER NOT NULL, good INTEGER NOT NULL, regular INTEGER NOT NULL,
           miss INTEGER NOT NULL, extra INTEGER NOT NULL, mean_offset_ms REAL,
-          sound_stats_json TEXT
+          sound_stats_json TEXT, hit_records_json TEXT, training_context_json TEXT
         )
         """)
         // Bases creadas por versiones anteriores no tienen el desglose por
         // sonido. SQLite conserva los datos existentes al añadir esta columna.
         try? execute("ALTER TABLE attempts ADD COLUMN sound_stats_json TEXT")
+        try? execute("ALTER TABLE attempts ADD COLUMN hit_records_json TEXT")
+        try? execute("ALTER TABLE attempts ADD COLUMN training_context_json TEXT")
     }
 
     deinit { sqlite3_close(database) }
 
     public func record(_ attempt: PracticeAttempt) throws {
-        let statement = try prepare("INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        let statement = try prepare("INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, attempt.exerciseID, -1, sqliteTransient)
         sqlite3_bind_double(statement, 2, attempt.timestamp.timeIntervalSince1970)
@@ -80,6 +86,10 @@ public final class ProgressStore {
         if let offset = attempt.meanOffsetMilliseconds { sqlite3_bind_double(statement, 11, offset) } else { sqlite3_bind_null(statement, 11) }
         let soundData = try JSONEncoder().encode(attempt.soundStatistics)
         _ = soundData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 12, bytes.baseAddress, Int32(soundData.count), sqliteTransient) }
+        let recordData = try JSONEncoder().encode(attempt.hitRecords)
+        _ = recordData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 13, bytes.baseAddress, Int32(recordData.count), sqliteTransient) }
+        let contextData = try JSONEncoder().encode(attempt.trainingContext)
+        _ = contextData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 14, bytes.baseAddress, Int32(contextData.count), sqliteTransient) }
         guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
     }
 
@@ -110,7 +120,7 @@ public final class ProgressStore {
         if filter.from != nil { clauses.append("timestamp >= ?") }
         if filter.to != nil { clauses.append("timestamp <= ?") }
         let whereClause = clauses.isEmpty ? "" : " WHERE " + clauses.joined(separator: " AND ")
-        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json FROM attempts\(whereClause) ORDER BY timestamp DESC, id DESC LIMIT ?")
+        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json FROM attempts\(whereClause) ORDER BY timestamp DESC, id DESC LIMIT ?")
         defer { sqlite3_finalize(statement) }
         var index: Int32 = 1
         if let value = filter.exerciseID { sqlite3_bind_text(statement, index, value, -1, sqliteTransient); index += 1 }
@@ -125,7 +135,15 @@ public final class ProgressStore {
             if sqlite3_column_type(statement, 11) == SQLITE_NULL { soundStatistics = [] }
             else if let pointer = sqlite3_column_blob(statement, 11) { soundStatistics = (try? JSONDecoder().decode([SoundStatistics].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 11))))) ?? [] }
             else { soundStatistics = [] }
-            result.append(PracticeAttempt(exerciseID: String(cString: sqlite3_column_text(statement, 0)), timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), bpm: Int(sqlite3_column_int(statement, 2)), score: sqlite3_column_double(statement, 3), stars: Int(sqlite3_column_int(statement, 4)), perfect: Int(sqlite3_column_int(statement, 5)), good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)), miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)), meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10), soundStatistics: soundStatistics))
+            let hitRecords: [HitRecord]
+            if sqlite3_column_type(statement, 12) == SQLITE_NULL { hitRecords = [] }
+            else if let pointer = sqlite3_column_blob(statement, 12) { hitRecords = (try? JSONDecoder().decode([HitRecord].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 12))))) ?? [] }
+            else { hitRecords = [] }
+            let context: TrainingContext
+            if sqlite3_column_type(statement, 13) == SQLITE_NULL { context = .init() }
+            else if let pointer = sqlite3_column_blob(statement, 13) { context = (try? JSONDecoder().decode(TrainingContext.self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 13))))) ?? .init() }
+            else { context = .init() }
+            result.append(PracticeAttempt(exerciseID: String(cString: sqlite3_column_text(statement, 0)), timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), bpm: Int(sqlite3_column_int(statement, 2)), score: sqlite3_column_double(statement, 3), stars: Int(sqlite3_column_int(statement, 4)), perfect: Int(sqlite3_column_int(statement, 5)), good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)), miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)), meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10), soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
         }
         return result
     }

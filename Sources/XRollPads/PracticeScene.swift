@@ -9,6 +9,11 @@ final class PracticeScene: SKScene {
     private let slotBySound: [String: Int]
     private let soundLabels: [String: String]
     private let showsSoundLabels: Bool
+    private let showsNotes: Bool
+    private let emphasizesPlayerNotes: Bool
+    /// Nil = todas las voces son del jugador. Un conjunto permite atenuar en
+    /// pantalla las voces que xRoll toca como acompañamiento.
+    private let playerSounds: Set<String>?
     private var noteNodes: [(ScheduledExerciseNote, SKShapeNode)] = []
     private var pulseLines: [(timeMilliseconds: Double, node: SKShapeNode)] = []
     private let hitY: CGFloat = 82
@@ -16,13 +21,16 @@ final class PracticeScene: SKScene {
     private let beatLabel = SKLabelNode()
     private let progressFill = SKSpriteNode(color: .systemCyan, size: .zero)
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.slotBySound = slotBySound
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
+        self.showsNotes = showsNotes
+        self.emphasizesPlayerNotes = emphasizesPlayerNotes
+        self.playerSounds = playerSounds
         super.init(size: CGSize(width: 960, height: 520))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 0.018, green: 0.035, blue: 0.085, alpha: 1)
@@ -111,10 +119,10 @@ final class PracticeScene: SKScene {
         progressFill.position = progressTrack.position
         progressFill.zPosition = 12
         addChild(progressFill)
-        // The falling notes use time on the vertical axis. Quarter-note guides
-        // make dense eighth-note hi-hats readable; the first beat is heavier so
-        // that the bar is recognisable at a glance.
-        let beatDuration = timeline.patternDurationMilliseconds / 4
+        // La pantalla siempre enseña un compás. Una frase MIDI puede contener
+        // tres compases (groove → redoble → resolución), pero mostrar toda la
+        // frase en la misma altura comprimiría las semicorcheas.
+        let beatDuration = timeline.barDurationMilliseconds / 4
         let finalTime = timeline.notes.map(\.timeMilliseconds).max() ?? 0
         let firstPulse = -anticipationMilliseconds
         var pulseIndex = 0
@@ -131,10 +139,11 @@ final class PracticeScene: SKScene {
             pulseTime += beatDuration
         }
         for (sound, slot) in slotBySound {
+            let isPlayerSound = playerSounds?.contains(sound) ?? true
             let x = (CGFloat(slot) + 0.5) * laneWidth
             let target = SKShapeNode(rectOf: CGSize(width: laneWidth - 12, height: 42), cornerRadius: 9)
-            target.fillColor = color(forSlot: slot).withAlphaComponent(0.23)
-            target.strokeColor = color(forSlot: slot).withAlphaComponent(0.85)
+            target.fillColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? 0.23 : 0.13)
+            target.strokeColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? 0.85 : 0.38)
             target.lineWidth = 1.5
             target.position = CGPoint(x: x, y: 36)
             target.zPosition = 5
@@ -144,7 +153,7 @@ final class PracticeScene: SKScene {
                 let label = SKLabelNode(text: soundLabels[sound] ?? sound)
                 label.fontName = "Avenir Next Demi Bold"
                 label.fontSize = 12
-                label.fontColor = .white
+                label.fontColor = SKColor.white.withAlphaComponent(isPlayerSound ? 1 : 0.42)
                 label.verticalAlignmentMode = .center
                 label.horizontalAlignmentMode = .center
                 label.position = CGPoint(x: x, y: 36)
@@ -156,15 +165,17 @@ final class PracticeScene: SKScene {
             let node = note.hand == "L"
                 ? SKShapeNode(circleOfRadius: 17)
                 : SKShapeNode(rectOf: CGSize(width: 34, height: 34), cornerRadius: 7)
-            let color = color(forSound: note.sound)
+            let isPlayerSound = playerSounds?.contains(note.sound) ?? true
+            let color: SKColor = isPlayerSound ? (emphasizesPlayerNotes ? .systemOrange : color(forSound: note.sound)) : .systemGray
             node.fillColor = color
-            node.strokeColor = .white
+            node.fillColor = color.withAlphaComponent(isPlayerSound ? 1 : 0.34)
+            node.strokeColor = SKColor.white.withAlphaComponent(isPlayerSound ? 1 : 0.30)
             node.lineWidth = 2
             node.glowWidth = 3
             let hand = SKLabelNode(text: note.hand)
             hand.fontName = "Avenir Next Heavy"
             hand.fontSize = 13
-            hand.fontColor = .black.withAlphaComponent(0.72)
+            hand.fontColor = .black.withAlphaComponent(isPlayerSound ? 0.72 : 0.30)
             hand.verticalAlignmentMode = .center
             hand.horizontalAlignmentMode = .center
             hand.position = CGPoint(x: 0, y: -1)
@@ -180,21 +191,25 @@ final class PracticeScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let now = AudioClock.milliseconds(from: startHostTime, to: AudioGetCurrentHostTime())
         let availableHeight = max(1, size.height - hitY - 18)
-        // Show one pattern at a time. With two count-in bars on screen, eighth
-        // notes were only about 26 points apart and their symbols overlapped.
-        let displayLeadMilliseconds = min(anticipationMilliseconds, timeline.patternDurationMilliseconds)
+        // Muestra siempre un compás por delante. Así los ejercicios de frase
+        // larga mantienen el mismo espacio entre notas que un groove de un
+        // compás, incluido durante la cuenta atrás.
+        let displayLeadMilliseconds = min(anticipationMilliseconds, timeline.barDurationMilliseconds)
         let elapsed = max(0, now)
         let patternPosition = elapsed.truncatingRemainder(dividingBy: timeline.patternDurationMilliseconds)
-        let beatDuration = timeline.patternDurationMilliseconds / 4
-        barLabel.text = "VUELTA \(Int(elapsed / timeline.patternDurationMilliseconds) + 1)"
-        beatLabel.text = "Pulso \(min(4, Int(patternPosition / beatDuration) + 1)) de 4"
-        progressFill.size = CGSize(width: 72 * CGFloat(patternPosition / timeline.patternDurationMilliseconds), height: 4)
+        let barPosition = patternPosition.truncatingRemainder(dividingBy: timeline.barDurationMilliseconds)
+        let beatDuration = timeline.barDurationMilliseconds / 4
+        let currentBar = min(timeline.bars, Int(patternPosition / timeline.barDurationMilliseconds) + 1)
+        barLabel.text = "VUELTA \(Int(elapsed / timeline.patternDurationMilliseconds) + 1) · C \(currentBar)/\(timeline.bars)"
+        beatLabel.text = "Pulso \(min(4, Int(barPosition / beatDuration) + 1)) de 4"
+        progressFill.size = CGSize(width: 72 * CGFloat(barPosition / timeline.barDurationMilliseconds), height: 4)
         for (time, line) in pulseLines {
             let remaining = time - now
             line.isHidden = remaining > displayLeadMilliseconds || remaining < -120
             line.position.y = hitY + CGFloat(remaining / displayLeadMilliseconds) * availableHeight
         }
         for (note, node) in noteNodes {
+            guard showsNotes else { node.isHidden = true; continue }
             guard let slot = slotBySound[note.sound] else { node.isHidden = true; continue }
             let remaining = note.timeMilliseconds - now
             node.isHidden = remaining > displayLeadMilliseconds || remaining < -120

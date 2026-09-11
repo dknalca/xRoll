@@ -210,6 +210,9 @@ La versión 2 separa sonido, posición, rol e input MIDI. Los objetivos pueden d
 
 Diestra/zurda no duplica presets. Cada layout declara si admite reflexión horizontal y cómo conservar compatibilidad MIDI.
 
-## D-027 - Los ejercicios integrados son JSON y los comunitarios entran por MIDI
+## D-027 - MIDI es el único formato de ejercicios
 
-JSON conserva metadatos pedagógicos, roles, ayudas y dominio. MIDI es formato de importación comunitaria y se convierte a un modelo interno validado.
+Los ejercicios integrados y los comunitarios son Standard MIDI Files. El
+cargador los convierte a un modelo interno validado; los metadatos didácticos
+se derivan del ritmo o se incorporarán como extensión de MIDI, nunca como un
+catálogo JSON paralelo.

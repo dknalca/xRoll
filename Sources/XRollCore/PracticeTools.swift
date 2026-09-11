@@ -25,6 +25,36 @@ public struct PracticeConfiguration: Equatable {
     }
 }
 
+/// D-A-I-T: el mismo patrón se aborda con un objetivo didáctico distinto.
+public enum TrainingPhase: String, CaseIterable, Codable {
+    case discover, isolate, integrate, transfer
+    public var label: String { switch self { case .discover: return "Descubrir"; case .isolate: return "Aislar"; case .integrate: return "Integrar"; case .transfer: return "Transferir" } }
+    public var explanation: String { switch self {
+    case .discover: return "Escucha y localiza el patrón; no se puntúa."
+    case .isolate: return "Practica una voz o micro-fragmento lento antes de volver al groove."
+    case .integrate: return "Toca el ritmo completo dentro de su contexto."
+    case .transfer: return "Retira una guía para comprobar pulso interno y memoria."
+    } }
+}
+
+/// Las 16 combinaciones de una negra en rejilla de semicorcheas. Sirve para
+/// describir objetivamente la densidad rítmica de MIDI importado.
+public enum RhythmAlphabet {
+    public static func letters(for exercise: Exercise) -> [Int] {
+        guard exercise.grid == 16 else { return [] }
+        let stepsPerBar = 16
+        return (0..<exercise.bars).flatMap { bar in
+            (0..<4).map { beat in
+                let base = bar * stepsPerBar + beat * 4
+                let mask = (0..<4).reduce(0) { value, offset in
+                    value | (exercise.notes.contains { $0.step == base + offset } ? (1 << (3 - offset)) : 0)
+                }
+                return mask + 1
+            }
+        }
+    }
+}
+
 public struct WarmupRecommendation: Equatable {
     public let exerciseID: String
     public let title: String

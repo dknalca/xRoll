@@ -13,8 +13,10 @@ public struct PracticeTuning: Codable, Equatable {
     public var loopVolume: Double
     public var metronomePitchSemitones: Double
     public var padFlashMilliseconds: Int
+    /// Ganancia posterior a la normalización, por id de sonido del kit.
+    public var soundVolumes: [String: Double]
 
-    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 120, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, loopVolume: Double = 0.72, metronomePitchSemitones: Double = 0, padFlashMilliseconds: Int = 120) {
+    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 120, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, loopVolume: Double = 0.72, metronomePitchSemitones: Double = 0, padFlashMilliseconds: Int = 120, soundVolumes: [String: Double] = [:]) {
         self.debugEnabled = debugEnabled
         self.anticipationBars = min(4, max(1, anticipationBars))
         self.perfectWindowMilliseconds = min(100, max(5, perfectWindowMilliseconds))
@@ -25,10 +27,11 @@ public struct PracticeTuning: Codable, Equatable {
         self.loopVolume = min(1, max(0, loopVolume))
         self.metronomePitchSemitones = min(24, max(-12, metronomePitchSemitones))
         self.padFlashMilliseconds = min(500, max(30, padFlashMilliseconds))
+        self.soundVolumes = soundVolumes.mapValues { min(1.5, max(0, $0)) }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case debugEnabled, anticipationBars, perfectWindowMilliseconds, goodWindowMilliseconds, regularWindowMilliseconds, manualTimingOffsetMilliseconds, countInVolume, loopVolume, metronomePitchSemitones, padFlashMilliseconds
+        case debugEnabled, anticipationBars, perfectWindowMilliseconds, goodWindowMilliseconds, regularWindowMilliseconds, manualTimingOffsetMilliseconds, countInVolume, loopVolume, metronomePitchSemitones, padFlashMilliseconds, soundVolumes
     }
 
     public init(from decoder: Decoder) throws {
@@ -43,7 +46,8 @@ public struct PracticeTuning: Codable, Equatable {
             countInVolume: try values.decodeIfPresent(Double.self, forKey: .countInVolume) ?? 0.85,
             loopVolume: try values.decodeIfPresent(Double.self, forKey: .loopVolume) ?? 0.72,
             metronomePitchSemitones: try values.decodeIfPresent(Double.self, forKey: .metronomePitchSemitones) ?? 0,
-            padFlashMilliseconds: try values.decodeIfPresent(Int.self, forKey: .padFlashMilliseconds) ?? 120
+            padFlashMilliseconds: try values.decodeIfPresent(Int.self, forKey: .padFlashMilliseconds) ?? 120,
+            soundVolumes: try values.decodeIfPresent([String: Double].self, forKey: .soundVolumes) ?? [:]
         )
     }
 

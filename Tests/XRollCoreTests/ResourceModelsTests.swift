@@ -107,6 +107,19 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(PadMapV2Router(drum).soundID(for: MIDINoteOn(hostTime: 0, channel: 10, note: 37, velocity: 100)), "kick")
     }
 
+    func testLayoutPresetKeepsThePhysicalMIDINotes() {
+        let device = PadMapV2.Device(name: "Pad", uid: 42)
+        let physical = PadLayoutFactory.make(.drumKit, device: device)
+        let remapped = PadLayoutFactory.applying(.mirror, to: physical)
+
+        for pad in remapped.pads {
+            let original = physical.pads.first { $0.row == pad.row && $0.column == pad.column }
+            XCTAssertEqual(pad.input.number, original?.input.number)
+            XCTAssertEqual(pad.input.channel, original?.input.channel)
+        }
+        XCTAssertNotEqual(remapped.pads.first(where: { $0.row == 1 && $0.column == 0 })?.sound, physical.pads.first(where: { $0.row == 1 && $0.column == 0 })?.sound)
+    }
+
     func testPadMapBuilderRejectsDuplicateAndCompletes() {
         var builder = PadMapBuilder(
             device: "Pad",
@@ -169,9 +182,20 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(router.soundID(for: 48), "tom_high")
         XCTAssertEqual(router.soundID(for: 51), "ride")
         let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
-        XCTAssertEqual(exercises.count, 72)
+        XCTAssertEqual(exercises.count, 64)
         XCTAssertEqual(exercises.first?.title, "I-01 · Bombo y caja")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
+    }
+
+    func testActiveCatalogHasNoDuplicateRhythmsAtSameTempo() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let catalog = ResourceCatalog()
+        let kit = try catalog.loadKit(at: root.appendingPathComponent("Resources/Kits/hiphop_basic/kit.json"))
+        let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
+        let groups = Dictionary(grouping: exercises) { exercise in
+            "\(exercise.bpm):\(exercise.bars):\(exercise.grid):" + exercise.notes.sorted { $0.step == $1.step ? $0.sound < $1.sound : $0.step < $1.step }.map { "\($0.step):\($0.sound)" }.joined(separator: ",")
+        }
+        XCTAssertTrue(groups.values.allSatisfy { $0.count == 1 }, "Hay ritmos activos duplicados a igual tempo: \(groups.values.filter { $0.count > 1 }.map { $0.map(\.id) })")
     }
 
     func testWarnsWhenCommunityMIDIIntroducesTooMuchAtOnce() {
@@ -207,6 +231,62 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(score.meanOffsetMilliseconds!, 45, accuracy: 0.001)
     }
 
+    func testHitRecordsPreserveTargetExecutionAndMiss() {
+        let exercise = Exercise(
+            format: 1, id: "record-test", title: "Record test", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [
+                .init(step: 0, sound: "kick", hand: "L", velocity: 92),
+                .init(step: 4, sound: "snare", hand: "R", velocity: 76)
+            ]
+        )
+        let score = RhythmScorer.score(
+            timeline: ExerciseTimeline(exercise: exercise), bpm: 80, grid: 16,
+            hits: [.init(sound: "kick", timeMilliseconds: 20, role: "kick_left", padID: "r0c0", velocity: 91)]
+        )
+
+        let records = HitRecord.records(from: score)
+        XCTAssertEqual(records.count, 2)
+        let played = try! XCTUnwrap(records.first { $0.judgement == .perfect })
+        XCTAssertEqual(played.expectedStep, 0)
+        XCTAssertEqual(played.expectedVelocity, 92)
+        XCTAssertEqual(played.hand, "L")
+        XCTAssertEqual(played.actualVelocity, 91)
+        XCTAssertEqual(played.role, "kick_left")
+        XCTAssertEqual(played.padID, "r0c0")
+        XCTAssertEqual(played.offsetMilliseconds!, 20, accuracy: 0.001)
+
+        let missed = try! XCTUnwrap(records.first { $0.judgement == .miss })
+        XCTAssertEqual(missed.expectedSound, "snare")
+        XCTAssertEqual(missed.expectedStep, 4)
+        XCTAssertEqual(missed.hand, "R")
+        XCTAssertNil(missed.actualTimeMilliseconds)
+    }
+
+    func testHistoricalDiagnosticsFindsSubdivisionAndWhaleIsolatesMistake() {
+        let exercise = Exercise(format: 1, id: "diagnostic", title: "Diagnostic", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [
+            .init(step: 0, sound: "kick", hand: "L", velocity: 90), .init(step: 6, sound: "snare", hand: "R", velocity: 80)
+        ])
+        let score = RhythmScorer.score(timeline: ExerciseTimeline(exercise: exercise), bpm: 80, grid: 16, hits: [.init(sound: "kick", timeMilliseconds: 8, velocity: 88)])
+        let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 80, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, hitRecords: HitRecord.records(from: score))
+        let diagnostics = HistoricalDiagnosticsBuilder.build(attempts: [attempt], exercisesByID: [exercise.id: exercise])
+        XCTAssertEqual(diagnostics.bySound.first?.label, "snare")
+        XCTAssertTrue(diagnostics.bySubdivision.contains { $0.label == "&" && $0.missed == 1 })
+        let whale = try! XCTUnwrap(WhaleMethod.plan(exercise: exercise, score: score))
+        XCTAssertEqual(whale.focusStep, 6)
+        XCTAssertEqual(whale.stepRange, 5...7)
+    }
+
+    func testMasteryRequiresAllFourTrainingContexts() {
+        let exercise = Exercise(format: 1, id: "mastery", title: "Mastery", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick")])
+        let passing: (Int, TrainingContext) -> PracticeAttempt = { bpm, context in
+            .init(exerciseID: exercise.id, timestamp: .init(), bpm: bpm, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 5, trainingContext: context)
+        }
+        let attempts = [passing(80, .init()), passing(65, .init()), passing(95, .init()), passing(80, .init(gapMetronomeLevel: 2)), passing(80, .init(phase: .transfer, showsVisualGuides: false))]
+        XCTAssertTrue(MasteryEvaluator.seals(exercise: exercise, attempts: attempts).allSatisfy(\.achieved))
+    }
+
     func testPracticeSessionReturnsTheImmediateJudgement() {
         let exercise = Exercise(
             format: 1, id: "test", title: "Test", family: "test", level: 1,
@@ -226,13 +306,18 @@ final class ResourceModelsTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-progress-\(UUID().uuidString).sqlite")
         defer { try? FileManager.default.removeItem(at: url) }
         let store = try ProgressStore(url: url)
-        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 1), bpm: 80, score: 65, stars: 1, perfect: 2, good: 1, regular: 0, miss: 1, extra: 0, meanOffsetMilliseconds: -12))
+        let record = HitRecord.records(from: RhythmScorer.score(
+            timeline: ExerciseTimeline(exercise: Exercise(format: 1, id: "hh_01", title: "Test", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick")])),
+            bpm: 80, grid: 16, hits: [.init(sound: "kick", timeMilliseconds: 10)]
+        ))
+        try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 1), bpm: 80, score: 65, stars: 1, perfect: 2, good: 1, regular: 0, miss: 1, extra: 0, meanOffsetMilliseconds: -12, hitRecords: record))
         try store.record(.init(exerciseID: "hh_01", timestamp: Date(timeIntervalSince1970: 2), bpm: 80, score: 40, stars: 0, perfect: 1, good: 0, regular: 0, miss: 3, extra: 0, meanOffsetMilliseconds: 4))
 
         let summary = try XCTUnwrap(store.progress(for: "hh_01"))
         XCTAssertEqual(summary.attemptCount, 2)
         XCTAssertEqual(summary.bestScore, 65, accuracy: 0.001)
         XCTAssertEqual(summary.latestScore, 40, accuracy: 0.001)
+        XCTAssertEqual(try store.attempts(filter: .init(exerciseID: "hh_01")).last?.hitRecords, record)
     }
 
     func testProgressStoreExportsCSV() throws {

@@ -48,7 +48,7 @@ repositorio donde lo compartas. No distribuyas audio ajeno dentro del MIDI.
 Los ejercicios integrados usan el mismo formato MIDI que los comunitarios. La
 app los carga desde `data/exercises/`; los ejercicios importados se copian al
 almacenamiento local y se añaden al final del catálogo sin bloquearse por la
-progresión base. Los JSON anteriores se archivan y no se cargan.
+progresión base. No existe un formato alternativo de ejercicios.
 
 ## Informe didáctico de importación
 

@@ -14,6 +14,10 @@ public enum PedagogicalMIDIValidator {
         if sounds.count > 3 { warnings.append("Introduce \(sounds.count) sonidos; para principiantes conviene añadir uno por nivel.") }
         if densest > 3 { warnings.append("Hay hasta \(densest) golpes simultáneos; revisa si el patrón es adecuado para el nivel previsto.") }
         if smallestGap == 1 { warnings.append("Incluye semicorcheas; preséntalas después de consolidar corcheas.") }
+        let letters = RhythmAlphabet.letters(for: exercise)
+        if letters.contains(where: { $0 == 2 || $0 == 3 || $0 == 4 || $0 == 8 || $0 == 14 }) {
+            warnings.append("Usa letras rítmicas interiores (e, &, a); acompáñalas de una fase de aislamiento.")
+        }
         if exercise.bpm > 110 { warnings.append("El tempo es \(exercise.bpm) BPM; considera una versión lenta para aprendizaje.") }
         if exercise.bars > 4 { warnings.append("El patrón dura \(exercise.bars) compases; ofrece antes una versión de uno o dos compases.") }
         return warnings

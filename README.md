@@ -136,5 +136,5 @@ El script incluye los seis WAV originales de `hiphop_basic` dentro del bundle.
 Sus atribuciones y licencia CC BY-SA 4.0 están en
 `Resources/Loops/ATTRIBUTION.md`.
 
-Las notas preparadas para la version se encuentran en
-`docs/RELEASE_NOTES_0.1.0.md`.
+Las notas se redactan al preparar cada versión; no se conserva una plantilla de
+release desactualizada en el repositorio.

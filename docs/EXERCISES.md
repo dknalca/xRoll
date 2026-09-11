@@ -8,36 +8,9 @@ sonidos del kit. Se admiten rejilla de 16 y, al importar MIDI de tresillos,
 rejilla ternaria de 12. La velocity se conserva como metadato para la futura
 etapa de articulación; por ahora la puntuación evalúa timing.
 
-El antiguo esquema JSON siguiente queda sólo como referencia del modelo interno,
-no como formato de autoría ni catálogo activo.
-
-```
-{
-  "format": 1,
-  "id":       identificador estable, no se cambia nunca
-  "title":    nombre visible
-  "family":   agrupacion, por ejemplo "hiphop_boombap"
-  "level":    posicion en la escalera
-  "bpm":      fijo
-  "meter":    [4, 4]
-  "bars":     compases del patron
-  "grid":     subdivisiones por compas, 16 es semicorcheas
-  "repeats":  vueltas, 8 por defecto
-  "kit":      carpeta del kit
-  "loop":     nombre del loop, o null para claqueta sola
-  "offset":   entrada desplazada en pasos, 0 por defecto
-  "notes": [
-    { "step": indice en la rejilla, "sound": id canonico, "hand": "L", "R" o null }
-  ]
-}
-```
-
-`step` va de 0 a `bars * grid - 1`. En una rejilla de 16 y un compas, el primer
-tiempo es 0, el segundo 4, el tercero 8 y el cuarto 12.
-
-`offset` aplica una **entrada desplazada**: el patrón empieza en el paso indicado
-en vez de hacerlo en el primer tiempo. El valor debe estar dentro de la rejilla;
-si una nota se desplaza más allá del final del compás, vuelve al principio.
+No hay formato JSON de ejercicios ni un catálogo alternativo: MIDI es la única
+fuente de autoría y distribución. Para crear o compartir un ejercicio consulta
+[COMMUNITY_MIDI.md](COMMUNITY_MIDI.md).
 
 ## Progresion por escalera
 
@@ -107,6 +80,23 @@ un sidecar comunitario en el futuro, podrá contener:
 ```
 
 Una nota puede añadir `target` por sonido, rol o pad según [PADMAP_V2.md](PADMAP_V2.md).
+
+## Redobles y transiciones
+
+La sección **Redobles** es una ruta técnica independiente del curso de
+grooves. Cada tipo dispone de dos `.mid`: `A` contiene sólo el gesto y `B` lo
+sitúa en una frase de tres compases (groove → redoble → groove con crash).
+
+| Tipo | Idea nueva | Orden |
+|---|---|---|
+| Caja a corcheas | Cuatro golpes espaciados de caja | Aislado, luego groove |
+| Bajada de toms | Tom agudo a tom grave | Aislado, luego groove |
+| Caja en semicorcheas | Ocho golpes de caja más densos | Aislado, luego groove |
+| Lineal | Bombo, caja y toms sin simultaneidad | Aislado, luego groove |
+
+Estos cuatro patrones siguen formas habituales de redoble: una frase de caja,
+un descenso por toms y una figura lineal; se recomienda dominar el ritmo en
+caja antes de orquestarlo por el kit. [Basic Fills — Drum Town](https://drum.town/lessons/rock-basic-fills/) y [Linear Fills — Drum Town](https://drum.town/lessons/rock-linear-fills/).
 
 ## Compatibilidad de layout
 
