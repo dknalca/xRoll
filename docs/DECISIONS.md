@@ -139,7 +139,7 @@ cambiar de tempo se sale y se elige otro ejercicio.
 ## D-016 - Dieciseis posiciones visuales, incluidos los huecos
 
 La interfaz conserva las dieciseis posiciones del controlador 4x4 aunque el kit
-solo tenga once sonidos. Comprimir los cinco pads libres haria que dos sonidos
+solo tenga diez sonidos. Comprimir los seis pads libres haria que dos sonidos
 fisicamente separados apareciesen juntos en pantalla y debilitaria la memoria
 espacial que se quiere entrenar.
 
@@ -200,7 +200,9 @@ Los bloques terminan con ayudas reducidas. Superar siguiendo notas no demuestra 
 
 ## D-024 - xRoll ofrece layouts funcionales seleccionables
 
-Core es el predeterminado de iniciación; Drum Kit favorece técnica de batería; Mirror favorece alternancia; Studio/GM favorece interoperabilidad; Custom adapta cualquiera.
+Core es el predeterminado de iniciación; Drum Kit favorece técnica de batería y
+Mirror favorece alternancia. Los tres conservan las notas MIDI físicas del
+controlador.
 
 ## D-025 - `.padmap` admite varios pads por sonido
 

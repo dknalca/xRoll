@@ -984,7 +984,7 @@ final class Model: ObservableObject {
             let direction = offset < 0 ? "adelantado" : offset > 0 ? "atrasado" : "a tiempo"
             self.judgement = "\(judged.judgement.rawValue.capitalized) · \(Int(abs(offset))) ms \(direction)"
             let feedbackSound = judged.expectedNote?.sound ?? sound
-            self.practiceScene?.showFeedback(sound: feedbackSound, judgement: judged.judgement)
+            self.practiceScene?.showFeedback(sound: feedbackSound, judgement: judged.judgement, offsetMilliseconds: offset)
             self.updateLiveStatistics(current.score)
         }
     }

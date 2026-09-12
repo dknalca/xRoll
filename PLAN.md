@@ -1,4 +1,9 @@
-# Plan de xRoll
+# Plan de xRoll (histórico)
+
+Este documento conserva el razonamiento inicial por fases. El estado vigente,
+las tareas manuales y los criterios de publicación están en
+[`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) y
+[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 
 Cada fase termina en algo que se puede ejecutar y comprobar. No se pasa de fase
 con la anterior a medias.

@@ -20,6 +20,12 @@ final class PracticeScene: SKScene {
     private let barLabel = SKLabelNode()
     private let beatLabel = SKLabelNode()
     private let progressFill = SKSpriteNode(color: .systemCyan, size: .zero)
+    private var hitGlow: SKShapeNode?
+    private var hitLine: SKShapeNode?
+    private var targetBySound: [String: SKShapeNode] = [:]
+    private var consumedNoteIndices = Set<Int>()
+    private var lastPulseBeat = -1
+    private var successfulStreak = 0
 
     init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil) {
         self.timeline = timeline
@@ -75,8 +81,10 @@ final class PracticeScene: SKScene {
         hitGlow.strokeColor = .clear
         hitGlow.zPosition = 3
         addChild(hitGlow)
+        self.hitGlow = hitGlow
         let hitLine = SKShapeNode(rect: CGRect(x: 0, y: hitY - 1.5, width: size.width, height: 3))
         hitLine.fillColor = .white; hitLine.strokeColor = .clear; hitLine.glowWidth = 5; hitLine.zPosition = 4; addChild(hitLine)
+        self.hitLine = hitLine
 
         let timingLabel = SKLabelNode(text: "GOLPEA AQUÍ")
         timingLabel.fontName = "Avenir Next Demi Bold"
@@ -148,6 +156,7 @@ final class PracticeScene: SKScene {
             target.position = CGPoint(x: x, y: 36)
             target.zPosition = 5
             addChild(target)
+            targetBySound[sound] = target
 
             if showsSoundLabels {
                 let label = SKLabelNode(text: soundLabels[sound] ?? sound)
@@ -199,6 +208,11 @@ final class PracticeScene: SKScene {
         let patternPosition = elapsed.truncatingRemainder(dividingBy: timeline.patternDurationMilliseconds)
         let barPosition = patternPosition.truncatingRemainder(dividingBy: timeline.barDurationMilliseconds)
         let beatDuration = timeline.barDurationMilliseconds / 4
+        let absoluteBeat = Int(max(0, now) / beatDuration)
+        if absoluteBeat != lastPulseBeat {
+            lastPulseBeat = absoluteBeat
+            pulseHitLine(isBar: absoluteBeat.isMultiple(of: 4))
+        }
         let currentBar = min(timeline.bars, Int(patternPosition / timeline.barDurationMilliseconds) + 1)
         barLabel.text = "VUELTA \(Int(elapsed / timeline.patternDurationMilliseconds) + 1) · C \(currentBar)/\(timeline.bars)"
         beatLabel.text = "Pulso \(min(4, Int(barPosition / beatDuration) + 1)) de 4"
@@ -211,11 +225,17 @@ final class PracticeScene: SKScene {
         for (note, node) in noteNodes {
             guard showsNotes else { node.isHidden = true; continue }
             guard let slot = slotBySound[note.sound] else { node.isHidden = true; continue }
+            guard !consumedNoteIndices.contains(note.index) else { node.isHidden = true; continue }
             let remaining = note.timeMilliseconds - now
             node.isHidden = remaining > displayLeadMilliseconds || remaining < -120
             let x = (CGFloat(slot) + 0.5) * size.width / 16
             let y = hitY + CGFloat(remaining / displayLeadMilliseconds) * availableHeight
             node.position = CGPoint(x: x, y: y)
+            let proximity = CGFloat(max(0, min(1, 1 - remaining / min(beatDuration, displayLeadMilliseconds))))
+            // La nota gana presencia al acercarse: no es un marcador estático,
+            // sino el objeto que el músico debe "recibir" en el punto de golpe.
+            node.alpha = 0.58 + 0.42 * proximity
+            node.setScale(0.78 + 0.38 * proximity)
         }
     }
 
@@ -238,31 +258,119 @@ final class PracticeScene: SKScene {
         }
     }
 
-    /// Draws the player's timing result over the matching lane at the hit line.
-    /// Circle: on time, triangle: regular, cross: extra/wrong hit.
-    func showFeedback(sound: String, judgement: RhythmJudgement) {
+    /// The score is already final when this runs; these actions only decorate it.
+    func showFeedback(sound: String, judgement: RhythmJudgement, offsetMilliseconds: Double? = nil) {
         guard let slot = slotBySound[sound] else { return }
-        let node: SKShapeNode
-        switch judgement {
-        case .perfect, .good:
-            node = SKShapeNode(circleOfRadius: 18)
-            node.strokeColor = .systemGreen
-        case .regular:
-            let path = CGMutablePath()
-            path.move(to: CGPoint(x: 0, y: 19)); path.addLine(to: CGPoint(x: -18, y: -14)); path.addLine(to: CGPoint(x: 18, y: -14)); path.closeSubpath()
-            node = SKShapeNode(path: path)
-            node.strokeColor = .systemYellow
-        case .miss, .extra:
-            let path = CGMutablePath()
-            path.move(to: CGPoint(x: -15, y: -15)); path.addLine(to: CGPoint(x: 15, y: 15)); path.move(to: CGPoint(x: -15, y: 15)); path.addLine(to: CGPoint(x: 15, y: -15))
-            node = SKShapeNode(path: path)
-            node.strokeColor = .systemRed
+        if judgement == .extra || judgement == .miss {
+            successfulStreak = 0
+            showExtraWave(at: slot)
+            return
         }
-        node.lineWidth = 5
-        node.fillColor = .clear
-        node.position = CGPoint(x: (CGFloat(slot) + 0.5) * size.width / 16, y: hitY + 8)
-        node.zPosition = 12
-        addChild(node)
-        node.run(.sequence([.group([.scale(to: 1.45, duration: 0.14), .fadeAlpha(to: 0.85, duration: 0.14)]), .group([.moveBy(x: 0, y: 36, duration: 0.38), .fadeOut(withDuration: 0.38)]), .removeFromParent()]))
+        let now = AudioClock.milliseconds(from: startHostTime, to: AudioGetCurrentHostTime())
+        guard let candidate = noteNodes
+            .filter({ $0.0.sound == sound && !consumedNoteIndices.contains($0.0.index) })
+            .min(by: { abs($0.0.timeMilliseconds - now) < abs($1.0.timeMilliseconds - now) }),
+            abs(candidate.0.timeMilliseconds - now) < 180,
+            let impact = candidate.1.copy() as? SKShapeNode
+        else { return }
+
+        consumedNoteIndices.insert(candidate.0.index)
+        candidate.1.isHidden = true
+        impact.zPosition = 14
+        impact.alpha = 1
+        addChild(impact)
+        let x = (CGFloat(slot) + 0.5) * size.width / 16
+        let snap = SKAction.group([
+            .move(to: CGPoint(x: x, y: hitY + 5), duration: 0.055),
+            .scale(to: judgement == .perfect ? 0.52 : 0.64, duration: 0.055)
+        ])
+        let color = color(forSound: sound)
+        pulseTarget(for: sound, color: color, strength: judgement == .perfect ? 1 : 0.7)
+        switch judgement {
+        case .perfect:
+            successfulStreak += 1
+            emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 7)
+            showHitWord("¡CLAVADO!", at: x, color: color)
+            impact.run(.sequence([snap, .group([.scale(to: 1.42, duration: 0.13), .fadeAlpha(to: 0.95, duration: 0.13)]), .group([.moveBy(x: 0, y: 54, duration: 0.34), .fadeOut(withDuration: 0.34)]), .removeFromParent()]))
+        case .good:
+            successfulStreak += 1
+            emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 4)
+            showHitWord("BIEN", at: x, color: color)
+            impact.run(.sequence([snap, .group([.scale(to: 1.18, duration: 0.13), .fadeAlpha(to: 0.82, duration: 0.13)]), .group([.moveBy(x: 0, y: 38, duration: 0.30), .fadeOut(withDuration: 0.30)]), .removeFromParent()]))
+        case .regular:
+            successfulStreak = 0
+            let direction: CGFloat = (offsetMilliseconds ?? 0) < 0 ? -1 : 1
+            showHitWord("CASI", at: x, color: .systemYellow)
+            impact.run(.sequence([snap, .group([.moveBy(x: direction * 35, y: 18, duration: 0.32), .fadeOut(withDuration: 0.32)]), .removeFromParent()]))
+        case .miss, .extra: break
+        }
+        if successfulStreak >= 4 { successfulStreak = 0; showGrooveFlash() }
+    }
+
+    private func pulseHitLine(isBar: Bool) {
+        hitGlow?.run(.sequence([.fadeAlpha(to: isBar ? 0.46 : 0.30, duration: 0.05), .fadeAlpha(to: 0.16, duration: 0.20)]), withKey: "pulse")
+        hitLine?.run(.sequence([.scaleY(to: isBar ? 1.7 : 1.25, duration: 0.05), .scaleY(to: 1, duration: 0.20)]), withKey: "pulse")
+    }
+
+    private func emitTrail(from origin: CGPoint, color: SKColor, count: Int) {
+        for index in 0..<count {
+            let particle = SKShapeNode(circleOfRadius: CGFloat(max(3, 7 - index / 2)))
+            particle.fillColor = color.withAlphaComponent(0.85)
+            particle.strokeColor = .clear
+            particle.position = origin
+            particle.zPosition = 13
+            addChild(particle)
+            let lateral = CGFloat(index - count / 2) * 11
+            particle.run(.sequence([.group([.moveBy(x: lateral, y: 28 + CGFloat(index * 9), duration: 0.36), .fadeOut(withDuration: 0.36)]), .removeFromParent()]))
+        }
+    }
+
+    private func pulseTarget(for sound: String, color: SKColor, strength: CGFloat) {
+        guard let target = targetBySound[sound] else { return }
+        target.removeAction(forKey: "impact")
+        let originalFill = target.fillColor
+        target.fillColor = color.withAlphaComponent(0.88)
+        target.run(.sequence([
+            .group([.scale(to: 1 + 0.22 * strength, duration: 0.08), .fadeAlpha(to: 1, duration: 0.08)]),
+            .group([.scale(to: 1, duration: 0.34), .fadeAlpha(to: 0.95, duration: 0.34)]),
+            .run { target.fillColor = originalFill }
+        ]), withKey: "impact")
+    }
+
+    private func showHitWord(_ text: String, at x: CGFloat, color: SKColor) {
+        let word = SKLabelNode(text: text)
+        word.fontName = "Avenir Next Heavy"
+        word.fontSize = 16
+        word.fontColor = color
+        word.horizontalAlignmentMode = .center
+        word.position = CGPoint(x: x, y: hitY + 24)
+        word.zPosition = 15
+        word.setScale(0.72)
+        addChild(word)
+        word.run(.sequence([.group([.scale(to: 1.15, duration: 0.12), .moveBy(x: 0, y: 22, duration: 0.12)]), .group([.moveBy(x: 0, y: 25, duration: 0.32), .fadeOut(withDuration: 0.32)]), .removeFromParent()]))
+    }
+
+    private func showExtraWave(at slot: Int) {
+        let laneWidth = size.width / 16
+        let center = (CGFloat(slot) + 0.5) * laneWidth
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: center - laneWidth * 0.4, y: hitY))
+        path.addCurve(to: CGPoint(x: center + laneWidth * 0.4, y: hitY), control1: CGPoint(x: center - laneWidth * 0.15, y: hitY + 15), control2: CGPoint(x: center + laneWidth * 0.15, y: hitY - 15))
+        let wave = SKShapeNode(path: path)
+        wave.strokeColor = .systemRed
+        wave.lineWidth = 3
+        wave.glowWidth = 4
+        wave.zPosition = 13
+        addChild(wave)
+        wave.run(.sequence([.group([.scaleX(to: 1.8, duration: 0.24), .fadeOut(withDuration: 0.24)]), .removeFromParent()]))
+    }
+
+    private func showGrooveFlash() {
+        let flash = SKShapeNode(rect: CGRect(x: 0, y: hitY - 1, width: size.width, height: 3))
+        flash.fillColor = .systemCyan.withAlphaComponent(0.85)
+        flash.strokeColor = .clear
+        flash.zPosition = 13
+        addChild(flash)
+        flash.run(.sequence([.group([.scaleX(to: 1.06, duration: 0.10), .fadeAlpha(to: 0.45, duration: 0.10)]), .fadeOut(withDuration: 0.20), .removeFromParent()]))
     }
 }

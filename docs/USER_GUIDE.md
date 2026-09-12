@@ -49,7 +49,7 @@ La exportación no altera los datos locales.
 ## Recuperación
 
 - **No suena nada:** comprueba la salida de audio del sistema y reinicia la app.
-- **Faltan muestras:** coloca los seis WAV en `Resources/Kits/hiphop_basic/` y
+- **Faltan muestras:** coloca los diez WAV en `Resources/Kits/hiphop_basic/` y
   vuelve a crear la aplicación con `scripts/build-app.sh`.
 - **El controlador no responde:** usa el teclado para comprobar la app y vuelve
   a hacer el mapeo del M-Vave.
@@ -64,11 +64,10 @@ la práctica diferencian izquierda y derecha además del color.
 ## Elegir layout
 
 En `Equipo → Pads y layout`:
-1. selecciona Core para iniciación, Drum Kit para técnica de batería, Mirror para alternancia o Custom;
+1. selecciona Core para iniciación, Drum Kit para técnica de batería o Mirror para alternancia;
 2. elige orientación;
 3. prueba cada celda;
-4. resuelve avisos de sonidos o roles ausentes;
-5. guarda el perfil por dispositivo.
+4. confirma que cada pad ilumina y suena en la posición esperada.
 
 Cambiar de layout puede afectar la compatibilidad técnica de algunos ejercicios, pero no borra el progreso musical.
 

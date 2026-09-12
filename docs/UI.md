@@ -19,8 +19,8 @@ tercer tiempo" en lugar de "a treinta y ocho pixeles".
 
 ## Carriles
 
-La ejecucion usa dieciseis posiciones, una por pad fisico. Los once sonidos
-ocupan su posicion y los cinco pads libres se ven como huecos apagados. No se
+La ejecución usa dieciséis posiciones, una por pad físico. Los diez sonidos
+ocupan su posición y los seis pads libres se ven como huecos apagados. No se
 comprimen, porque hacerlo cambiaria las distancias relativas del controlador.
 
 En los 1280 puntos de ancho logico de la maquina objetivo quedan unos 80 por
@@ -123,6 +123,7 @@ Orden:
 
 ## Layouts
 
-`Equipo → Pads y layout` permite elegir Core, Drum Kit, Mirror, Studio/GM o Custom. Cada preset tiene vista 4×4, prueba en vivo, orientación y estado de compatibilidad con cursos.
+`Equipo → Pads y layout` permite elegir Core, Drum Kit o Mirror. Cada preset
+conserva las notas MIDI físicas aprendidas y actualiza la vista 4×4.
 
 En layouts con duplicados, los 16 carriles se conservan. Una nota por sonido usa un carril recomendado e ilumina alternativas válidas.

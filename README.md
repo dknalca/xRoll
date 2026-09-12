@@ -9,7 +9,10 @@ Pensado para quien empieza de cero.
 
 ## Estado
 
-En desarrollo temprano. Ver PLAN.md.
+La versión actual incluye práctica, calibración, progreso local, importación MIDI
+y tres layouts: **xRoll Core**, **Drum Kit** y **Mirror**. La publicación sigue
+pendiente de validación en hardware y licencias de audio; consulta
+[docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Desarrollo
 
@@ -44,11 +47,10 @@ Un `.padmap` valida que cada sonido, posicion y nota/canal solo aparezcan una ve
 `xroll-map-pads` crea ese archivo guiando los sonidos del kit; se pueden omitir
 los que no tenga el controlador.
 
-`xroll-pads` abre la ventana principal. La pestaña **Practicar** permite elegir
-un ejercicio, escucharlo sin puntuacion y tocar los seis sonidos con el M-Vave o
-con la rejilla de teclado documentada en `docs/MIDI_MAPPING.md`. La pestaña
-**Mapear pads** captura seis golpes, guarda el `.padmap` en Application Support
-y hace que la rejilla siga las posiciones fisicas guardadas.
+`xroll-pads` abre la ventana principal. **Pads y layout** aprende los diez
+sonidos del kit, guarda el mapa por controlador en Application Support y ofrece
+Core, Drum Kit y Mirror sin cambiar las notas MIDI físicas. El teclado replica
+la rejilla documentada en `docs/MIDI_MAPPING.md`.
 
 La puntuacion y la calibracion viven en el nucleo. La calibracion descarta los
 cuatro primeros golpes, usa la mediana del resto y se guarda por perfil completo:
@@ -89,7 +91,7 @@ quiera revisar. Los datos permanecen locales en
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y quince ejercicios progresivos
+- Selector de tempo y duración, calentamiento y 56 ejercicios MIDI progresivos
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad
@@ -132,7 +134,7 @@ scripts/build-app.sh
 open dist/xRoll.app
 ```
 
-El script incluye los seis WAV originales de `hiphop_basic` dentro del bundle.
+El script incluye los diez WAV de `hiphop_basic` dentro del bundle.
 Sus atribuciones y licencia CC BY-SA 4.0 están en
 `Resources/Loops/ATTRIBUTION.md`.
 

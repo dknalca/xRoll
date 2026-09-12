@@ -27,7 +27,7 @@ La latencia de presentacion informada por el sistema no es la latencia total.
 sonar ese identificador ante cualquier Note On. La medicion de la fase 0 empieza
 cuando haya un sample definitivo y un controlador MIDI conectado; se registra
 entonces tambien el golpe fisico y el sonido audible en una grabacion externa,
-como especifica PLAN.md. El modificador `--log-events` es diagnostico: no se usa
+como especifica `LATENCY_PROTOCOL.md`. El modificador `--log-events` es diagnostico: no se usa
 durante la medicion porque escribir en consola anade trabajo al callback MIDI.
 El modificador `--check` inicia audio y conecta MIDI para comprobar la
 preparacion, y termina sin esperar un golpe.

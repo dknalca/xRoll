@@ -79,7 +79,7 @@ elegido otra posicion visual.
 
 **El orden de las dieciseis posiciones en pantalla se deriva de este fichero**,
 aplanando la rejilla: fila inferior de izquierda a derecha, luego la siguiente.
-Los cinco pads sin sonido conservan un hueco apagado; no se comprimen. Un sonido
+Los seis pads sin sonido conservan un hueco apagado; no se comprimen. Un sonido
 omitido durante el asistente queda sin posicion y los ejercicios que lo requieren
 se muestran como no disponibles hasta que se asigne.
 
@@ -87,10 +87,9 @@ Si el bombo esta fisicamente abajo a la izquierda y en pantalla aparece en el
 centro, el usuario hace una transposicion mental en cada nota, que es
 exactamente la carga cognitiva que la memoria espacial deberia eliminar.
 
-El .padmap no es un menu de configuracion: es la fuente de verdad de la
-disposicion visual. El asistente actual pide los nueve sonidos disponibles del
-kit inicial: bombo, caja, palmada, tom grave, charles cerrado y abierto, tom
-agudo, crash y ride.
+El `.padmap` es la fuente de verdad de la disposición visual. El asistente pide
+los diez sonidos del kit: bombo, aro, caja, palmada, tom grave, charles cerrado,
+charles abierto, tom agudo, crash y ride.
 
 ## Teclado del portatil
 
@@ -118,7 +117,8 @@ El sistema separa:
 - rol técnico opcional;
 - mensaje MIDI.
 
-Presets y editor se especifican en [PAD_LAYOUTS.md](PAD_LAYOUTS.md); formato y migración en [PADMAP_V2.md](PADMAP_V2.md).
+Los presets se especifican en [PAD_LAYOUTS.md](PAD_LAYOUTS.md); formato y
+migración en [PADMAP_V2.md](PADMAP_V2.md).
 
 ## Resolución de una entrada
 

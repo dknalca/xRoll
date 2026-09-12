@@ -11,10 +11,10 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 ## Índice
 
 ### Producto y decisiones
-- [PRODUCT_VISION.md](PRODUCT_VISION.md): visión, principios y roadmap.
+- [PRODUCT_VISION.md](PRODUCT_VISION.md): visión y principios.
 - [DECISIONS.md](DECISIONS.md): registro de decisiones y motivos.
 - [ARCHITECTURE.md](ARCHITECTURE.md): arquitectura funcional y técnica.
-- [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md): fases recomendadas.
+- [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md): estado técnico y siguiente capa.
 
 ### Experiencia e interfaz
 - [UI.md](UI.md): comportamiento general de interfaz.
@@ -30,7 +30,7 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 - [SCORING.md](SCORING.md): puntuación y diagnóstico temporal.
 
 ### Pads, MIDI y audio
-- [PAD_LAYOUTS.md](PAD_LAYOUTS.md): presets, orientación y editor custom.
+- [PAD_LAYOUTS.md](PAD_LAYOUTS.md): Core, Drum Kit, Mirror y orientación.
 - [PADMAP_V2.md](PADMAP_V2.md): modelo many-to-one y migración.
 - [MIDI_MAPPING.md](MIDI_MAPPING.md): MIDI y aprendizaje del controlador.
 - [AUDIO.md](AUDIO.md): muestras, kits y loops.

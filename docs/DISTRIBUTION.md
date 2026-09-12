@@ -8,8 +8,7 @@ mantiene una plantilla de una versión anterior en el repositorio.
 
 1. Ejecuta `swift test`, `swift run xroll-preflight` y `scripts/build-app.sh`.
 2. Comprueba que toda muestra nueva está anotada en
-   `Resources/Loops/ATTRIBUTION.md`. Los seis WAV de `hiphop_basic` ya están
-   confirmados como grabaciones originales del autor bajo CC BY-SA 4.0.
+   `Resources/Loops/ATTRIBUTION.md` y que su licencia permite la distribución.
 3. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
    y `git push origin v0.1.0`.
 4. Revisa el borrador creado por GitHub y publícalo cuando corresponda.

@@ -1,4 +1,4 @@
-# Validacion antes del MVP
+# Validación antes de publicar
 
 ## Ya automatizado
 
@@ -9,10 +9,10 @@
 
 ## Pendiente en hardware
 
-1. Mapear el M-Vave desde la pestaña **Mapear pads** y reiniciar la app para
-   confirmar que carga el mapa guardado.
-2. Comprobar teclado, vista previa y los cinco ejercicios con auriculares y con
-   la salida Rane.
+1. Confirmar tras reiniciar que el M‑Vave conserva el mapa de 16 pads y que
+   Core, Drum Kit y Mirror iluminan y reproducen el pad correcto.
+2. Comprobar teclado, vista previa y una selección representativa del catálogo
+   con auriculares y con la salida Rane.
 3. Ejecutar la medicion fisica de latencia descrita en `LATENCY_PROTOCOL.md`.
 4. Practicar diez minutos seguidos y confirmar que no hay cortes ni caidas de
    fotogramas perceptibles en la escena SpriteKit.
@@ -25,29 +25,16 @@
 - Probar Core, Drum Kit y Mirror con controladores reales y conservar presets
   por dispositivo.
 
-## Validación del rediseño
-
-- Contraste y estados de teclado/VoiceOver.
-- Reduce Motion.
-- 60 FPS con densidad máxima.
-- Las animaciones no alteran timestamps.
-- Home permite iniciar recomendación en un clic.
-- Resultado comunica una fortaleza y una prioridad.
-
 ## Validación de layouts
 
 - Migración v1→v2 con copia de seguridad.
-- Core y Drum Kit probados en hardware.
+- Core, Drum Kit y Mirror probados en hardware.
 - Duplicados resuelven un único objetivo `any`.
 - Roles y pads exactos no se aceptan indistintamente.
 - Orientación no corrompe MIDI.
-- Custom detecta conflictos.
 - Cada ejercicio declara requisitos.
 
 ## Validación didáctica
 
-- Una dificultad principal nueva por nivel.
-- Iniciación completa I-00… I-08.
-- Construcción por capas.
-- Prueba de ayudas reducidas.
+- Una dificultad principal nueva por nivel y ayudas reducidas comprobadas.
 - Métricas de sesgo y dispersión no se confunden con latencia.
