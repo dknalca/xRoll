@@ -37,6 +37,8 @@ final class Model: ObservableObject {
     @Published var progress = ""; @Published var scoreHistory = [Double](); @Published var advice = ""; @Published var calibrationMessage = "Sin calibracion para este perfil."
     @Published var ghostCoachMessage = ""
     @Published var selectedBPM = 80; @Published var selectedRepeats = 8; @Published var recovery = ""; @Published var insights = ""
+    @Published var gridGuide: GridGuideSubdivision = .eighth
+    @Published var practiceViewZoom: PracticeViewZoom = .standard
     @Published var courseTitleOverride: String?
     @Published var selectedTempoTier = 0
     @Published var practiceFragment = 0
@@ -54,7 +56,7 @@ final class Model: ObservableObject {
     @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
     @Published var historicalDiagnostics: HistoricalDiagnostics?
     @Published var masterySeals = [MasterySeal]()
-    @Published var lastHitRecords = [HitRecord](); @Published var velocityFeedback = ""; @Published var whaleMessage = ""; @Published var whaleTargetMessage = ""
+    @Published var lastHitRecords = [HitRecord](); @Published var whaleMessage = ""; @Published var whaleTargetMessage = ""
     @Published var courseLevels = [CourseLevelState]()
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
@@ -66,6 +68,7 @@ final class Model: ObservableObject {
     @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
     @Published var showingResults = false
     @Published var showingPreparation = false
+    @Published var showingCalibrationWarning = false
     private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?; private var bundledExercises = [Exercise]()
     private var custom: PadMapV2?; private var customRouter: PadMapV2Router?; private var input: MIDIInputSession?
     private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
@@ -93,7 +96,7 @@ final class Model: ObservableObject {
     private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
     private var lastExerciseScore: ExerciseScore?
     private var previewToken = UUID()
-    private var progressStore: ProgressStore?; private var calibrationOffset: Double = 0; private var calibrating = false
+    private var progressStore: ProgressStore?; private var calibrationOffset: Double = 0; private var calibrationProfileKey: CalibrationProfileKey?; private var calibrating = false
 
     init() {
         load()
@@ -354,11 +357,60 @@ final class Model: ObservableObject {
             audio?.stopScheduledSounds()
             audio?.stopLoop()
             try audio?.setOutputDevice(selected.deviceID)
+            try restoreSavedAudioBuffer(for: selected)
             UserDefaults.standard.set(selected.uid, forKey: "xRoll.audioOutputUID")
             loadCalibration()
             status = "Salida de audio: \(selected.name)"
         } catch {
             status = error.localizedDescription
+        }
+    }
+    var selectedAudioOutput: AudioOutputDeviceDescription? {
+        audioOutputs.first(where: { $0.uid == selectedAudioOutputUID })
+    }
+    var selectedAudioBuffer: UInt32? {
+        selectedAudioOutput.flatMap { AudioInspector.output(deviceID: $0.deviceID).bufferFrameSize }
+    }
+    var selectedAudioBufferChoices: [UInt32] {
+        guard let output = selectedAudioOutput,
+              let range = AudioInspector.output(deviceID: output.deviceID).bufferFrameRange else { return [] }
+        let common: [UInt32] = [16, 32, 64, 128, 256, 512, 1_024, 2_048, 4_096]
+        let current = selectedAudioBuffer.map { [$0] } ?? []
+        return Array(Set(common.filter(range.contains) + current)).sorted()
+    }
+    func setAudioBufferFrames(_ frames: UInt32) {
+        guard let output = selectedAudioOutput else { return }
+        do {
+            audio?.stopScheduledSounds()
+            audio?.stopLoop()
+            audio?.stop()
+            try AudioInspector.setBufferFrameSize(frames, for: output.deviceID)
+            try audio?.start()
+            UserDefaults.standard.set(Int(frames), forKey: audioBufferPreferenceKey(for: output.uid))
+            loadCalibration()
+            status = "Buffer de audio: \(frames). Calibra de nuevo este perfil."
+        } catch {
+            try? audio?.start()
+            status = error.localizedDescription
+        }
+    }
+    private func audioBufferPreferenceKey(for uid: String) -> String { "xRoll.audioBufferFrames.\(uid)" }
+    private func savedAudioBufferFrames(for output: AudioOutputDeviceDescription) -> UInt32? {
+        guard let value = UserDefaults.standard.object(forKey: audioBufferPreferenceKey(for: output.uid)) as? Int,
+              value > 0,
+              let range = AudioInspector.output(deviceID: output.deviceID).bufferFrameRange,
+              range.contains(UInt32(value)) else { return nil }
+        return UInt32(value)
+    }
+    private func restoreSavedAudioBuffer(for output: AudioOutputDeviceDescription) throws {
+        guard let frames = savedAudioBufferFrames(for: output) else { return }
+        audio?.stop()
+        do {
+            try AudioInspector.setBufferFrameSize(frames, for: output.deviceID)
+            try audio?.start()
+        } catch {
+            try? audio?.start()
+            throw error
         }
     }
     func refreshMIDIDevices() { refreshMIDIDevices(announceChanges: true) }
@@ -484,7 +536,7 @@ final class Model: ObservableObject {
             let timeline = ExerciseTimeline(exercise: exercise)
             let base = AudioClock.hostTime(afterMilliseconds: 700)
             for note in timeline.notes { try audio.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: base)) }
-            previewScene = PracticeScene(timeline: timeline, startHostTime: base, anticipationMilliseconds: timeline.patternDurationMilliseconds, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: true)
+            previewScene = PracticeScene(timeline: timeline, startHostTime: base, anticipationMilliseconds: timeline.patternDurationMilliseconds, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: true, gridGuide: gridGuide, viewZoom: practiceViewZoom)
             preview = "Mira y escucha una vuelta. No se puntúa."
             let token = UUID(); previewToken = token
             DispatchQueue.main.asyncAfter(deadline: .now() + (700 + timeline.patternDurationMilliseconds + 250) / 1_000) { [weak self] in
@@ -498,11 +550,33 @@ final class Model: ObservableObject {
         previewScene = nil
         audio?.stopScheduledSounds()
     }
-    func startPractice() { beginPractice(calibration: false) }
+    @discardableResult
+    func startPractice() -> Bool {
+        let needsCalibration = calibrationProfileKey != profileKey()
+        beginPractice(calibration: false)
+        if needsCalibration, practice != nil {
+            calibrationMessage = "Sin calibración para este perfil."
+            status = "Práctica iniciada sin calibración"
+            showingCalibrationWarning = true
+        }
+        return practice != nil
+    }
     func repeatPractice() { showingResults = false; beginPractice(calibration: false) }
     func setRepeats(_ repeats: Int) {
         selectedRepeats = PracticeConfiguration.normalizedRepeats(repeats)
         savePreferences()
+    }
+    func setGridGuide(_ guide: GridGuideSubdivision) {
+        gridGuide = guide
+        UserDefaults.standard.set(guide.rawValue, forKey: "xRoll.gridGuide")
+        practiceScene?.setGridGuide(guide)
+        previewScene?.setGridGuide(guide)
+    }
+    func setPracticeViewZoom(_ zoom: PracticeViewZoom) {
+        practiceViewZoom = zoom
+        UserDefaults.standard.set(zoom.rawValue, forKey: "xRoll.practiceViewZoom")
+        practiceScene?.setViewZoom(zoom)
+        previewScene?.setViewZoom(zoom)
     }
     func restartPractice() {
         guard practice != nil else { return }
@@ -515,7 +589,7 @@ final class Model: ObservableObject {
     }
     func moveToSuggestedExercise() {
         guard let next = exercises.first(where: { $0.title == nextExerciseTitle }) else { return }
-        chosenID = next.id; selectedBPM = next.bpm; selectedRepeats = defaultRepeats(for: next); preview = ""
+        chosenID = next.id; selectedRepeats = defaultRepeats(for: next); preview = ""
         showingResults = false; showingPreparation = false; savePreferences(); refreshProgress(for: next.id)
         beginPractice(calibration: false)
     }
@@ -544,9 +618,24 @@ final class Model: ObservableObject {
             do { try audio?.startLoop(atHostTime: AudioClock.hostTime(afterMilliseconds: nextBar), targetBPM: Double(exercise.bpm), volume: Float(tuning.loopVolume)) }
         catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
     }
-    func startCalibration() { beginPractice(calibration: true) }
+    func startCalibration() {
+        calibrationMessage = "Calibración: charles a corcheas a 72 BPM."
+        beginPractice(calibration: true)
+    }
     private func beginPractice(calibration: Bool) {
-        guard let fullExercise = configuredExercise else { return }
+        let fullExercise: Exercise
+        if calibration {
+            // Una única voz constante evita que un patrón complejo introduzca
+            // errores de lectura o coordinación en la estimación del desfase.
+            guard let exercise = exercises.first(where: { $0.id == "02_sub_02_corcheas" }) else {
+                calibrationMessage = "No se encontró el ejercicio de calibración."
+                return
+            }
+            fullExercise = PracticeConfiguration(exercise: exercise, bpm: exercise.bpm, repeats: 8).applying(to: exercise)
+        } else {
+            guard let exercise = configuredExercise else { return }
+            fullExercise = exercise
+        }
         do { try audio?.start() }
         catch { status = "No se pudo iniciar el audio: \(error.localizedDescription)"; return }
         let exercise: Exercise
@@ -571,9 +660,9 @@ final class Model: ObservableObject {
         let now = AudioGetCurrentHostTime()
         let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practiceVisualID = UUID()
-        practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibracion: sigue las notas durante todas las vueltas." : "Preparado: dos compases de anticipacion."; result = ""
+        practice = session; practiceStartHostTime = start; judgement = calibration ? "Calibración: sigue el charles a corcheas durante ocho vueltas." : "Preparado: dos compases de anticipacion."; result = ""
         liveTotalHits = 0; liveWellTimed = 0; liveRegular = 0; liveWrong = 0; livePercentage = 0
-        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: practiceHelp == .full, showsNotes: trainingPhase != .transfer, emphasizesPlayerNotes: practiceStepRange != nil || !isFullRhythmSelection, playerSounds: isFullRhythmSelection ? nil : playerSelection)
+        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: practiceHelp == .full, showsNotes: trainingPhase != .transfer, emphasizesPlayerNotes: practiceStepRange != nil || !isFullRhythmSelection, playerSounds: isFullRhythmSelection ? nil : playerSelection, gridGuide: gridGuide, viewZoom: practiceViewZoom)
         let isPartialPractice = !isFullRhythmSelection || transferCheck || practiceStepRange != nil
         if !calibration, isPartialPractice {
             let sourceExercise = chosen.map { PracticeConfiguration(exercise: $0, bpm: selectedBPM, repeats: selectedRepeats).applying(to: $0) } ?? fullExercise
@@ -634,7 +723,6 @@ final class Model: ObservableObject {
         let score = currentPractice.score
         lastExerciseScore = score
         lastHitRecords = HitRecord.records(from: score)
-        velocityFeedback = VelocityInsights(records: lastHitRecords).message
         lastScorePercentage = score.percentage; lastScoreStars = score.stars
         lastTotalHits = score.hits.count
         lastWellTimed = score.perfectCount + score.goodCount
@@ -696,7 +784,10 @@ final class Model: ObservableObject {
             let savedOutputUID = UserDefaults.standard.string(forKey: "xRoll.audioOutputUID")
             let defaultOutputUID = AudioInspector.defaultOutputDeviceID().flatMap { id in audioOutputs.first(where: { $0.deviceID == id })?.uid }
             selectedAudioOutputUID = audioOutputs.contains(where: { $0.uid == savedOutputUID }) ? savedOutputUID : defaultOutputUID
-            if let selected = audioOutputs.first(where: { $0.uid == selectedAudioOutputUID }) { try newAudio.setOutputDevice(selected.deviceID) }
+            if let selected = audioOutputs.first(where: { $0.uid == selectedAudioOutputUID }) {
+                try newAudio.setOutputDevice(selected.deviceID)
+                if let frames = savedAudioBufferFrames(for: selected) { try AudioInspector.setBufferFrameSize(frames, for: selected.deviceID) }
+            }
             try newAudio.start()
             kit = loaded; audio = newAudio; gm = KitNoteRouter(kit: loaded)
             loadLoop(from: root)
@@ -707,6 +798,8 @@ final class Model: ObservableObject {
             chosenID = exercises.first?.id ?? ""
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = 8
             loadPreferences()
+            if let rawGuide = UserDefaults.standard.object(forKey: "xRoll.gridGuide") as? Int, let guide = GridGuideSubdivision(rawValue: rawGuide) { gridGuide = guide }
+            if let rawZoom = UserDefaults.standard.string(forKey: "xRoll.practiceViewZoom"), let zoom = PracticeViewZoom(rawValue: rawZoom) { practiceViewZoom = zoom }
             loadLayoutChoice()
             loadTuning()
             if let rawHelp = UserDefaults.standard.string(forKey: "xRoll.practiceHelp"), let savedHelp = PracticeHelp(rawValue: rawHelp) { practiceHelp = savedHelp }
@@ -770,18 +863,16 @@ final class Model: ObservableObject {
         } catch { status = error.localizedDescription }
     }
     private func receive(_ event: MIDINoteOn) {
-        if mapping { DispatchQueue.main.async { [weak self] in self?.capture(event) }; return }
-        let mappedPad = customRouter?.pad(for: event)
-        guard let sound = mappedPad?.sound ?? gm?.soundID(for: event) else { return }
-        // CoreMIDI invokes this callback on its own thread. AVAudioPlayerNode
-        // and the observable UI state must be touched from the main queue.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            if self.mapping { self.capture(event); return }
+            let mappedPad = self.customRouter?.pad(for: event)
+            guard let sound = mappedPad?.sound ?? self.gm?.soundID(for: event) else { return }
             // Duplicate kick/snare/hi-hat pads have the same sound but a
             // different physical position. Flash the exact mapped pad rather
             // than looking up the first pad carrying that sound.
             let visualPosition = mappedPad.flatMap(self.position(for:)) ?? self.position(sound)
-            self.play(sound, position: visualPosition, volume: VelocityCurve.gain(for: UInt8(clamping: event.velocity)), role: mappedPad?.role, padID: mappedPad?.id, velocity: UInt8(clamping: event.velocity))
+            self.play(sound, position: visualPosition, hostTime: event.hostTime, role: mappedPad?.role, padID: mappedPad?.id, velocity: UInt8(clamping: event.velocity))
         }
     }
     private func loadLoop(from root: URL) {
@@ -953,8 +1044,8 @@ final class Model: ObservableObject {
     private func position(for mappedPad: PadMapV2.Pad) -> PadPosition? {
         positions.first { $0.row == mappedPad.row && $0.column == mappedPad.column }
     }
-    private func play(_ sound: String, position: PadPosition?, volume: Float = 1, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
-        guard let audio else { return }; do { try audio.play(soundID: sound, volume: volume); record(sound, hostTime: AudioGetCurrentHostTime(), role: role, padID: padID, velocity: velocity); guard let position else { return }; let key = "\(position.row):\(position.column)"; let flashDuration = Double(tuning.padFlashMilliseconds) / 1_000; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + flashDuration) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
+    private func play(_ sound: String, position: PadPosition?, hostTime: UInt64 = AudioGetCurrentHostTime(), volume: Float = 1, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
+        guard let audio else { return }; do { try audio.play(soundID: sound, volume: volume); record(sound, hostTime: hostTime, role: role, padID: padID, velocity: velocity); guard let position else { return }; let key = "\(position.row):\(position.column)"; let flashDuration = Double(tuning.padFlashMilliseconds) / 1_000; DispatchQueue.main.async { [weak self] in self?.active.insert(key); DispatchQueue.main.asyncAfter(deadline: .now() + flashDuration) { self?.active.remove(key) } } } catch { status = error.localizedDescription }
     }
     private func slotsBySound() -> [String: Int] {
         var result: [String: Int] = [:]
@@ -971,10 +1062,9 @@ final class Model: ObservableObject {
     }
     private func record(_ sound: String, hostTime: UInt64, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
         guard practice != nil else { return }
-        let time = AudioClock.milliseconds(from: practiceStartHostTime, to: hostTime)
         DispatchQueue.main.async { [weak self] in
             guard let self, let current = self.practice else { return }
-            let judged = current.register(.init(sound: sound, timeMilliseconds: time, role: role, padID: padID, velocity: velocity))
+            let judged = current.register(.init(sound: sound, hostTime: hostTime, practiceStartHostTime: self.practiceStartHostTime, role: role, padID: padID, velocity: velocity))
             guard let offset = judged.offsetMilliseconds else {
                 self.judgement = "Toque extra"
                 self.practiceScene?.showFeedback(sound: sound, judgement: .extra)
@@ -996,7 +1086,10 @@ final class Model: ObservableObject {
         livePercentage = score.percentage
     }
     private func profileKey() -> CalibrationProfileKey {
-        let output = AudioInspector.currentOutput()
+        let output = selectedAudioOutputUID
+            .flatMap { uid in audioOutputs.first(where: { $0.uid == uid }) }
+            .map { AudioInspector.output(deviceID: $0.deviceID) }
+            ?? AudioInspector.currentOutput()
         return CalibrationProfileKey(
             inputKind: sourceID == nil ? .keyboard : .midi,
             inputIdentifier: sourceID.map(String.init) ?? "keyboard",
@@ -1007,8 +1100,9 @@ final class Model: ObservableObject {
     }
     private func loadCalibration() {
         let url = applicationSupportURL("calibration.json")
-        guard let profiles = try? CalibrationProfileStore.load(from: url), let profile = profiles.first(where: { $0.key == profileKey() }) else { calibrationOffset = 0; calibrationMessage = "Sin calibracion para este perfil."; return }
+        guard let profiles = try? CalibrationProfileStore.load(from: url), let profile = profiles.first(where: { $0.key == profileKey() }) else { calibrationOffset = 0; calibrationProfileKey = nil; calibrationMessage = "Sin calibracion para este perfil."; return }
         calibrationOffset = profile.offsetMilliseconds
+        calibrationProfileKey = profile.key
         calibrationMessage = String(format: "Compensacion activa: %.0f ms", calibrationOffset)
     }
     private func saveCalibration(offsets: [Double]) {
@@ -1021,6 +1115,7 @@ final class Model: ObservableObject {
             profiles.removeAll { $0.key == profile.key }; profiles.append(profile)
             try CalibrationProfileStore.save(profiles, to: url)
             calibrationOffset = profile.offsetMilliseconds
+            calibrationProfileKey = profile.key
             calibrationMessage = String(format: "Calibrado: %.0f ms, dispersion %.0f ms", estimate.offsetMilliseconds, estimate.medianAbsoluteDeviationMilliseconds)
         } catch { calibrationMessage = "Calibracion incompleta: \(error.localizedDescription)" }
     }
@@ -1043,43 +1138,42 @@ final class Model: ObservableObject {
         guard isAvailable(exercise) else { return }
         if practice != nil { finishPractice() }
         audio?.stopScheduledSounds(); audio?.stopLoop(); practiceToken = UUID(); previewToken = UUID(); practiceScene = nil; previewScene = nil
-        showingResults = false; courseTitleOverride = nil; chosenID = exercise.id; selectedTempoTier = 0; selectedBPM = 70; selectedRepeats = defaultRepeats(for: exercise); preview = ""
+        showingResults = false; courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
         practiceStepRange = nil; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id)
     }
     func openPreparation(_ exercise: Exercise? = nil) {
         if let exercise { chooseExercise(exercise) }
         guard chosen != nil else { return }
-        selectedTempoTier = 0
-        selectedBPM = chosen?.id.hasPrefix("30_fill_") == true ? (chosen?.bpm ?? 70) : (tempoPracticeOptions.first ?? 70)
         showingPreparation = true
     }
     func selectPreparationExercise(_ exercise: Exercise) {
-        courseTitleOverride = nil; chosenID = exercise.id; selectedTempoTier = 0
-        selectedBPM = 70; selectedRepeats = defaultRepeats(for: exercise); preview = ""
+        courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
         practiceStepRange = nil; selectFullRhythm(); savePreferences(); refreshProgress(for: exercise.id)
     }
     /// La portada del curso siempre abre el groove completo del bloque. Sus
     /// capas internas sustituyen a las antiguas tarjetas descompuestas.
     func openCompleteRhythm(_ exercise: Exercise, title: String) {
         leaveActiveScreen()
-        courseTitleOverride = title; chosenID = exercise.id; selectedTempoTier = 0; selectedBPM = 70; selectedRepeats = defaultRepeats(for: exercise); preview = ""; selectFullRhythm()
+        courseTitleOverride = title; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id); showingPreparation = true
     }
     func startFromPreparation() {
-        showingPreparation = false
         switch trainingPhase {
         case .discover:
+            showingPreparation = false
             previewExercise()
         case .isolate:
             if isFullRhythmSelection, let weakest = soundStatistics.min(by: { $0.accuracy < $1.accuracy }) { setPlayerSounds([weakest.sound]) }
             selectedBPM = max(40, Int((Double(selectedBPM) * 0.8).rounded()))
             selectedRepeats = 2
-            startPractice()
+            if startPractice() { showingPreparation = false }
         case .integrate:
-            transferCheck = false; selectFullRhythm(); startPractice()
+            transferCheck = false; selectFullRhythm()
+            if startPractice() { showingPreparation = false }
         case .transfer:
-            selectFullRhythm(); transferCheck = true; startPractice()
+            selectFullRhythm(); transferCheck = true
+            if startPractice() { showingPreparation = false }
         }
     }
     func dismissPreparation() { showingPreparation = false }
@@ -1139,6 +1233,7 @@ final class Model: ObservableObject {
         if let id = preferences.exerciseID, exercises.contains(where: { $0.id == id }) { chosenID = id }
         if let bpm = preferences.bpm { selectedBPM = min(240, max(40, bpm)) }
         if let repeats = preferences.repeats { selectedRepeats = PracticeConfiguration.normalizedRepeats(repeats) }
+        if let tier = tempoPracticeOptions.firstIndex(of: selectedBPM) { selectedTempoTier = tier }
     }
     func saveTuning() { try? PracticeTuningStore.save(tuning, to: applicationSupportURL("tuning.json")) }
     func resetTuning() { tuning = PracticeTuning(); resetSoundMix(); saveTuning() }
@@ -1434,13 +1529,23 @@ private struct PracticeRun: View {
                             }
                             Toggle("Metrónomo", isOn: $model.metronomeEnabled).toggleStyle(.switch)
                             Toggle("Loop acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) })).toggleStyle(.switch)
+                            Picker("Rejilla", selection: Binding(get: { model.gridGuide }, set: { model.setGridGuide($0) })) {
+                                ForEach(GridGuideSubdivision.allCases) { guide in
+                                    Text(guide.label).tag(guide)
+                                }
+                            }.pickerStyle(.segmented)
+                            Picker("Zoom", selection: Binding(get: { model.practiceViewZoom }, set: { model.setPracticeViewZoom($0) })) {
+                                ForEach(PracticeViewZoom.allCases) { zoom in
+                                    Text(zoom.label).tag(zoom)
+                                }
+                            }.pickerStyle(.segmented)
                             Divider().overlay(Color.white.opacity(0.15))
                             Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5)
                             Stepper("Duración: \(model.selectedRepeats) vueltas", value: Binding(
                                 get: { Model.repeatOptions.firstIndex(of: model.selectedRepeats) ?? 0 },
                                 set: { model.setRepeats(Model.repeatOptions[$0]) }
                             ), in: 0...(Model.repeatOptions.count - 1))
-                            Text("Tempo, duración y metrónomo se aplican al reiniciar.").font(.caption2).foregroundColor(.white.opacity(0.58))
+                            Text("Rejilla y zoom se aplican al momento; tempo, duración y metrónomo, al reiniciar.").font(.caption2).foregroundColor(.white.opacity(0.58))
                         }
                         StagePanel {
                             HStack(spacing: 5) {
@@ -1741,6 +1846,34 @@ private struct AudioLatencyHome: View {
                         }
                     }
                     StagePanel {
+                        HStack {
+                            Text("Salida y buffer").font(.headline)
+                            Spacer()
+                            ActionButton("↻ Refrescar", prominence: .secondary) { model.refreshAudioOutputs() }
+                        }
+                        Picker("Salida", selection: $model.selectedAudioOutputUID) {
+                            ForEach(model.audioOutputs) { output in
+                                Text(output.name).tag(Optional(output.uid))
+                            }
+                        }.onChange(of: model.selectedAudioOutputUID) { _ in model.selectAudioOutput() }
+                        if let buffer = model.selectedAudioBuffer, !model.selectedAudioBufferChoices.isEmpty {
+                            Picker("Buffer", selection: Binding(
+                                get: { Int(model.selectedAudioBuffer ?? buffer) },
+                                set: { model.setAudioBufferFrames(UInt32($0)) }
+                            )) {
+                                ForEach(model.selectedAudioBufferChoices, id: \.self) { frames in
+                                    Text("\(frames)").tag(Int(frames))
+                                }
+                            }
+                            Text("Se recuerda por salida de audio. Cambiarlo reinicia el audio y solicita una nueva calibración para este perfil.").font(.caption2).foregroundColor(.white.opacity(0.58))
+                        }
+                    }
+                    StagePanel {
+                        Text("Calibración de latencia").font(.headline)
+                        Text("Mide el desfase entre tu golpe y el audio para el controlador y la salida seleccionados. Usa charles a corcheas como referencia.").font(.caption).foregroundColor(.white.opacity(0.65))
+                        HStack { ActionButton("Iniciar calibración guiada", prominence: .primary) { model.startCalibration() }; Text(model.calibrationMessage).font(.caption2).foregroundColor(.white.opacity(0.58)) }
+                    }
+                    StagePanel {
                         Text("Metrónomo y acompañamiento").font(.headline)
                         Text("Estos niveles se aplican al iniciar o reiniciar el ejercicio.").font(.caption).foregroundColor(.white.opacity(0.65))
                         HStack {
@@ -1778,24 +1911,6 @@ private struct AudioLatencyHome: View {
                                 Text("\(Int(model.soundVolume(sound) * 100)) %").monospacedDigit().frame(width: 46, alignment: .trailing)
                             }
                         }
-                    }
-                    StagePanel {
-                        HStack {
-                            Text("Salida de audio").font(.headline)
-                            Spacer()
-                            ActionButton("↻ Refrescar", prominence: .secondary) { model.refreshAudioOutputs() }
-                        }
-                        Picker("Salida", selection: $model.selectedAudioOutputUID) {
-                            ForEach(model.audioOutputs) { output in
-                                Text(output.name).tag(Optional(output.uid))
-                            }
-                        }.onChange(of: model.selectedAudioOutputUID) { _ in model.selectAudioOutput() }
-                        Text("Conecta una interfaz y pulsa Refrescar para usarla en xRoll.").font(.caption2).foregroundColor(.white.opacity(0.58))
-                    }
-                    StagePanel {
-                        Text("Calibración de latencia").font(.headline)
-                        Text("Mide el desfase entre tu golpe y el audio para el controlador y la salida seleccionados. Usa el ejercicio elegido como referencia.").font(.caption).foregroundColor(.white.opacity(0.65))
-                        HStack { ActionButton("Iniciar calibración guiada", prominence: .primary) { model.startCalibration() }; Text(model.calibrationMessage).font(.caption2).foregroundColor(.white.opacity(0.58)) }
                     }
                     Spacer()
                 }.foregroundColor(.white).padding(30).frame(maxWidth: 760, alignment: .leading)
@@ -1906,7 +2021,14 @@ private struct ContentView: View {
                 else if section == "settings" { SettingsHome(model: model) }
                 else { PracticeHome(model: model) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.background(WindowResizeSupport()).frame(minWidth: 960, minHeight: 650)
+        }
+        .background(WindowResizeSupport())
+        .frame(minWidth: 960, minHeight: 650)
+        .alert("Calibración pendiente", isPresented: $model.showingCalibrationWarning) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text("No has realizado la calibración para esta entrada y salida de audio. La práctica ha empezado, pero la puntuación puede no reflejar tu timing con precisión.")
+        }
     }
     @ViewBuilder private func sidebarHeading(_ title: String) -> some View {
         if !sidebarCollapsed { Text(title).font(.studioLabel).foregroundColor(StudioDesign.textMuted).padding(.top, 14) }

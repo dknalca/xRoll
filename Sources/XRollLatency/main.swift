@@ -5,6 +5,7 @@ import XRollCore
 let arguments = Array(CommandLine.arguments.dropFirst())
 let logEvents = arguments.contains("--log-events")
 let checkOnly = arguments.contains("--check")
+let testClick = arguments.contains("--test-click")
 let sourceArgumentIndex = arguments.firstIndex(of: "--source")
 let sourceID: MIDIUniqueID?
 if let sourceArgumentIndex, arguments.indices.contains(sourceArgumentIndex + 1) {
@@ -13,13 +14,13 @@ if let sourceArgumentIndex, arguments.indices.contains(sourceArgumentIndex + 1) 
     sourceID = nil
 }
 let soundArguments = arguments.enumerated().compactMap { index, argument -> String? in
-    if argument == "--log-events" || argument == "--check" || argument == "--source" || index == sourceArgumentIndex.map({ $0 + 1 }) {
+    if argument == "--log-events" || argument == "--check" || argument == "--test-click" || argument == "--source" || index == sourceArgumentIndex.map({ $0 + 1 }) {
         return nil
     }
     return argument
 }
 guard soundArguments.count == 1 else {
-    fputs("Uso: swift run xroll-latency <sound-id> [--source <uid>] [--check] [--log-events]\n", stderr)
+    fputs("Uso: swift run xroll-latency <sound-id> [--source <uid>] [--test-click] [--check] [--log-events]\n", stderr)
     exit(64)
 }
 
@@ -39,15 +40,19 @@ do {
     let audio = SampleAudioEngine()
     try audio.load(kit: kit, from: kitDirectory)
     try audio.start()
+    if testClick { try audio.prepareLatencyClick() }
 
     let input = try MIDIInputSession { event in
         do {
-            try audio.play(soundID: soundID)
+            if testClick { try audio.playLatencyClick() }
+            else { try audio.play(soundID: soundID) }
             if logEvents {
-                print("Note On: canal \(event.channel), nota \(event.note), velocidad \(event.velocity), host \(event.hostTime)")
+                DispatchQueue.main.async {
+                    print("Note On: canal \(event.channel), nota \(event.note), velocidad \(event.velocity), host \(event.hostTime)")
+                }
             }
         } catch {
-            fputs("Error de audio: \(error.localizedDescription)\n", stderr)
+            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\n", stderr) }
         }
     }
     if let sourceID {
@@ -65,7 +70,7 @@ do {
         exit(0)
     }
 
-    print("Prueba de latencia activa con \(soundID). Golpea cualquier pad; Ctrl-C para terminar.")
+    print("Prueba de latencia activa con \(testClick ? "click agudo" : soundID). Golpea cualquier pad; Ctrl-C para terminar.")
     if logEvents {
         print("El registro de eventos anade trabajo al callback MIDI; no lo uses al medir latencia.")
     }

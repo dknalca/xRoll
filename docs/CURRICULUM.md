@@ -96,9 +96,8 @@ Boom bap, bombos sincopados, silencios, palmada/aro, half-time, dos compases, ch
 ### Rutas disponibles
 
 Rock, Funk, Blues/Shuffle y Jazz incluyen ahora cuatro ejercicios MIDI cada una.
-Son una primera vertical de aplicación: el contenido ternario usa una
-aproximación de shuffle sobre la rejilla actual; una rejilla ternaria nativa y
-la dinámica por velocity siguen siendo la siguiente ampliación técnica.
+Blues/Shuffle y Jazz usan una rejilla ternaria nativa de 12 pasos; las
+miniaturas y el generador curricular conservan esa subdivisión.
 
 Los importadores MIDI conservan ahora velocity y detectan una rejilla ternaria
 cuando todas las notas usan una división de tresillos. La puntuación temporal

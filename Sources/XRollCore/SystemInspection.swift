@@ -70,6 +70,23 @@ public struct AudioOutputDeviceDescription: Equatable, Identifiable {
     public var id: String { uid }
 }
 
+public enum AudioInspectorError: LocalizedError {
+    case unavailableBufferRange
+    case bufferOutsideRange(UInt32, ClosedRange<UInt32>)
+    case coreAudio(OSStatus)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unavailableBufferRange:
+            return "La salida no informa un rango de buffer configurable."
+        case .bufferOutsideRange(let frames, let range):
+            return "El buffer de \(frames) fotogramas queda fuera del rango \(range.lowerBound)...\(range.upperBound)."
+        case .coreAudio(let status):
+            return "Core Audio no pudo cambiar el buffer (\(status))."
+        }
+    }
+}
+
 public enum AudioInspector {
     public static func outputDevices() -> [AudioOutputDeviceDescription] {
         var address = AudioObjectPropertyAddress(
@@ -119,6 +136,39 @@ public enum AudioInspector {
         )
     }
 
+    /// Describe una salida concreta para que la calibración no dependa de cuál
+    /// sea la salida predeterminada global de macOS.
+    public static func output(deviceID: AudioDeviceID) -> AudioOutputDescription {
+        AudioOutputDescription(
+            deviceID: deviceID,
+            deviceName: deviceStringProperty(for: deviceID, selector: kAudioObjectPropertyName),
+            deviceUID: deviceStringProperty(for: deviceID, selector: kAudioDevicePropertyDeviceUID),
+            sampleRate: nominalSampleRate(for: deviceID),
+            channelCount: 0,
+            bufferFrameSize: bufferFrameSize(for: deviceID),
+            bufferFrameRange: bufferFrameRange(for: deviceID),
+            outputLatency: 0
+        )
+    }
+
+    public static func setBufferFrameSize(_ frames: UInt32, for deviceID: AudioDeviceID) throws {
+        guard let range = bufferFrameRange(for: deviceID) else {
+            throw AudioInspectorError.unavailableBufferRange
+        }
+        guard range.contains(frames) else {
+            throw AudioInspectorError.bufferOutsideRange(frames, range)
+        }
+        var requested = frames
+        let size = UInt32(MemoryLayout<UInt32>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyBufferFrameSize,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectSetPropertyData(deviceID, &address, 0, nil, size, &requested)
+        guard status == noErr else { throw AudioInspectorError.coreAudio(status) }
+    }
+
     private static func defaultOutputDevice() -> AudioDeviceID? {
         var deviceID = AudioDeviceID()
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
@@ -165,6 +215,18 @@ public enum AudioInspector {
             &bufferFrameSize
         )
         return status == noErr ? bufferFrameSize : nil
+    }
+
+    private static func nominalSampleRate(for deviceID: AudioDeviceID) -> Double {
+        var sampleRate = Double.zero
+        var size = UInt32(MemoryLayout<Double>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &sampleRate)
+        return status == noErr ? sampleRate : 0
     }
 
     private static func bufferFrameRange(for deviceID: AudioDeviceID) -> ClosedRange<UInt32>? {

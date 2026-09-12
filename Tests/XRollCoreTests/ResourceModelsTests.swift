@@ -38,6 +38,28 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(onsets[1].timeSeconds, 0.5, accuracy: 0.0001)
     }
 
+    func testPairsBandOnsetsAndCalculatesSummary() {
+        let pads = [
+            RecordingTransient(timeSeconds: 1, amplitude: 1),
+            RecordingTransient(timeSeconds: 2, amplitude: 1),
+            RecordingTransient(timeSeconds: 3, amplitude: 1)
+        ]
+        let sounds = [
+            RecordingTransient(timeSeconds: 1.012, amplitude: 1),
+            RecordingTransient(timeSeconds: 2.018, amplitude: 1),
+            RecordingTransient(timeSeconds: 3.024, amplitude: 1)
+        ]
+        let measurements = LatencyRecordingAnalysis.pair(padOnsets: pads, soundOnsets: sounds)
+        let summary = try! XCTUnwrap(LatencyRecordingAnalysis.summary(of: measurements))
+
+        XCTAssertEqual(measurements.count, 3)
+        XCTAssertEqual(measurements[0].milliseconds, 12, accuracy: 0.001)
+        XCTAssertEqual(measurements[1].milliseconds, 18, accuracy: 0.001)
+        XCTAssertEqual(measurements[2].milliseconds, 24, accuracy: 0.001)
+        XCTAssertEqual(summary.medianMilliseconds, 18, accuracy: 0.001)
+        XCTAssertEqual(summary.percentile95Milliseconds, 23.4, accuracy: 0.001)
+    }
+
     func testDecodesNoteOnAndIgnoresNoteOffVelocityZero() {
         let events = MIDIByteDecoder.noteOnEvents(
             bytes: [0x99, 36, 100, 38, 0, 0x89, 42, 80],
@@ -169,6 +191,14 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertGreaterThan(AudioClock.hostTime(afterMilliseconds: 10, from: start), start)
     }
 
+    func testTimedPadHitUsesTheOriginalHostTime() {
+        let start = AudioClock.hostTime(afterMilliseconds: 1_000, from: 10_000)
+        let input = AudioClock.hostTime(afterMilliseconds: 37, from: start)
+        let hit = TimedPadHit(sound: "kick", hostTime: input, practiceStartHostTime: start)
+
+        XCTAssertEqual(hit.timeMilliseconds, 37, accuracy: 0.001)
+    }
+
     func testLoadsTheBundledMIDIExerciseCatalog() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -185,6 +215,9 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(exercises.count, 64)
         XCTAssertEqual(exercises.first?.title, "I-01 · Bombo y caja")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
+        let ternaryExercises = exercises.filter { $0.id.hasPrefix("22_") || $0.id.hasPrefix("23_") }
+        XCTAssertEqual(ternaryExercises.count, 8)
+        XCTAssertTrue(ternaryExercises.allSatisfy { $0.grid == 12 && $0.bars == 1 })
     }
 
     func testActiveCatalogHasNoDuplicateRhythmsAtSameTempo() throws {
@@ -387,12 +420,6 @@ final class ResourceModelsTests: XCTestCase {
         let preferences = PracticePreferences(exerciseID: "hh_03", bpm: 95, repeats: 6)
         try PracticePreferencesStore.save(preferences, to: url)
         XCTAssertEqual(try PracticePreferencesStore.load(from: url), preferences)
-    }
-
-    func testVelocityCurveKeepsSoftHitsAudibleAndCapsHardHits() {
-        XCTAssertGreaterThan(VelocityCurve.gain(for: 1), 0.15)
-        XCTAssertLessThan(VelocityCurve.gain(for: 1), VelocityCurve.gain(for: 64))
-        XCTAssertEqual(VelocityCurve.gain(for: 127), 1, accuracy: 0.0001)
     }
 
     func testTuningClampsAndPersists() throws {

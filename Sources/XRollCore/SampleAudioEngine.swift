@@ -28,6 +28,9 @@ public enum SampleAudioEngineError: LocalizedError {
     }
 }
 
+/// Una instancia se confina a un único contexto de control. `XRollPads` la usa
+/// en main; las CLIs la preparan antes de conectar MIDI y su worker de entrega
+/// pasa a ser el único emisor de golpes vivos. No se pueden mezclar contextos.
 public final class SampleAudioEngine {
     private final class LoadedSound {
         let chokeGroup: String?
@@ -47,11 +50,14 @@ public final class SampleAudioEngine {
     private let loopTimePitch = AVAudioUnitTimePitch()
     private let metronomePlayer = AVAudioPlayerNode()
     private let metronomeTimePitch = AVAudioUnitTimePitch()
+    private let latencyClickPlayer = AVAudioPlayerNode()
     private let voicesPerSound: Int
     private var sounds: [String: LoadedSound] = [:]
+    private var samplePlayers: [AVAudioPlayerNode] = []
     private var soundGains: [String: Float] = [:]
     private var loopBuffer: AVAudioPCMBuffer?
     private var metronomeBuffer: AVAudioPCMBuffer?
+    private var latencyClickBuffer: AVAudioPCMBuffer?
     public private(set) var loopTempo: LoopTempo?
     public private(set) var metronomeSourceName: String?
 
@@ -64,14 +70,18 @@ public final class SampleAudioEngine {
         engine.attach(loopTimePitch)
         engine.attach(metronomePlayer)
         engine.attach(metronomeTimePitch)
+        engine.attach(latencyClickPlayer)
         engine.connect(loopPlayer, to: loopTimePitch, format: nil)
         engine.connect(loopTimePitch, to: engine.mainMixerNode, format: nil)
         engine.connect(metronomePlayer, to: metronomeTimePitch, format: nil)
         engine.connect(metronomeTimePitch, to: engine.mainMixerNode, format: nil)
+        engine.connect(latencyClickPlayer, to: engine.mainMixerNode, format: nil)
     }
 
     public func load(kit: KitManifest, from directory: URL) throws {
         stop()
+        samplePlayers.forEach { engine.detach($0) }
+        samplePlayers.removeAll()
         sounds.removeAll()
         soundGains.removeAll()
 
@@ -102,6 +112,7 @@ public final class SampleAudioEngine {
                 let node = AVAudioPlayerNode()
                 engine.attach(node)
                 engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
+                samplePlayers.append(node)
                 return node
             }
             sounds[sound.id] = LoadedSound(
@@ -120,20 +131,25 @@ public final class SampleAudioEngine {
     public func setOutputDevice(_ deviceID: AudioDeviceID) throws {
         let wasRunning = engine.isRunning
         if wasRunning { engine.stop() }
-        guard let audioUnit = engine.outputNode.audioUnit else {
-            throw SampleAudioEngineError.unableToSelectOutputDevice(-1)
+        do {
+            guard let audioUnit = engine.outputNode.audioUnit else {
+                throw SampleAudioEngineError.unableToSelectOutputDevice(-1)
+            }
+            var selectedDevice = deviceID
+            let status = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &selectedDevice,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            guard status == noErr else { throw SampleAudioEngineError.unableToSelectOutputDevice(status) }
+            if wasRunning { try engine.start() }
+        } catch {
+            if wasRunning { try? engine.start() }
+            throw error
         }
-        var selectedDevice = deviceID
-        let status = AudioUnitSetProperty(
-            audioUnit,
-            kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
-            &selectedDevice,
-            UInt32(MemoryLayout<AudioDeviceID>.size)
-        )
-        guard status == noErr else { throw SampleAudioEngineError.unableToSelectOutputDevice(status) }
-        if wasRunning { try engine.start() }
     }
 
     public func stop() {
@@ -229,6 +245,33 @@ public final class SampleAudioEngine {
         // Calling play after schedule is intentional even after stealing a
         // voice: it removes a race between stop() and isPlaying on bursts.
         voice.play()
+    }
+
+    /// Prepara una señal de diagnóstico de 3,5 kHz fuera de la ruta MIDI. Se
+    /// conecta directamente al mixer para no medir la latencia de TimePitch.
+    public func prepareLatencyClick() throws {
+        let format = engine.mainMixerNode.outputFormat(forBus: 0)
+        let sampleRate = max(44_100, format.sampleRate)
+        guard format.channelCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleRate * 0.006)),
+              let channels = buffer.floatChannelData else {
+            throw SampleAudioEngineError.unableToReadSample("click de latencia")
+        }
+        buffer.frameLength = buffer.frameCapacity
+        let count = Int(buffer.frameLength)
+        for index in 0..<count {
+            let envelope = Float(1 - Double(index) / Double(max(1, count - 1)))
+            let sample = sin(Float(2 * Double.pi * 3_500 * Double(index) / sampleRate)) * envelope
+            for channel in 0..<Int(format.channelCount) { channels[channel][index] = sample }
+        }
+        latencyClickBuffer = buffer
+    }
+
+    public func playLatencyClick() throws {
+        guard let latencyClickBuffer else { throw SampleAudioEngineError.soundNotLoaded("click de latencia") }
+        latencyClickPlayer.stop()
+        latencyClickPlayer.scheduleBuffer(latencyClickBuffer, at: nil, options: [.interrupts])
+        latencyClickPlayer.play()
     }
 
     public func schedule(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1) throws {

@@ -6,20 +6,29 @@ frecuencia, buffer y sample; no se mezclan perfiles distintos.
 
 ## Preparacion
 
-1. Conectar los altavoces a la Rane y dejar el volumen a un nivel audible y
-   estable.
-2. Colocar el microfono del movil a la misma distancia del pad que se golpea y
+1. En Ajustes, elegir la salida de audio y el buffer que se van a medir. Cambiar
+   cualquiera de los dos invalida la calibracion y crea un perfil distinto.
+2. Conectar los altavoces a la salida elegida y dejar el volumen a un nivel audible
+   y estable.
+3. Colocar el microfono del movil a la misma distancia del pad que se golpea y
    del altavoz que reproduce el bombo. Asi el tiempo que tarda el aire en llegar
    al microfono se compensa entre ambos sonidos.
-3. Abrir una grabadora que permita exportar el audio sin editarlo.
-4. En la raiz del proyecto, iniciar la prueba:
+4. Abrir una grabadora que permita exportar el audio sin editarlo.
+5. En la raiz del proyecto, iniciar la prueba:
 
    ```
-   swift run xroll-preflight
-   swift run xroll-latency kick --source <uid-del-controlador>
-   ```
+    swift run xroll-preflight
+    swift run xroll-latency kick --source <uid-del-controlador>
+    ```
 
-   No se usa `--log-events`: escribir en consola altera el callback MIDI.
+    No se usa `--log-events`: escribir en consola altera el callback MIDI.
+
+    Si el golpe físico y el sample se solapan en el micrófono del móvil, usa el
+    click agudo de diagnóstico, que se reproduce directamente sin `TimePitch`:
+
+    ```
+    swift run xroll-latency rim --test-click --source <uid-del-controlador>
+    ```
 
 ## Grabacion
 
@@ -44,8 +53,15 @@ para localizar cada pareja en la grabacion; no decide por si solo el inicio del
 golpe fisico:
 
 ```
-swift run xroll-analyse-recording data/measurements/<grabacion.mov>
-```
+    swift run xroll-analyse-recording data/measurements/<grabacion.mov>
+    ```
+
+    Para una toma con `--test-click`, el modo por bandas separa el impacto grave
+    del pad y la señal aguda, empareja cada par y calcula sus estadísticos:
+
+    ```
+    swift run xroll-analyse-recording data/measurements/<grabacion.mov> --split-bands
+    ```
 
 Se registran los 100 valores, su mediana, percentil 95, minimo y maximo. El
 resultado pasa la puerta del proyecto si la mediana es de 15 ms o menos, el

@@ -1,5 +1,6 @@
 import CoreMIDI
 import Foundation
+import XRollRealtimeQueue
 
 public struct MIDINoteOn: Equatable {
     public let hostTime: MIDITimeStamp
@@ -73,10 +74,17 @@ public enum MIDIInputError: LocalizedError {
 public final class MIDIInputSession {
     private var client = MIDIClientRef()
     private var inputPort = MIDIPortRef()
-    private let onNoteOn: (MIDINoteOn) -> Void
+    private let delivery: MIDIEventDelivery
+    private let callbackContext: MIDIInputCallbackContext
+    private var callbackReference: UnsafeMutableRawPointer?
+
+    /// Paquetes descartados porque la cola de entrada estaba llena. Es un
+    /// diagnóstico de presión, no una medida de latencia.
+    public var droppedPacketCount: UInt64 { delivery.droppedPacketCount }
 
     public init(onNoteOn: @escaping (MIDINoteOn) -> Void) throws {
-        self.onNoteOn = onNoteOn
+        delivery = try MIDIEventDelivery(onNoteOn: onNoteOn)
+        callbackContext = MIDIInputCallbackContext(delivery: delivery)
 
         var createdClient = MIDIClientRef()
         let clientStatus = MIDIClientCreate("xRoll MIDI" as CFString, nil, nil, &createdClient)
@@ -84,23 +92,31 @@ public final class MIDIInputSession {
         client = createdClient
 
         var createdPort = MIDIPortRef()
+        let reference = Unmanaged.passRetained(callbackContext).toOpaque()
         let portStatus = MIDIInputPortCreate(
             client,
             "xRoll MIDI Input" as CFString,
             midiReadProc,
-            Unmanaged.passUnretained(self).toOpaque(),
+            reference,
             &createdPort
         )
         guard portStatus == noErr else {
+            Unmanaged<MIDIInputCallbackContext>.fromOpaque(reference).release()
             MIDIClientDispose(client)
             throw MIDIInputError.coreMIDI(portStatus)
         }
         inputPort = createdPort
+        callbackReference = reference
+        delivery.start()
     }
 
     deinit {
         if inputPort != 0 { MIDIPortDispose(inputPort) }
         if client != 0 { MIDIClientDispose(client) }
+        delivery.stop()
+        if let callbackReference {
+            Unmanaged<MIDIInputCallbackContext>.fromOpaque(callbackReference).release()
+        }
     }
 
     public func connectAllSources() throws {
@@ -119,19 +135,89 @@ public final class MIDIInputSession {
         guard status == noErr else { throw MIDIInputError.coreMIDI(status) }
     }
 
-    fileprivate func receive(_ packetList: UnsafePointer<MIDIPacketList>) {
+}
+
+private final class MIDIInputCallbackContext {
+    private let delivery: MIDIEventDelivery
+
+    init(delivery: MIDIEventDelivery) { self.delivery = delivery }
+
+    func receive(_ packetList: UnsafePointer<MIDIPacketList>) {
         let packetOffset = MemoryLayout<MIDIPacketList>.offset(of: \MIDIPacketList.packet)!
         var packet = UnsafeRawPointer(packetList)
             .advanced(by: packetOffset)
             .assumingMemoryBound(to: MIDIPacket.self)
         for _ in 0..<packetList.pointee.numPackets {
             let eventPacket = packet.pointee
-            let bytes = withUnsafeBytes(of: eventPacket.data) {
-                Array($0.prefix(Int(eventPacket.length)))
+            withUnsafeBytes(of: eventPacket.data) { bytes in
+                delivery.enqueue(
+                    hostTime: eventPacket.timeStamp,
+                    bytes: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    length: eventPacket.length
+                )
             }
-            MIDIByteDecoder.noteOnEvents(bytes: bytes, hostTime: eventPacket.timeStamp).forEach(onNoteOn)
             packet = UnsafePointer(MIDIPacketNext(packet))
         }
+    }
+}
+
+/// La lectura de CoreMIDI solo copia un paquete a una cola acotada. Decodificar
+/// MIDI y llamar al consumidor ocurre en este worker, nunca en `midiReadProc`.
+private final class MIDIEventDelivery {
+    private let queue: OpaquePointer
+    private let onNoteOn: (MIDINoteOn) -> Void
+    private let stopped = DispatchSemaphore(value: 0)
+    private var thread: Thread?
+
+    init(onNoteOn: @escaping (MIDINoteOn) -> Void) throws {
+        guard let queue = xroll_realtime_queue_create(1_024) else {
+            throw MIDIInputError.coreMIDI(OSStatus(memFullErr))
+        }
+        self.queue = queue
+        self.onNoteOn = onNoteOn
+    }
+
+    deinit {
+        stop()
+        xroll_realtime_queue_destroy(queue)
+    }
+
+    var droppedPacketCount: UInt64 { xroll_realtime_queue_dropped(queue) }
+
+    func start() {
+        guard thread == nil else { return }
+        let thread = Thread { [weak self] in self?.drain() }
+        thread.name = "xRoll MIDI delivery"
+        self.thread = thread
+        thread.start()
+    }
+
+    func stop() {
+        guard let thread else { return }
+        thread.cancel()
+        stopped.wait()
+        self.thread = nil
+    }
+
+    func enqueue(hostTime: MIDITimeStamp, bytes: UnsafePointer<UInt8>?, length: UInt16) {
+        guard let bytes else { return }
+        _ = xroll_realtime_queue_push(queue, hostTime, bytes, length)
+    }
+
+    private func drain() {
+        var bytes = Array(repeating: UInt8.zero, count: 256)
+        while !Thread.current.isCancelled {
+            var hostTime: UInt64 = 0
+            var length: UInt16 = 0
+            var delivered = false
+            while xroll_realtime_queue_pop(queue, &hostTime, &bytes, &length) {
+                delivered = true
+                let events = MIDIByteDecoder.noteOnEvents(bytes: Array(bytes.prefix(Int(length))), hostTime: hostTime)
+                for event in events { onNoteOn(event) }
+            }
+            if !delivered { Thread.sleep(forTimeInterval: 0.0005) }
+        }
+        stopped.signal()
     }
 }
 
@@ -140,26 +226,39 @@ public final class MIDIInputSession {
 /// the Bluetooth connection itself succeeds.
 public final class MIDISetupMonitor {
     private var client = MIDIClientRef()
-    private let onChange: () -> Void
+    private let callbackContext: MIDISetupCallbackContext
+    private var callbackReference: UnsafeMutableRawPointer?
 
     public init(onChange: @escaping () -> Void) throws {
-        self.onChange = onChange
+        callbackContext = MIDISetupCallbackContext(onChange: onChange)
         var createdClient = MIDIClientRef()
+        let reference = Unmanaged.passRetained(callbackContext).toOpaque()
         let status = MIDIClientCreate(
             "xRoll MIDI Setup Monitor" as CFString,
             midiSetupNotificationProc,
-            Unmanaged.passUnretained(self).toOpaque(),
+            reference,
             &createdClient
         )
-        guard status == noErr else { throw MIDIInputError.coreMIDI(status) }
+        guard status == noErr else {
+            Unmanaged<MIDISetupCallbackContext>.fromOpaque(reference).release()
+            throw MIDIInputError.coreMIDI(status)
+        }
         client = createdClient
+        callbackReference = reference
     }
 
     deinit {
         if client != 0 { MIDIClientDispose(client) }
+        if let callbackReference {
+            Unmanaged<MIDISetupCallbackContext>.fromOpaque(callbackReference).release()
+        }
     }
+}
 
-    fileprivate func receivedSetupChange() { onChange() }
+private final class MIDISetupCallbackContext {
+    private let onChange: () -> Void
+    init(onChange: @escaping () -> Void) { self.onChange = onChange }
+    func receivedSetupChange() { onChange() }
 }
 
 private func midiSetupNotificationProc(
@@ -167,7 +266,7 @@ private func midiSetupNotificationProc(
     _ refCon: UnsafeMutableRawPointer?
 ) {
     guard let refCon else { return }
-    Unmanaged<MIDISetupMonitor>.fromOpaque(refCon).takeUnretainedValue().receivedSetupChange()
+    Unmanaged<MIDISetupCallbackContext>.fromOpaque(refCon).takeUnretainedValue().receivedSetupChange()
 }
 
 private func midiReadProc(
@@ -176,5 +275,5 @@ private func midiReadProc(
     _ sourceConnRefCon: UnsafeMutableRawPointer?
 ) {
     guard let readProcRefCon else { return }
-    Unmanaged<MIDIInputSession>.fromOpaque(readProcRefCon).takeUnretainedValue().receive(packetList)
+    Unmanaged<MIDIInputCallbackContext>.fromOpaque(readProcRefCon).takeUnretainedValue().receive(packetList)
 }

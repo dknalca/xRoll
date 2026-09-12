@@ -53,5 +53,5 @@ Para evitar contradicciones:
    catálogo ni formato histórico distribuido.
 4. El layout describe funciones físicas; el mapeo MIDI describe los mensajes del dispositivo.
 5. La latencia técnica y el sesgo humano se almacenan por separado.
-6. El catálogo activo contiene 56 ejercicios MIDI: tronco común, Hip-hop,
+6. El catálogo activo contiene 64 ejercicios MIDI: tronco común, Hip-hop,
    Rock, Funk, Blues/Shuffle y Jazz. El test de recursos verifica el conteo.

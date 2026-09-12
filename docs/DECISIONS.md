@@ -19,11 +19,13 @@ El objetivo es finger drumming. No hay que modelar el comportamiento de una
 bateria acustica: ni pedal de charles, ni rebote, ni posicion del golpe en el
 parche. Simplifica enormemente el motor de audio y es lo que el usuario tiene.
 
-## D-003 - Sin velocity
+## D-003 - Velocity leida, no evaluada
 
-Todos los golpes valen igual. Anadir dinamica multiplicaria las variables que el
-principiante tiene que controlar a la vez, y el objetivo inicial es unicamente
-el tiempo. Queda como futurible para ejercicios de dinamica.
+Los archivos y eventos MIDI pueden conservar velocity para compatibilidad
+futura. Todos los golpes valen igual: la velocity no se usa para sonido,
+feedback, requisitos ni puntuacion. Anadir dinamica multiplicaria las variables
+que el principiante tiene que controlar a la vez, y el objetivo inicial es
+unicamente el tiempo.
 
 ## D-004 - Posicion fija, visibilidad variable
 

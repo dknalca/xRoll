@@ -66,7 +66,7 @@ public enum MIDIExerciseLoader {
         let fileID = url.deletingPathExtension().lastPathComponent
         let exercise = Exercise(
             format: 1, id: fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
-            family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / 16,
+            family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / grid,
             grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes
         )
         try exercise.validate(availableSounds: Set(kit.sounds.map(\.id)))

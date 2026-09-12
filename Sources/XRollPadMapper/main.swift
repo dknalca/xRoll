@@ -29,7 +29,6 @@ guard let source = MIDIInspector.source(withUniqueID: sourceID) else {
 
 let deviceName = MIDIInspector.sources().first(where: { $0.uniqueID == sourceID })?.name ?? "Controlador MIDI"
 let formatter = ISO8601DateFormatter()
-let lock = NSLock()
 var builder = PadMapBuilder(device: deviceName, deviceUID: Int(sourceID), created: formatter.string(from: Date()))
 let availableSounds = Set(PadMapBuilder.suggestedSteps.map(\.sound))
 
@@ -41,27 +40,26 @@ func printNextStep() {
 
 do {
     let input = try MIDIInputSession { event in
-        lock.lock()
-        let result = builder.assign(event)
-        lock.unlock()
-
-        switch result {
-        case .assigned(let sound, let remaining):
-            print("Asignado \(sound): nota \(event.note), canal \(event.channel). Quedan \(remaining).")
-            printNextStep()
-        case .skipped:
-            break
-        case .duplicate(let note, let channel, let existingSound):
-            print("La nota \(note), canal \(channel), ya corresponde a \(existingSound). Golpea otro pad.")
-        case .complete(let map):
-            do {
-                try FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try PadMapStore.save(map, to: outputURL, availableSounds: availableSounds)
-                print("Mapa guardado en \(outputURL.path).")
-                exit(0)
-            } catch {
-                fputs("No se pudo guardar el mapa: \(error.localizedDescription)\\n", stderr)
-                exit(1)
+        DispatchQueue.main.async {
+            let result = builder.assign(event)
+            switch result {
+            case .assigned(let sound, let remaining):
+                print("Asignado \(sound): nota \(event.note), canal \(event.channel). Quedan \(remaining).")
+                printNextStep()
+            case .skipped:
+                break
+            case .duplicate(let note, let channel, let existingSound):
+                print("La nota \(note), canal \(channel), ya corresponde a \(existingSound). Golpea otro pad.")
+            case .complete(let map):
+                do {
+                    try FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try PadMapStore.save(map, to: outputURL, availableSounds: availableSounds)
+                    print("Mapa guardado en \(outputURL.path).")
+                    exit(0)
+                } catch {
+                    fputs("No se pudo guardar el mapa: \(error.localizedDescription)\\n", stderr)
+                    exit(1)
+                }
             }
         }
     }

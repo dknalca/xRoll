@@ -181,7 +181,6 @@ struct ResultsHome: View {
                     }
                     HStack { diagnosticMetric("Precisión", "\(Int((model.lastScorePercentage ?? 0).rounded())) %"); diagnosticMetric("Tendencia", model.insights.isEmpty ? "Sin datos" : model.insights); diagnosticMetric("Prioridad", model.weakestSoundFeedback) }
                     if !model.autopilotMessage.isEmpty { Text("Autopilot: \(model.autopilotMessage)").font(.caption).foregroundColor(StudioDesign.textSecondary); ActionButton("Aplicar recomendación", prominence: .secondary) { model.applyAutopilot() } }
-                    if !model.velocityFeedback.isEmpty { Text(model.velocityFeedback).font(.caption).foregroundColor(StudioDesign.textSecondary) }
                     if !model.whaleMessage.isEmpty { Text("Whale: \(model.whaleMessage)").font(.caption).foregroundColor(StudioDesign.regular) }
                 }.frame(maxWidth: 700)
                 if !model.lastHitRecords.isEmpty {
@@ -709,8 +708,8 @@ private struct ExercisePatternPreview: View {
             ForEach(active, id: \.self) { sound in
                 HStack(spacing: 2) {
                     Circle().fill(patternColor(sound).opacity(available ? 1 : 0.3)).frame(width: 5, height: 5)
-                    ForEach(0..<16, id: \.self) { step in
-                        RoundedRectangle(cornerRadius: 1.5).fill(exercise.notes.contains(where: { $0.sound == sound && $0.step % 16 == step }) ? patternColor(sound).opacity(available ? 0.95 : 0.25) : Color.white.opacity(0.07)).frame(maxWidth: .infinity, minHeight: 5, maxHeight: 5)
+                    ForEach(0..<exercise.grid, id: \.self) { step in
+                        RoundedRectangle(cornerRadius: 1.5).fill(exercise.notes.contains(where: { $0.sound == sound && $0.step % exercise.grid == step }) ? patternColor(sound).opacity(available ? 0.95 : 0.25) : Color.white.opacity(0.07)).frame(maxWidth: .infinity, minHeight: 5, maxHeight: 5)
                     }
                 }
             }

@@ -4,6 +4,22 @@
 SQLite. Los ejecutables de terminal son diagnosticos; `XRollPads` es la app
 SwiftUI y SpriteKit.
 
+## Tiempo y concurrencia
+
+- `MIDINoteOn.hostTime` es el instante canónico de entrada. Se conserva hasta
+  scoring, calibración e historial; la demora al pasar por la interfaz no forma
+  parte del offset.
+- El callback de CoreMIDI solo copia paquetes a una cola MPSC preasignada. Un
+  worker fuera del callback decodifica eventos y llama a sus consumidores. Los
+  descartes por cola llena son diagnóstico, no una medida de latencia.
+- `SampleAudioEngine` se confina a un único contexto de control por instancia.
+  La app lo usa en main; las herramientas CLI lo preparan antes de conectar MIDI
+  y su worker de entrada emite los golpes vivos. No se reconfigura audio mientras
+  ese worker está activo.
+- Los golpes vivos se reproducen inmediatamente; `hostTime` conserva su
+  procedencia temporal y no se usa para programar un buffer en un instante ya
+  pasado. Preview, loop y metrónomo sí se programan contra host time futuro.
+
 Para añadir un kit, crea `Resources/Kits/<id>/kit.json`, declara cada WAV y
 anota licencia y autor. Para añadir un ejercicio, genera un MIDI consecutivo en
 `data/exercises/`: una dificultad nueva por nivel y solo sonidos declarados por

@@ -6,6 +6,20 @@ public struct RecordingTransient: Equatable {
     public let amplitude: Float
 }
 
+public struct LatencyMeasurement: Equatable {
+    public let pad: RecordingTransient
+    public let sound: RecordingTransient
+    public let milliseconds: Double
+}
+
+public struct LatencyMeasurementSummary: Equatable {
+    public let count: Int
+    public let medianMilliseconds: Double
+    public let percentile95Milliseconds: Double
+    public let minimumMilliseconds: Double
+    public let maximumMilliseconds: Double
+}
+
 public enum RecordingAnalysisError: LocalizedError {
     case unsupportedFormat
     case recordingTooLong
@@ -42,10 +56,8 @@ public enum LatencyRecordingAnalysis {
         var samples = Array(repeating: Float.zero, count: frameCount)
         for frame in 0..<frameCount {
             var value: Float = 0
-            for channel in 0..<channelCount {
-                value = max(value, abs(channels[channel][frame]))
-            }
-            samples[frame] = value
+            for channel in 0..<channelCount { value += channels[channel][frame] }
+            samples[frame] = value / Float(channelCount)
         }
         return (samples, buffer.format.sampleRate)
     }
@@ -120,5 +132,103 @@ public enum LatencyRecordingAnalysis {
             index += separation
         }
         return result
+    }
+
+    /// Separa el golpe físico grave de una señal de prueba aguda. El filtrado es
+    /// bidireccional para no desplazar los onsets por fase del filtro.
+    public static func splitBandMeasurements(
+        in samples: [Float],
+        sampleRate: Double,
+        lowPassCutoffHz: Double = 700,
+        highPassCutoffHz: Double = 1_800,
+        minimumLatencyMilliseconds: Double = 2,
+        maximumLatencyMilliseconds: Double = 100
+    ) -> (padOnsets: [RecordingTransient], soundOnsets: [RecordingTransient], measurements: [LatencyMeasurement]) {
+        guard sampleRate > 0, !samples.isEmpty else { return ([], [], []) }
+        let low = zeroPhaseLowPass(samples, sampleRate: sampleRate, cutoffHz: lowPassCutoffHz)
+        let highLowPass = zeroPhaseLowPass(samples, sampleRate: sampleRate, cutoffHz: highPassCutoffHz)
+        let high = zip(samples, highLowPass).map(-)
+        let separation = max(200, maximumLatencyMilliseconds * 2)
+        let pads = bandOnsets(low, sampleRate: sampleRate, minimumSeparationMilliseconds: separation)
+        // El click puede llegar pocos milisegundos después del impacto físico;
+        // no se aplica la separación entre golpes a la banda aguda.
+        let sounds = bandOnsets(high, sampleRate: sampleRate, minimumSeparationMilliseconds: 2)
+        return (pads, sounds, pair(padOnsets: pads, soundOnsets: sounds, minimumLatencyMilliseconds: minimumLatencyMilliseconds, maximumLatencyMilliseconds: maximumLatencyMilliseconds))
+    }
+
+    public static func pair(
+        padOnsets: [RecordingTransient],
+        soundOnsets: [RecordingTransient],
+        minimumLatencyMilliseconds: Double = 2,
+        maximumLatencyMilliseconds: Double = 100
+    ) -> [LatencyMeasurement] {
+        let minimum = minimumLatencyMilliseconds / 1_000
+        let maximum = maximumLatencyMilliseconds / 1_000
+        var soundIndex = 0
+        var result: [LatencyMeasurement] = []
+        for pad in padOnsets {
+            while soundIndex < soundOnsets.count, soundOnsets[soundIndex].timeSeconds < pad.timeSeconds + minimum {
+                soundIndex += 1
+            }
+            guard soundIndex < soundOnsets.count else { break }
+            let sound = soundOnsets[soundIndex]
+            let delay = sound.timeSeconds - pad.timeSeconds
+            guard delay <= maximum else { continue }
+            result.append(.init(pad: pad, sound: sound, milliseconds: delay * 1_000))
+            soundIndex += 1
+        }
+        return result
+    }
+
+    public static func summary(of measurements: [LatencyMeasurement]) -> LatencyMeasurementSummary? {
+        let values = measurements.map(\.milliseconds).sorted()
+        guard let minimum = values.first, let maximum = values.last else { return nil }
+        let median = percentile(values, fraction: 0.5)
+        let percentile95 = percentile(values, fraction: 0.95)
+        return .init(count: values.count, medianMilliseconds: median, percentile95Milliseconds: percentile95, minimumMilliseconds: minimum, maximumMilliseconds: maximum)
+    }
+
+    private static func bandOnsets(_ samples: [Float], sampleRate: Double, minimumSeparationMilliseconds: Double) -> [RecordingTransient] {
+        let envelope = samples.map(abs)
+        guard let maximum = envelope.max(), maximum > 0 else { return [] }
+        let threshold = maximum * 0.18
+        let separation = max(1, Int(sampleRate * minimumSeparationMilliseconds / 1_000))
+        var result: [RecordingTransient] = []
+        var index = 1
+        while index < envelope.count {
+            guard envelope[index] >= threshold, envelope[index - 1] < threshold else {
+                index += 1
+                continue
+            }
+            let end = min(envelope.count, index + separation)
+            let peak = envelope[index..<end].enumerated().max { $0.element < $1.element }
+            let peakIndex = index + (peak?.offset ?? 0)
+            result.append(.init(timeSeconds: Double(index) / sampleRate, amplitude: envelope[peakIndex]))
+            index = end
+        }
+        return result
+    }
+
+    private static func zeroPhaseLowPass(_ samples: [Float], sampleRate: Double, cutoffHz: Double) -> [Float] {
+        guard cutoffHz > 0, cutoffHz < sampleRate / 2 else { return samples }
+        let forward = onePoleLowPass(samples, sampleRate: sampleRate, cutoffHz: cutoffHz)
+        return Array(onePoleLowPass(forward.reversed(), sampleRate: sampleRate, cutoffHz: cutoffHz).reversed())
+    }
+
+    private static func onePoleLowPass<S: Sequence>(_ samples: S, sampleRate: Double, cutoffHz: Double) -> [Float] where S.Element == Float {
+        let alpha = Float(exp(-2 * Double.pi * cutoffHz / sampleRate))
+        var previous: Float = 0
+        return samples.map { sample in
+            previous = (1 - alpha) * sample + alpha * previous
+            return previous
+        }
+    }
+
+    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+        let position = max(0, min(Double(values.count - 1), fraction * Double(values.count - 1)))
+        let lower = Int(position.rounded(.down))
+        let upper = Int(position.rounded(.up))
+        let weight = position - Double(lower)
+        return values[lower] + (values[upper] - values[lower]) * weight
     }
 }

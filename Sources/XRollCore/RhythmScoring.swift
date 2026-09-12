@@ -146,6 +146,18 @@ public struct TimedPadHit: Equatable {
     public init(sound: String, timeMilliseconds: Double, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
         self.sound = sound; self.timeMilliseconds = timeMilliseconds; self.role = role; self.padID = padID; self.velocity = velocity
     }
+
+    /// Conserva el instante entregado por CoreMIDI. La cola de interfaz nunca
+    /// participa en el cálculo temporal de una sesión.
+    public init(sound: String, hostTime: UInt64, practiceStartHostTime: UInt64, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
+        self.init(
+            sound: sound,
+            timeMilliseconds: AudioClock.milliseconds(from: practiceStartHostTime, to: hostTime),
+            role: role,
+            padID: padID,
+            velocity: velocity
+        )
+    }
 }
 
 public struct ScoredPadHit: Equatable {

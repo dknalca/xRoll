@@ -45,17 +45,17 @@ do {
     let input = try MIDIInputSession { event in
         guard let soundID = padMapRouter?.soundID(for: event) ?? router.soundID(for: event) else {
             if logEvents {
-                print("Nota sin asignar: canal \(event.channel), nota \(event.note)")
+                DispatchQueue.main.async { print("Nota sin asignar: canal \(event.channel), nota \(event.note)") }
             }
             return
         }
         do {
             try audio.play(soundID: soundID)
             if logEvents {
-                print("\(soundID): canal \(event.channel), nota \(event.note), velocidad \(event.velocity)")
+                DispatchQueue.main.async { print("\(soundID): canal \(event.channel), nota \(event.note), velocidad \(event.velocity)") }
             }
         } catch {
-            fputs("Error de audio: \(error.localizedDescription)\\n", stderr)
+            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\\n", stderr) }
         }
     }
 

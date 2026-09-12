@@ -18,7 +18,13 @@ let package = Package(
     targets: [
         .target(
             name: "XRollCore",
+            dependencies: ["XRollRealtimeQueue"],
             path: "Sources/XRollCore"
+        ),
+        .target(
+            name: "XRollRealtimeQueue",
+            path: "Sources/XRollRealtimeQueue",
+            publicHeadersPath: "include"
         ),
         .executableTarget(
             name: "XRollPreflight",

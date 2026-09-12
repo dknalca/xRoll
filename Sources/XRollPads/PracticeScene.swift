@@ -2,6 +2,41 @@ import AudioToolbox
 import SpriteKit
 import XRollCore
 
+enum GridGuideSubdivision: Int, CaseIterable, Identifiable {
+    case quarter = 1
+    case eighth = 2
+    case sixteenth = 4
+    case thirtySecond = 8
+
+    var id: Int { rawValue }
+    var label: String { "1/\(rawValue * 4)" }
+}
+
+enum PracticeViewZoom: String, CaseIterable, Identifiable {
+    case close
+    case standard
+    case wide
+    case overview
+
+    var id: String { rawValue }
+    var bars: Double {
+        switch self {
+        case .close: return 0.5
+        case .standard: return 1
+        case .wide: return 1.5
+        case .overview: return 2
+        }
+    }
+    var label: String {
+        switch self {
+        case .close: return "½"
+        case .standard: return "1"
+        case .wide: return "1½"
+        case .overview: return "2"
+        }
+    }
+}
+
 final class PracticeScene: SKScene {
     private let timeline: ExerciseTimeline
     private let startHostTime: UInt64
@@ -11,6 +46,8 @@ final class PracticeScene: SKScene {
     private let showsSoundLabels: Bool
     private let showsNotes: Bool
     private let emphasizesPlayerNotes: Bool
+    private var gridGuide: GridGuideSubdivision
+    private var viewZoom: PracticeViewZoom
     /// Nil = todas las voces son del jugador. Un conjunto permite atenuar en
     /// pantalla las voces que xRoll toca como acompañamiento.
     private let playerSounds: Set<String>?
@@ -27,7 +64,7 @@ final class PracticeScene: SKScene {
     private var lastPulseBeat = -1
     private var successfulStreak = 0
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
@@ -37,6 +74,8 @@ final class PracticeScene: SKScene {
         self.showsNotes = showsNotes
         self.emphasizesPlayerNotes = emphasizesPlayerNotes
         self.playerSounds = playerSounds
+        self.gridGuide = gridGuide
+        self.viewZoom = viewZoom
         super.init(size: CGSize(width: 960, height: 520))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 0.018, green: 0.035, blue: 0.085, alpha: 1)
@@ -127,25 +166,7 @@ final class PracticeScene: SKScene {
         progressFill.position = progressTrack.position
         progressFill.zPosition = 12
         addChild(progressFill)
-        // La pantalla siempre enseña un compás. Una frase MIDI puede contener
-        // tres compases (groove → redoble → resolución), pero mostrar toda la
-        // frase en la misma altura comprimiría las semicorcheas.
-        let beatDuration = timeline.barDurationMilliseconds / 4
-        let finalTime = timeline.notes.map(\.timeMilliseconds).max() ?? 0
-        let firstPulse = -anticipationMilliseconds
-        var pulseIndex = 0
-        var pulseTime = firstPulse
-        while pulseTime <= finalTime + anticipationMilliseconds {
-            let isBar = pulseIndex.isMultiple(of: 4)
-            let line = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: isBar ? 3 : 1))
-            line.fillColor = isBar ? SKColor.systemCyan.withAlphaComponent(0.55) : SKColor.white.withAlphaComponent(0.16)
-            line.strokeColor = .clear
-            line.zPosition = 2
-            addChild(line)
-            pulseLines.append((pulseTime, line))
-            pulseIndex += 1
-            pulseTime += beatDuration
-        }
+        rebuildPulseLines()
         for (sound, slot) in slotBySound {
             let isPlayerSound = playerSounds?.contains(sound) ?? true
             let x = (CGFloat(slot) + 0.5) * laneWidth
@@ -197,13 +218,54 @@ final class PracticeScene: SKScene {
         }
     }
 
+    func setGridGuide(_ guide: GridGuideSubdivision) {
+        guard gridGuide != guide else { return }
+        gridGuide = guide
+        if view != nil { rebuildPulseLines() }
+    }
+
+    func setViewZoom(_ zoom: PracticeViewZoom) {
+        viewZoom = zoom
+    }
+
+    private func rebuildPulseLines() {
+        pulseLines.forEach { $0.node.removeFromParent() }
+        pulseLines.removeAll()
+
+        // La pantalla siempre enseña un compás. Una frase MIDI puede contener
+        // tres compases (groove → redoble → resolución), pero mostrar toda la
+        // frase en la misma altura comprimiría las subdivisiones.
+        let beatDuration = timeline.barDurationMilliseconds / 4
+        let guidesPerBeat = gridGuide.rawValue
+        let guideDuration = beatDuration / Double(guidesPerBeat)
+        let finalTime = timeline.notes.map(\.timeMilliseconds).max() ?? 0
+        let firstPulse = -anticipationMilliseconds
+        var pulseIndex = 0
+        var pulseTime = firstPulse
+        while pulseTime <= finalTime + anticipationMilliseconds {
+            let isBar = pulseIndex.isMultiple(of: guidesPerBeat * 4)
+            let isBeat = pulseIndex.isMultiple(of: guidesPerBeat)
+            let opacity: CGFloat
+            if isBar { opacity = 0.55 }
+            else if isBeat { opacity = 0.20 }
+            else if guidesPerBeat == 2 || (guidesPerBeat >= 4 && pulseIndex.isMultiple(of: guidesPerBeat / 2)) { opacity = 0.14 }
+            else if guidesPerBeat == 8 && pulseIndex.isMultiple(of: 2) { opacity = 0.10 }
+            else { opacity = 0.07 }
+            let line = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: isBar ? 3 : 1))
+            line.fillColor = isBar ? SKColor.systemCyan.withAlphaComponent(opacity) : SKColor.white.withAlphaComponent(opacity)
+            line.strokeColor = .clear
+            line.zPosition = 2
+            addChild(line)
+            pulseLines.append((pulseTime, line))
+            pulseIndex += 1
+            pulseTime += guideDuration
+        }
+    }
+
     override func update(_ currentTime: TimeInterval) {
         let now = AudioClock.milliseconds(from: startHostTime, to: AudioGetCurrentHostTime())
         let availableHeight = max(1, size.height - hitY - 18)
-        // Muestra siempre un compás por delante. Así los ejercicios de frase
-        // larga mantienen el mismo espacio entre notas que un groove de un
-        // compás, incluido durante la cuenta atrás.
-        let displayLeadMilliseconds = min(anticipationMilliseconds, timeline.barDurationMilliseconds)
+        let displayLeadMilliseconds = min(anticipationMilliseconds, timeline.barDurationMilliseconds * viewZoom.bars)
         let elapsed = max(0, now)
         let patternPosition = elapsed.truncatingRemainder(dividingBy: timeline.patternDurationMilliseconds)
         let barPosition = patternPosition.truncatingRemainder(dividingBy: timeline.barDurationMilliseconds)

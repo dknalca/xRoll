@@ -40,8 +40,9 @@ tocar bateria. Todo el diseno debe asumir que el usuario tampoco.
    codigo de la interfaz. Si el usuario remapea, las posiciones se reordenan
    solas y los huecos fisicos no se comprimen. Ver docs/MIDI_MAPPING.md.
 
-6. **Nada de velocity.** Todos los golpes valen igual. Esta en la lista de
-   futuribles y ahi se queda de momento.
+6. **Velocity leida, no evaluada.** Los archivos y eventos MIDI pueden
+   conservar velocity para compatibilidad futura, pero todos los golpes valen
+   igual: no se usa para sonido, feedback, requisitos ni puntuacion.
 
 ## Entorno
 
@@ -92,7 +93,7 @@ xRoll/
     Kits/hiphop_basic/   kit.json y los wav
     Loops/               loops de acompanamiento y ATTRIBUTION.md
   data/
-    exercises/           ficheros de ejercicio en json
+    exercises/           ficheros de ejercicio MIDI
 ```
 
 ## Convenciones

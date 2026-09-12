@@ -2,9 +2,9 @@
 
 ## Preparacion actual
 
-El paquete Swift contiene `XRollCore`, que agrupa modelos de recursos y lectura
-del sistema, y `xroll-preflight`, un ejecutable de diagnostico. No tiene
-dependencias externas y su plataforma minima es macOS 12.
+El paquete Swift contiene `XRollCore`, la aplicación SwiftUI/SpriteKit
+`xroll-pads` y ejecutables de diagnóstico, mapeo, previsualización, análisis y
+exportación. No tiene dependencias externas y su plataforma mínima es macOS 12.
 
 Desde la raiz del repositorio:
 

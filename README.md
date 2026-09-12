@@ -36,8 +36,7 @@ swift run xroll-export-progress ~/Desktop/xroll-progreso.json --exercise hh_03 -
 
 El diagnostico enumera las fuentes MIDI, informa de la salida de audio y valida
 el kit y los ejercicios. `xroll-latency` conecta todas las fuentes MIDI al sonido
-indicado y sirve para la medicion fisica de la fase 0. No se puede ejecutar hasta
-incorporar los WAV definitivos.
+indicado y sirve para la medicion fisica de la fase 0.
 
 `xroll-play-kit` usa el mapa GM del `kit.json`: bombo 36, caja 38, palmada 39,
 tom grave 41, charles cerrado 42, charles abierto 46, tom agudo 48, crash 49 y
@@ -87,11 +86,10 @@ quiera revisar. Los datos permanecen locales en
 
 - Notacion vertical con anticipacion de dos compases y vista previa del patron
 - Indicacion de que mano usar, reforzada con forma ademas de color
-- Dinámica: la velocidad MIDI del pad controla el volumen de cada golpe
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 56 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 64 ejercicios MIDI progresivos
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad

@@ -125,25 +125,6 @@ public enum WhaleMethod {
     }
 }
 
-public struct VelocityInsights: Equatable {
-    public let comparedHits: Int
-    public let medianDifference: Double?
-    public let message: String
-
-    public init(records: [HitRecord]) {
-        let differences = records.compactMap { record -> Double? in
-            guard let expected = record.expectedVelocity, let actual = record.actualVelocity else { return nil }
-            return Double(actual - expected)
-        }.sorted()
-        comparedHits = differences.count
-        medianDifference = differences.isEmpty ? nil : differences[differences.count / 2]
-        guard let medianDifference else { message = "Velocity: este ejercicio no tiene referencias MIDI de intensidad."; return }
-        if medianDifference < -14 { message = "Velocity: tus golpes salen más suaves que la referencia." }
-        else if medianDifference > 14 { message = "Velocity: tus golpes salen más fuertes que la referencia." }
-        else { message = "Velocity: la intensidad está cerca de la referencia." }
-    }
-}
-
 public struct MasterySeal: Equatable {
     public let label: String
     public let achieved: Bool
