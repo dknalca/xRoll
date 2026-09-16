@@ -610,29 +610,48 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [partial], fastStartID: nil).map(\.status), [.available, .locked])
     }
 
-    func testCourseProgressRequiresTheNominalTempoToUnlock() {
+    func testCourseProgressRequiresConsolidarToUnlock() {
         let exercises = (1...2).map { level in
             Exercise(format: 1, id: "level_\(level)", title: "Nivel \(level)", family: "test", level: level, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         }
-        let slowPass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 72, score: 100, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
-        let nominalPass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 80, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let learnPass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 70, score: 100, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let basePass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 85, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let consolidatePass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 100, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
 
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [slowPass], fastStartID: nil).map(\.status), [.available, .locked])
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [slowPass, nominalPass], fastStartID: nil).map(\.status), [.mastered, .available])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass], fastStartID: nil).map(\.status), [.available, .locked])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass, consolidatePass], fastStartID: nil).map(\.status), [.mastered, .available])
     }
 
-    func testTempoLadderUsesRelativeStepsAndRequiresConsolidationEvidence() {
+    func testTempoLadderUsesFixedStepsAndLongChallenge() {
         let exercise = Exercise(format: 1, id: "level_1", title: "Nivel 1", family: "test", level: 1, bpm: 92, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         let steps = TempoLadder.steps(for: exercise)
-        XCTAssertEqual(steps.map(\.bpm), [84, 92, 98, 104])
-        XCTAssertEqual(steps.map(\.requiredPasses), [1, 1, 2, 1])
+        XCTAssertEqual(steps.map(\.bpm), [70, 85, 100, 120, 140, 160])
+        XCTAssertEqual(steps.map(\.requiredPasses), [1, 1, 1, 1, 1, 1])
+        XCTAssertEqual(steps.map(\.award), [.stars(1), .stars(2), .stars(3), .trophies(1), .trophies(2), .trophies(3)])
+        XCTAssertEqual(steps.last?.minimumBars, 16)
+        XCTAssertEqual(TempoLadder.repeats(for: try! XCTUnwrap(steps.last), exercise: exercise), 16)
 
         let attempts = [
-            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 84, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0),
-            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 92, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0),
-            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 98, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 70, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0),
+            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 85, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
         ]
         XCTAssertEqual(TempoLadder.nextStep(for: exercise, attempts: attempts)?.label, "Consolidar")
+    }
+
+    func testCourseRecommendationUsesCurrentStationThenPendingTempoStep() {
+        let first = Exercise(format: 1, id: "first", title: "Primero", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
+        let second = Exercise(format: 1, id: "second", title: "Segundo", family: "test", level: 2, bpm: 110, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
+        let initial = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)], attempts: [])
+        XCTAssertEqual(initial?.exerciseID, first.id)
+        XCTAssertEqual(initial?.tempoStep.label, "Aprender")
+
+        let learnPass = PracticeAttempt(exerciseID: first.id, timestamp: .init(), bpm: 70, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let base = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)], attempts: [learnPass])
+        XCTAssertEqual(base?.tempoStep.label, "Base")
+
+        let next = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .mastered, bestScore: 80), .init(exerciseID: second.id, status: .available, bestScore: nil)], attempts: [learnPass])
+        XCTAssertEqual(next?.exerciseID, second.id)
+        XCTAssertEqual(next?.tempoStep.bpm, 70)
     }
 
     func testCourseProgressKeepsLegacyCompletionButNotMasteryEvidence() throws {
@@ -641,20 +660,20 @@ final class ResourceModelsTests: XCTestCase {
         let legacy = PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 80, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0, trainingContext: legacyContext)
 
         XCTAssertEqual(legacyContext.evaluationScope, .legacyUnknown)
-        XCTAssertEqual(CourseProgress.states(exercises: [exercise], attempts: [legacy], fastStartID: nil).first?.status, .mastered)
+        XCTAssertEqual(CourseProgress.states(exercises: [exercise], attempts: [legacy], fastStartID: nil).first?.status, .available)
         XCTAssertFalse(MasteryEvaluator.seals(exercise: exercise, attempts: [legacy]).first?.achieved ?? true)
     }
 
-    func testFastStartOpensFundamentalsWithoutCreditingSkippedLevels() {
+    func testFastStartDoesNotBypassConsolidationOfThePreviousStation() {
         let exercises = [
             Exercise(format: 1, id: "00_i_01_bombo_caja", title: "I-01", family: "test", level: 1, bpm: 68, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: []),
             Exercise(format: 1, id: "00_i_02_charles_negras", title: "I-02", family: "test", level: 2, bpm: 68, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: []),
             Exercise(format: 1, id: "00_i_03_ritmo_completo", title: "I-03", family: "test", level: 3, bpm: 72, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: []),
             Exercise(format: 1, id: "01_fund_01_pulso", title: "Fundamentos", family: "test", level: 4, bpm: 70, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         ]
-        let fastStart = PracticeAttempt(exerciseID: "00_i_03_ritmo_completo", timestamp: .init(), bpm: 72, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let fastStart = PracticeAttempt(exerciseID: "00_i_03_ritmo_completo", timestamp: .init(), bpm: 100, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
 
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [fastStart]).map(\.status), [.available, .available, .mastered, .available])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [fastStart]).map(\.status), [.available, .locked, .mastered, .locked])
     }
 
     func testCourseGraphUsesMIDIPrerequisitesAndFastStart() throws {
@@ -679,8 +698,11 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertEqual(graph.states(attempts: []).map(\.status), [.available, .available, .locked, .locked])
 
-        let fastStart = PracticeAttempt(exerciseID: "i3", timestamp: .init(), bpm: 80, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
-        XCTAssertEqual(graph.states(attempts: [fastStart]).map(\.status), [.available, .mastered, .available, .locked])
+        let fastStart = PracticeAttempt(exerciseID: "i3", timestamp: .init(), bpm: 100, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        XCTAssertEqual(graph.states(attempts: [fastStart]).map(\.status), [.available, .mastered, .locked, .locked])
+
+        let firstConsolidated = PracticeAttempt(exerciseID: "i1", timestamp: .init(), bpm: 100, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        XCTAssertEqual(graph.states(attempts: [firstConsolidated, fastStart]).map(\.status), [.mastered, .mastered, .available, .available])
     }
 
     func testPracticePreferencesRoundTrip() throws {

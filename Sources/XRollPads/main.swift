@@ -179,6 +179,18 @@ final class Model: ObservableObject {
         }
         return chapters
     }
+    var courseRecommendation: CourseRecommendation? {
+        CourseRecommendationPlanner.recommend(exercises: bundledExercises, courseLevels: courseLevels, attempts: recentAttempts)
+    }
+    func tempoProgressSummary(for exercise: Exercise) -> String {
+        if let step = TempoLadder.highestPassedStep(for: exercise, attempts: recentAttempts) {
+            return "\(step.label) superado · \(step.bpm) BPM · \(step.award.label)"
+        }
+        if let step = TempoLadder.nextStep(for: exercise, attempts: recentAttempts) {
+            return "Te toca: \(step.label) · \(step.bpm) BPM"
+        }
+        return "Escalera completa"
+    }
     var selectedMIDIName: String { sources.first(where: { $0.uniqueID == sourceID })?.name ?? "Sin controlador seleccionado" }
     var hasCalibrationForCurrentProfile: Bool { calibrationProfileKey == profileKey() }
     var midiDiagnostics: String {
@@ -193,8 +205,15 @@ final class Model: ObservableObject {
     }
     func selectTempoTier(_ tier: Int) {
         let options = tempoPracticeOptions
-        guard options.indices.contains(tier) else { return }
-        selectedTempoTier = tier; selectedBPM = options[tier].bpm; savePreferences()
+        guard options.indices.contains(tier), isTempoTierAvailable(tier) else { return }
+        selectedTempoTier = tier
+        selectedBPM = options[tier].bpm
+        if let exercise = chosen, let repeats = TempoLadder.repeats(for: options[tier], exercise: exercise) {
+            selectedRepeats = repeats
+        } else if let exercise = chosen {
+            selectedRepeats = defaultRepeats(for: exercise)
+        }
+        savePreferences()
     }
     /// Las estrellas pertenecen a la combinación ejercicio + tempo. Un buen
     /// resultado en Aprender no acredita Base ni Consolidar.
@@ -210,11 +229,21 @@ final class Model: ObservableObject {
         guard let stars = starsForTempoTier(tier, exercise: exercise) else { return "Sin intento" }
         return String(repeating: "★", count: stars) + String(repeating: "☆", count: 3 - stars)
     }
+    func tempoTierAwardLabel(_ tier: Int) -> String {
+        guard tempoPracticeOptions.indices.contains(tier) else { return "" }
+        return tempoPracticeOptions[tier].award.label
+    }
     func tempoTierProgressLabel(_ tier: Int, exercise: Exercise? = nil) -> String {
         guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return "Sin intento" }
         let step = tempoPracticeOptions[tier]
         let passes = TempoLadder.passedAttempts(for: step, exerciseID: exercise.id, attempts: recentAttempts)
         return "\(min(passes, step.requiredPasses))/\(step.requiredPasses) a \(Int(step.requiredScore)) %"
+    }
+    func isTempoTierAvailable(_ tier: Int, exercise: Exercise? = nil) -> Bool {
+        guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return false }
+        let next = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
+        guard let next, let nextIndex = tempoPracticeOptions.firstIndex(of: next) else { return true }
+        return tier <= nextIndex
     }
     var tempoGuidance: String {
         guard let chosen else { return "Elige un ritmo para ver su escalera de tempo." }
@@ -873,7 +902,9 @@ final class Model: ObservableObject {
         lastPoints = max(0, Double(score.perfectCount) + Double(score.goodCount) * 0.85 + Double(score.regularCount) * 0.7 - Double(score.extraCount) * 0.25)
         lastPossiblePoints = currentPractice.timeline.notes.count
         let isCompleteRhythm = practiceStepRange == nil && isFullRhythmSelection && !transferCheck
-        let completesCourseStep = score.percentage >= 70 && isCompleteRhythm && exercise.bpm == selectedBPM
+        let completesCourseStep = score.percentage >= 70
+            && isCompleteRhythm
+            && selectedBPM == 100
         nextExerciseTitle = completesCourseStep ? exercises.first(where: { $0.level == exercise.level + 1 })?.title : nil
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
@@ -1290,12 +1321,12 @@ final class Model: ObservableObject {
             if practiceStepRange != nil { scope = trainingPhase == .isolate ? .corrective : .fragment }
             else if !isFullRhythmSelection { scope = .selectedVoices }
             else { scope = .fullPattern }
-            let context = TrainingContext(phase: trainingPhase, gapMetronomeLevel: gapMetronomeLevel, showsVisualGuides: trainingPhase != .transfer, evaluationScope: scope)
+            let context = TrainingContext(phase: trainingPhase, gapMetronomeLevel: gapMetronomeLevel, showsVisualGuides: trainingPhase != .transfer, evaluationScope: scope, completedBars: exercise.bars * exercise.repeats)
             try progressStore?.record(PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
             refreshProgress(for: exercise.id)
             refreshRecentAttempts()
             refreshCourseLevels()
-            if scope == .fullPattern, score.percentage >= 70, chosen?.bpm == exercise.bpm,
+            if scope == .fullPattern, score.percentage >= 70, exercise.bpm == 100,
                let next = exercises.first(where: { $0.level == exercise.level + 1 }), isAvailable(next) {
                 result += " · Nivel \(next.level) desbloqueado"
             }
@@ -1309,6 +1340,7 @@ final class Model: ObservableObject {
         let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
         selectedBPM = nextStep?.bpm ?? exercise.bpm
         selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
+        if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
         practiceStepRange = nil; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id)
     }
@@ -1333,6 +1365,7 @@ final class Model: ObservableObject {
         let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
         selectedBPM = nextStep?.bpm ?? exercise.bpm
         selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
+        if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
         practiceStepRange = nil; selectFullRhythm(); savePreferences(); refreshProgress(for: exercise.id)
     }
     /// La portada del curso siempre abre el groove completo del bloque. Sus

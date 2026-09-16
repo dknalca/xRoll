@@ -62,7 +62,10 @@ Definida en [INITIATION.md](INITIATION.md).
 | 1.4 | Primera corchea | Un único «y» de charles | mismos | 70 |
 | 1.5 | Charles a corcheas | Motor completo | mismos | 70 |
 | 1.6 | Bombo doble | Variación de bombo | mismos | 70 |
-| Niveles 2–3 | Consolidar y acelerar | El mismo ritmo a 100 y 120 BPM | mismos | 100 / 120 |
+| Escalera común | Aprender, Base, Consolidar, Difícil, Jefe y Nivel dios | El mismo ritmo a 70, 85, 100, 120, 140 y 160 BPM | mismos | 70 / 85 / 100 / 120 / 140 / 160 |
+
+Todos los ritmos deben completarse a 100 BPM (Consolidar) antes de abrir la
+siguiente estación. Nivel dios dura al menos 16 compases.
 
 ### Subdivisión y lectura
 

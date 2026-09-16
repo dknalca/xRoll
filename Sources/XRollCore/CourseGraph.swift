@@ -26,17 +26,16 @@ public struct CourseGraph: Equatable {
 
     public func states(attempts: [PracticeAttempt], completionScore: Double = 70) -> [CourseLevelState] {
         let completedIDs = Set(attempts.compactMap { attempt -> String? in
-            guard attempt.score >= completionScore,
-                  let node = nodesByID[attempt.exerciseID],
-                  attempt.bpm == node.exercise.bpm,
-                  attempt.trainingContext.evaluationScope.countsAsCompletePattern else { return nil }
-            return attempt.exerciseID
+            guard let node = nodesByID[attempt.exerciseID],
+                  TempoLadder.isConsolidated(node.exercise, attempts: [attempt], minimumScore: completionScore) else { return nil }
+            return node.metadata.id
         })
         return nodes.map { node in
             let completed = completedIDs.contains(node.metadata.id)
-            let available = completed
-                || node.metadata.flags.contains("fast-start")
-                || node.metadata.prerequisites.allSatisfy(completedIDs.contains)
+            let available = completed || (
+                (node.metadata.flags.contains("fast-start") || node.metadata.prerequisites.allSatisfy(completedIDs.contains))
+                    && previousChapterIsConsolidated(for: node, completedIDs: completedIDs)
+            )
             return CourseLevelState(
                 exerciseID: node.metadata.id,
                 status: completed ? .mastered : (available ? .available : .locked),
@@ -45,18 +44,25 @@ public struct CourseGraph: Equatable {
         }
     }
 
+    private func previousChapterIsConsolidated(for node: Node, completedIDs: Set<String>) -> Bool {
+        let mainChapters = nodes.reduce(into: [String]()) { chapters, candidate in
+            guard !candidate.metadata.chapter.hasPrefix("fills"), !chapters.contains(candidate.metadata.chapter) else { return }
+            chapters.append(candidate.metadata.chapter)
+        }
+        guard let chapterIndex = mainChapters.firstIndex(of: node.metadata.chapter), chapterIndex > 0 else { return true }
+        let previousChapter = mainChapters[chapterIndex - 1]
+        return nodes
+            .filter { $0.metadata.chapter == previousChapter }
+            .allSatisfy { completedIDs.contains($0.metadata.id) }
+    }
+
     public func node(for exerciseID: String) -> Node? {
         nodesByID[exerciseID]
     }
 
     private func bestCompletionScore(for node: Node, attempts: [PracticeAttempt], completionScore: Double) -> Double? {
         attempts
-            .filter {
-                $0.exerciseID == node.metadata.id
-                    && $0.score >= completionScore
-                    && $0.bpm == node.exercise.bpm
-                    && $0.trainingContext.evaluationScope.countsAsCompletePattern
-            }
+            .filter { TempoLadder.isConsolidated(node.exercise, attempts: [$0], minimumScore: completionScore) }
             .map(\.score)
             .max()
     }

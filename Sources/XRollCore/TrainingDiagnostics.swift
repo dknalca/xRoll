@@ -20,16 +20,18 @@ public struct TrainingContext: Codable, Equatable {
     public let gapMetronomeLevel: Int
     public let showsVisualGuides: Bool
     public let evaluationScope: EvaluationScope
+    public let completedBars: Int
 
-    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern) {
+    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern, completedBars: Int = 0) {
         self.phase = phase
         self.gapMetronomeLevel = min(3, max(0, gapMetronomeLevel))
         self.showsVisualGuides = showsVisualGuides
         self.evaluationScope = evaluationScope
+        self.completedBars = max(0, completedBars)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case phase, gapMetronomeLevel, showsVisualGuides, evaluationScope
+        case phase, gapMetronomeLevel, showsVisualGuides, evaluationScope, completedBars
     }
 
     public init(from decoder: Decoder) throws {
@@ -39,6 +41,7 @@ public struct TrainingContext: Codable, Equatable {
         showsVisualGuides = try values.decodeIfPresent(Bool.self, forKey: .showsVisualGuides) ?? true
         // Los intentos anteriores no describen si se puntuó el ritmo completo.
         evaluationScope = try values.decodeIfPresent(EvaluationScope.self, forKey: .evaluationScope) ?? .legacyUnknown
+        completedBars = max(0, try values.decodeIfPresent(Int.self, forKey: .completedBars) ?? 0)
     }
 }
 

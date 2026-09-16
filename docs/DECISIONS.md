@@ -243,15 +243,14 @@ son herramientas de aprendizaje, no atajos de progreso.
 **Por qué:** una célula aislada o una sola voz puede salir perfecta sin demostrar
 que el usuario controla el groove completo.
 
-## D-030 - El tempo progresa respecto al BPM nominal del ejercicio
+## D-030 - El curso usa una escalera fija de cinco tempos
 
-Cada ritmo ofrece cuatro pasos: Aprender (−8 BPM), Base (BPM nominal),
-Consolidar (+6 BPM, dos resultados de al menos 85 %) y Reto (+12 BPM). Solo
-un ritmo completo al paso Base con al menos 70 % completa el nivel y desbloquea
-el siguiente; los demás pasos guían la consolidación sin impedir el avance
-amable del curso.
+Todos los ritmos se practican en Aprender (70 BPM, una estrella), Base (85 BPM,
+dos estrellas), Consolidar (100 BPM, tres estrellas), Difícil (120 BPM, un
+trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios (160 BPM, tres trofeos durante
+al menos 16 compases). Un ritmo solo completa su estación al alcanzar
+Consolidar con al menos 70 %; la siguiente estación permanece bloqueada hasta
+que todos los ritmos de la actual estén consolidados.
 
-**Por qué:** una escala absoluta convierte la misma etiqueta de nivel en una
-dificultad muy distinta según el estilo. Separar completado y consolidación
-evita que practicar siempre lento acredite un ritmo sin obligar al principiante
-a dominar todas las variantes antes de continuar.
+**Por qué:** una escala fija hace comprensible el nivel técnico alcanzado en
+cualquier estilo y evita que el curso avance por un resultado lento aislado.

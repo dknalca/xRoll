@@ -25,30 +25,57 @@ public struct PracticeConfiguration: Equatable {
     }
 }
 
-/// Escalera de tempo relativa al BPM declarado por el MIDI. Evita convertir un
-/// tempo absoluto en una dificultad distinta según el ejercicio.
+public enum TempoAward: Equatable {
+    case stars(Int)
+    case trophies(Int)
+
+    public var label: String {
+        switch self {
+        case .stars(let count): return "\(count) estrella\(count == 1 ? "" : "s")"
+        case .trophies(let count): return "\(count) trofeo\(count == 1 ? "" : "s")"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .stars: return "star.fill"
+        case .trophies: return "trophy.fill"
+        }
+    }
+
+    public var count: Int {
+        switch self { case .stars(let count), .trophies(let count): return count }
+    }
+}
+
+/// Escalones comunes que hacen comparable el progreso entre todos los ritmos.
 public struct TempoPracticeStep: Equatable {
     public let label: String
     public let bpm: Int
     public let requiredScore: Double
     public let requiredPasses: Int
+    public let minimumBars: Int?
+    public let award: TempoAward
 
-    public init(label: String, bpm: Int, requiredScore: Double, requiredPasses: Int) {
+    public init(label: String, bpm: Int, requiredScore: Double, requiredPasses: Int, minimumBars: Int? = nil, award: TempoAward) {
         self.label = label
         self.bpm = bpm
         self.requiredScore = requiredScore
         self.requiredPasses = requiredPasses
+        self.minimumBars = minimumBars
+        self.award = award
     }
 }
 
 public enum TempoLadder {
     public static func steps(for exercise: Exercise) -> [TempoPracticeStep] {
-        let nominal = exercise.bpm
         return [
-            .init(label: "Aprender", bpm: max(40, nominal - 8), requiredScore: 70, requiredPasses: 1),
-            .init(label: "Base", bpm: nominal, requiredScore: 70, requiredPasses: 1),
-            .init(label: "Consolidar", bpm: min(240, nominal + 6), requiredScore: 85, requiredPasses: 2),
-            .init(label: "Reto", bpm: min(240, nominal + 12), requiredScore: 85, requiredPasses: 1)
+            .init(label: "Aprender", bpm: 70, requiredScore: 70, requiredPasses: 1, award: .stars(1)),
+            .init(label: "Base", bpm: 85, requiredScore: 70, requiredPasses: 1, award: .stars(2)),
+            .init(label: "Consolidar", bpm: 100, requiredScore: 70, requiredPasses: 1, award: .stars(3)),
+            .init(label: "Difícil", bpm: 120, requiredScore: 70, requiredPasses: 1, award: .trophies(1)),
+            .init(label: "Jefe", bpm: 140, requiredScore: 70, requiredPasses: 1, award: .trophies(2)),
+            .init(label: "Nivel dios", bpm: 160, requiredScore: 70, requiredPasses: 1, minimumBars: 16, award: .trophies(3))
         ]
     }
 
@@ -58,6 +85,7 @@ public enum TempoLadder {
                 && $0.bpm == step.bpm
                 && $0.score >= step.requiredScore
                 && $0.trainingContext.evaluationScope.countsAsCompletePattern
+                && (step.minimumBars == nil || $0.trainingContext.completedBars >= step.minimumBars!)
         }.count
     }
 
@@ -67,6 +95,25 @@ public enum TempoLadder {
 
     public static func nextStep(for exercise: Exercise, attempts: [PracticeAttempt]) -> TempoPracticeStep? {
         steps(for: exercise).first { !isPassed($0, exerciseID: exercise.id, attempts: attempts) }
+    }
+
+    public static func highestPassedStep(for exercise: Exercise, attempts: [PracticeAttempt]) -> TempoPracticeStep? {
+        steps(for: exercise).reversed().first { isPassed($0, exerciseID: exercise.id, attempts: attempts) }
+    }
+
+    public static func isConsolidated(_ exercise: Exercise, attempts: [PracticeAttempt], minimumScore: Double = 70) -> Bool {
+        guard let step = steps(for: exercise).first(where: { $0.label == "Consolidar" }) else { return false }
+        return attempts.contains {
+            $0.exerciseID == exercise.id
+                && $0.bpm == step.bpm
+                && $0.score >= max(minimumScore, step.requiredScore)
+                && $0.trainingContext.evaluationScope.countsAsCompletePattern
+        }
+    }
+
+    public static func repeats(for step: TempoPracticeStep, exercise: Exercise) -> Int? {
+        guard let minimumBars = step.minimumBars else { return nil }
+        return PracticeConfiguration.normalizedRepeats(Int(ceil(Double(minimumBars) / Double(exercise.bars))))
     }
 }
 
@@ -163,27 +210,19 @@ public enum CourseProgress {
         }
         let completeAttempts = attempts.filter { attempt in
             guard let exercise = exercises.first(where: { $0.id == attempt.exerciseID }) else { return false }
-            return attempt.score >= completionScore
-                && attempt.bpm == exercise.bpm
-                && attempt.trainingContext.evaluationScope.countsAsCompletePattern
+            return TempoLadder.isConsolidated(exercise, attempts: [attempt], minimumScore: completionScore)
         }
         let bestScores = Dictionary(grouping: completeAttempts, by: \.exerciseID).mapValues { attempts in
             attempts.map(\.score).max() ?? 0
         }
         let ordered = exercises.sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
-        let fastStartLevel = fastStartID.flatMap { id in ordered.first(where: { $0.id == id })?.level }
-        let fastStartPassed = fastStartID.flatMap { bestScores[$0] }.map { $0 >= completionScore } ?? false
         var previousSatisfied = true
 
         return ordered.map { exercise in
             let bestScore = bestScores[exercise.id]
             let completed = bestScore != nil
             let status: CourseLevelStatus = completed ? .mastered : (previousSatisfied || exercise.id == fastStartID ? .available : .locked)
-            if completed || (fastStartPassed && (fastStartLevel.map { exercise.level < $0 } ?? false)) {
-                previousSatisfied = true
-            } else {
-                previousSatisfied = false
-            }
+            previousSatisfied = previousSatisfied && completed
             return CourseLevelState(exerciseID: exercise.id, status: status, bestScore: bestScore)
         }
     }
@@ -205,6 +244,37 @@ public struct NextSessionPlan: Equatable {
     public let estimatedDurationMilliseconds: Double
     public let kind: NextSessionKind
     public let reason: String
+}
+
+public struct CourseRecommendation: Equatable {
+    public let exerciseID: String
+    public let courseLevel: Int
+    public let tempoStep: TempoPracticeStep
+    public let isCourseCompletion: Bool
+
+    public init(exerciseID: String, courseLevel: Int, tempoStep: TempoPracticeStep, isCourseCompletion: Bool) {
+        self.exerciseID = exerciseID
+        self.courseLevel = courseLevel
+        self.tempoStep = tempoStep
+        self.isCourseCompletion = isCourseCompletion
+    }
+}
+
+/// Determina una única tarea actual sin ocultar los ritmos ya desbloqueados.
+public enum CourseRecommendationPlanner {
+    public static func recommend(exercises: [Exercise], courseLevels: [CourseLevelState], attempts: [PracticeAttempt]) -> CourseRecommendation? {
+        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0.status) })
+        let ordered = exercises.sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        if let current = ordered.first(where: { states[$0.id] == .available }),
+           let step = TempoLadder.nextStep(for: current, attempts: attempts) {
+            return .init(exerciseID: current.id, courseLevel: current.level, tempoStep: step, isCourseCompletion: step.label == "Consolidar")
+        }
+        if let review = ordered.first(where: { states[$0.id] == .mastered && TempoLadder.nextStep(for: $0, attempts: attempts) != nil }),
+           let step = TempoLadder.nextStep(for: review, attempts: attempts) {
+            return .init(exerciseID: review.id, courseLevel: review.level, tempoStep: step, isCourseCompletion: false)
+        }
+        return nil
+    }
 }
 
 /// Prioriza una única microtarea a partir de datos persistidos. La interfaz

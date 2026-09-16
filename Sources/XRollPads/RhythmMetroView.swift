@@ -49,8 +49,13 @@ struct RhythmMetroView: View {
         model.metroChapters.flatMap(\.exercises).first { $0.metadata?.flags.contains("fast-start") == true }
     }
 
+    private var recommendation: CourseRecommendation? {
+        model.courseRecommendation
+    }
+
     private var nextExercise: Exercise? {
-        model.metroChapters.flatMap(\.exercises).first { state(for: $0) == .available }
+        guard let recommendation else { return nil }
+        return model.metroChapters.flatMap(\.exercises).first { $0.id == recommendation.exerciseID }
     }
 
     var body: some View {
@@ -68,7 +73,9 @@ struct RhythmMetroView: View {
                         .buttonStyle(.bordered).tint(StudioDesign.accent)
                 }
 
-                if let nextExercise { MetroNextStation(model: model, exercise: nextExercise, state: state(for: nextExercise)) }
+                if let recommendation, let nextExercise {
+                    MetroNextStation(model: model, exercise: nextExercise, recommendation: recommendation)
+                }
                 if let fastStart, state(for: fastStart) != .mastered { MetroFastStart(model: model, exercise: fastStart) }
 
                 MetroTrainLegend(chapterCount: model.metroChapters.count)
@@ -81,11 +88,10 @@ struct RhythmMetroView: View {
                             state: state,
                             index: index,
                             totalCount: model.metroChapters.count,
-                            isCurrent: chapter.id == nextExercise?.metadata?.chapter
+                            isCurrent: chapter.exercises.contains { $0.id == recommendation?.exerciseID }
                         )
                         if index < model.metroChapters.count - 1 {
-                            Rectangle().fill(StudioDesign.surfaceHover).frame(width: 2, height: 18)
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 23)
+                            MetroRouteSegment(isCompleted: chapter.exercises.allSatisfy { state(for: $0) == .mastered })
                         }
                     }
                 }
@@ -95,6 +101,21 @@ struct RhythmMetroView: View {
         }
         .background(StudioDesign.canvas)
         .foregroundColor(StudioDesign.textPrimary)
+    }
+}
+
+private struct MetroRouteSegment: View {
+    let isCompleted: Bool
+
+    var body: some View {
+        if isCompleted {
+            Rectangle().fill(StudioDesign.accent.opacity(0.8)).frame(width: 3, height: 20)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 23)
+        } else {
+            Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                .foregroundColor(StudioDesign.textMuted).frame(width: 2, height: 20)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 23)
+        }
     }
 }
 
@@ -117,17 +138,17 @@ private struct MetroTrainLegend: View {
 private struct MetroNextStation: View {
     @ObservedObject var model: Model
     let exercise: Exercise
-    let state: CourseLevelStatus
+    let recommendation: CourseRecommendation
 
     var body: some View {
         StagePanel {
-            Text("PRÓXIMA ESTACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            Text("TE TOCA AHORA · NIVEL \(recommendation.courseLevel)").font(.studioLabel).foregroundColor(StudioDesign.accent)
             Text(exercise.title).font(.title2.bold())
             Text(exercise.metadata?.objective ?? "Practica el siguiente escalón del curso.")
                 .font(.subheadline).foregroundColor(StudioDesign.textSecondary).lineLimit(2)
-            ExercisePatternPreview(exercise: exercise, available: state != .locked)
+            ExercisePatternPreview(exercise: exercise, available: true)
             HStack {
-                Text("Nueva dificultad: \(exercise.metadata?.newDifficulty?.replacingOccurrences(of: "-", with: " ") ?? "ritmo")")
+                Text("\(recommendation.tempoStep.label) · \(recommendation.tempoStep.bpm) BPM · \(recommendation.tempoStep.award.label) · \(recommendation.tempoStep.minimumBars.map { "\($0) compases" } ?? "\(recommendation.tempoStep.requiredPasses) resultado\(recommendation.tempoStep.requiredPasses == 1 ? "" : "s") de \(Int(recommendation.tempoStep.requiredScore)) %")")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
                 Spacer()
                 ActionButton("Preparar", prominence: .primary) { model.openPreparation(exercise) }
@@ -146,7 +167,7 @@ private struct MetroFastStart: View {
             Image(systemName: "forward.fill").foregroundColor(StudioDesign.regular)
             VStack(alignment: .leading, spacing: 3) {
                 Text("¿Ya tienes base?").font(.subheadline.bold())
-                Text("Prueba \(exercise.title). Si lo completas, abrirás Fundamentos sin acreditar los escalones omitidos.")
+                Text("Prueba \(exercise.title) si ya conoces el patrón. Aun así, la siguiente estación exige Consolidar todos los ritmos previos.")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
             }
             Spacer()
@@ -168,12 +189,16 @@ private struct MetroChapterStation: View {
         let completed = chapter.exercises.filter { state($0) == .mastered }.count
         let chapterLocked = chapter.exercises.allSatisfy { state($0) == .locked }
         HStack(alignment: .top, spacing: 12) {
-            MetroTrainMarker(
-                isCurrent: isCurrent,
-                isCompleted: completed == chapter.exercises.count,
-                isLocked: chapterLocked,
-                isLast: index == totalCount - 1
-            )
+            if isCurrent {
+                Color.clear.frame(width: 48)
+            } else {
+                MetroTrainMarker(
+                    isCurrent: false,
+                    isCompleted: completed == chapter.exercises.count,
+                    isLocked: chapterLocked,
+                    isLast: index == totalCount - 1
+                )
+            }
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -186,33 +211,100 @@ private struct MetroChapterStation: View {
                 ProgressView(value: Double(completed), total: Double(max(1, chapter.exercises.count))).tint(StudioDesign.accent)
                 Text(chapterLocked ? "Completa la estación anterior para abrir esta ruta." : "Elige cualquier ritmo desbloqueado para repasarlo o seguir avanzando.")
                     .font(.caption).foregroundColor(chapterLocked ? StudioDesign.textMuted : StudioDesign.textPrimary)
-                ForEach(chapter.exercises, id: \.id) { exercise in
+                ForEach(Array(chapter.exercises.enumerated()), id: \.element.id) { item in
+                    let exercise = item.element
                     let exerciseState = state(exercise)
-                    Button { model.openPreparation(exercise) } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: exerciseState == .mastered ? "checkmark.circle.fill" : "music.note")
-                                .foregroundColor(exerciseState == .mastered ? StudioDesign.accent : StudioDesign.textSecondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(exercise.title).font(.subheadline.bold()).lineLimit(1)
-                                Text(exerciseState == .mastered ? "Completado · puedes repasarlo" : "Disponible ahora")
-                                    .font(.caption2).foregroundColor(StudioDesign.textSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundColor(StudioDesign.textMuted)
+                    HStack(spacing: 8) {
+                        if isCurrent {
+                            MetroChapterTrainSegment(
+                                state: exerciseState,
+                                isCurrent: exercise.id == model.courseRecommendation?.exerciseID,
+                                hasPrevious: item.offset > 0,
+                                hasNext: item.offset < chapter.exercises.count - 1
+                            )
                         }
-                        .padding(9)
-                        .background(StudioDesign.surfaceRaised)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        Button { model.openPreparation(exercise) } label: {
+                            HStack(spacing: 9) {
+                                Image(systemName: exerciseState == .mastered ? "checkmark.circle.fill" : "music.note")
+                                    .foregroundColor(exerciseState == .mastered ? StudioDesign.accent : StudioDesign.textSecondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Nivel \(exercise.level) · \(exercise.title)").font(.subheadline.bold()).lineLimit(1)
+                                    Text(exerciseState == .locked ? "Bloqueado" : model.tempoProgressSummary(for: exercise))
+                                        .font(.caption2).foregroundColor(StudioDesign.textSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption.bold()).foregroundColor(StudioDesign.textMuted)
+                            }
+                            .padding(9)
+                            .background(StudioDesign.surfaceRaised)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(exerciseState == .locked)
+                        .opacity(exerciseState == .locked ? 0.42 : 1)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(exerciseState == .locked)
-                    .opacity(exerciseState == .locked ? 0.42 : 1)
                 }
             }
         }
         .padding(13)
         .background(StudioDesign.surface.opacity(chapterLocked ? 0.55 : 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct MetroChapterTrainSegment: View {
+    let state: CourseLevelStatus
+    let isCurrent: Bool
+    let hasPrevious: Bool
+    let hasNext: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            routeLine(visible: hasPrevious, solid: state == .mastered || isCurrent)
+            ZStack {
+                RoundedRectangle(cornerRadius: isCurrent ? 8 : 4)
+                    .fill(vehicleColor)
+                    .frame(width: 30, height: isCurrent ? 34 : 24)
+                Image(systemName: vehicleSymbol)
+                    .font(isCurrent ? .subheadline.bold() : .caption.bold())
+                    .foregroundColor(isCurrent || state == .mastered ? StudioDesign.canvas : StudioDesign.textMuted)
+            }
+            if isCurrent {
+                HStack(spacing: 7) {
+                    Circle().fill(StudioDesign.textSecondary).frame(width: 5, height: 5)
+                    Circle().fill(StudioDesign.textSecondary).frame(width: 5, height: 5)
+                }.padding(.top, 3)
+            }
+            routeLine(visible: hasNext, solid: state == .mastered && !isCurrent)
+        }
+        .frame(width: 30)
+        .frame(maxHeight: .infinity)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private func routeLine(visible: Bool, solid: Bool) -> some View {
+        if visible {
+            if solid {
+                Rectangle().fill(StudioDesign.accent.opacity(0.8)).frame(width: 2, height: 12)
+            } else {
+                Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
+                    .foregroundColor(StudioDesign.textMuted).frame(width: 2, height: 12)
+            }
+        } else {
+            Color.clear.frame(width: 2, height: 12)
+        }
+    }
+
+    private var vehicleSymbol: String {
+        if isCurrent { return "tram.fill" }
+        if state == .mastered { return "checkmark" }
+        return state == .locked ? "lock.fill" : "music.note"
+    }
+
+    private var vehicleColor: Color {
+        if isCurrent { return StudioDesign.accent }
+        if state == .mastered { return StudioDesign.rightHand }
+        return StudioDesign.surfaceHover
     }
 }
 

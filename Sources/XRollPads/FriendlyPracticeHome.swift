@@ -367,158 +367,213 @@ struct PreparationHome: View {
         ZStack {
             StudioDesign.canvas.ignoresSafeArea()
             ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("PREPARACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
-                Text(model.currentExerciseTitle).font(.system(size: 30, weight: .bold))
-                let steps = courseSteps
-                if steps.count > 1 {
-                    StagePanel {
-                        Text("Escalones del ritmo").font(.headline)
-                        Text("Empieza por el escalón que necesites. Cada uno añade una sola idea antes de pasar al siguiente.").font(.caption).foregroundColor(StudioDesign.textSecondary)
-                        ForEach(steps, id: \.id) { step in
-                            Button { model.selectPreparationExercise(step) } label: {
-                                HStack(alignment: .top, spacing: 10) {
-                                    Image(systemName: model.chosenID == step.id ? "checkmark.circle.fill" : "circle").padding(.top, 4)
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        HStack {
-                                            Text(step.title).font(.subheadline.bold()).lineLimit(1)
-                                            Spacer()
-                                            VStack(alignment: .trailing, spacing: 1) {
-                                                Text("\(model.tempoPracticeOptions[model.selectedTempoTier].bpm) BPM").font(.caption.bold())
-                                                Text(model.tempoTierStarsLabel(model.selectedTempoTier, exercise: step)).font(.caption2).foregroundColor(model.starsForTempoTier(model.selectedTempoTier, exercise: step) == nil ? StudioDesign.textMuted : .yellow)
-                                            }
-                                        }
-                                        ExercisePatternPreview(exercise: step, available: true)
-                                        Text("Incluye: \(Array(Set(step.notes.map { model.displayName($0.sound) })).sorted().joined(separator: " · "))").font(.caption2).foregroundColor(StudioDesign.textSecondary)
+                preparationContent
+            }.frame(maxWidth: .infinity)
+        }
+    }
+
+    private var preparationContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("PREPARACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            Text(model.currentExerciseTitle).font(.system(size: 30, weight: .bold))
+            courseStepsPanel
+            objectivePanel
+            tempoLadderPanel
+            sessionViewPanel
+            practiceOptionsPanel
+            HStack { ActionButton("Volver", prominence: .quiet) { model.dismissPreparation() }; Spacer() }
+        }
+        .foregroundColor(StudioDesign.textPrimary).padding(36).frame(maxWidth: 720, alignment: .leading)
+    }
+
+    @ViewBuilder private var courseStepsPanel: some View {
+        let steps = courseSteps
+        if steps.count > 1 {
+            StagePanel {
+                Text("Escalones del ritmo").font(.headline)
+                Text("Empieza por el escalón que necesites. Cada uno añade una sola idea antes de pasar al siguiente.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                ForEach(steps, id: \.id) { step in
+                    Button { model.selectPreparationExercise(step) } label: {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: model.chosenID == step.id ? "checkmark.circle.fill" : "circle").padding(.top, 4)
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(step.title).font(.subheadline.bold()).lineLimit(1)
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 1) {
+                                        Text("\(model.tempoPracticeOptions[model.selectedTempoTier].bpm) BPM").font(.caption.bold())
+                                        Text(model.tempoTierAwardLabel(model.selectedTempoTier)).font(.caption2).foregroundColor(StudioDesign.textSecondary)
                                     }
                                 }
-                                .foregroundColor(model.chosenID == step.id ? StudioDesign.accent : StudioDesign.textPrimary).padding(.vertical, 6)
-                            }.buttonStyle(.plain)
-                        }
-                    }
-                }
-                StagePanel {
-                    Text("Objetivo").font(.headline)
-                    Text(model.lessonGoal).font(.studioBody).foregroundColor(StudioDesign.textSecondary)
-                    HStack { StudioStatusPill(title: "\(model.selectedBPM) BPM"); StudioStatusPill(title: "\(model.selectedRepeats) vueltas"); StudioStatusPill(title: model.status, active: model.status.contains("MIDI")) }
-                }
-                StagePanel {
-                    Text("Ritmo completo · escalera de tempo").font(.headline)
-                    Text("Cada paso parte del BPM propio del ritmo. Base desbloquea el curso; Consolidar exige dos resultados sólidos.").font(.caption).foregroundColor(StudioDesign.textSecondary)
-                    HStack(spacing: 8) {
-                        ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
-                            let stars = model.starsForTempoTier(index)
-                            Button { model.selectTempoTier(index) } label: {
-                                VStack(spacing: 3) {
-                                    Text("\(step.label) · \(step.bpm) BPM").font(.subheadline.bold())
-                                    Text(model.tempoTierProgressLabel(index)).font(.caption2)
-                                        .foregroundColor(stars == nil ? StudioDesign.textMuted : .yellow)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .foregroundColor(model.selectedTempoTier == index ? StudioDesign.canvas : StudioDesign.textPrimary)
-                                .background(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceRaised)
-                                .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceHover, lineWidth: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 9))
+                                ExercisePatternPreview(exercise: step, available: true)
+                                Text("Incluye: \(Array(Set(step.notes.map { model.displayName($0.sound) })).sorted().joined(separator: " · "))").font(.caption2).foregroundColor(StudioDesign.textSecondary)
                             }
-                            .buttonStyle(.plain)
                         }
-                    }.padding(.top, 3)
-                    Text(model.tempoGuidance).font(.caption).foregroundColor(StudioDesign.accent)
+                        .foregroundColor(model.chosenID == step.id ? StudioDesign.accent : StudioDesign.textPrimary).padding(.vertical, 6)
+                    }.buttonStyle(.plain)
                 }
-                StagePanel {
-                    HStack(spacing: 5) {
-                        Text("Sesión y vista").font(.headline)
-                        ContextInfoButton(title: "Sesión y vista", detail: "Configura la práctica antes de entrar en la pantalla de ejecución. Durante el ejercicio estos controles se ocultan para dejar todo el espacio a los carriles.")
-                    }
-                    HStack(alignment: .center, spacing: 20) {
-                        Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5)
-                            .onChange(of: model.selectedBPM) { _ in model.savePreferences() }
-                        repeatStepper(model: model)
-                    }
-                    Toggle("Metrónomo", isOn: $model.metronomeEnabled)
-                    Toggle("Loop de acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
-                    HStack(spacing: 14) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Rejilla").font(.caption.weight(.semibold)).foregroundColor(StudioDesign.textSecondary)
-                            Picker("Rejilla", selection: Binding(get: { model.gridGuide }, set: { model.setGridGuide($0) })) {
-                                ForEach(GridGuideSubdivision.allCases) { guide in Text(guide.label).tag(guide) }
-                            }.pickerStyle(.segmented).labelsHidden()
-                        }
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Compases visibles").font(.caption.weight(.semibold)).foregroundColor(StudioDesign.textSecondary)
-                            Picker("Compases visibles", selection: Binding(get: { model.practiceViewZoom }, set: { model.setPracticeViewZoom($0) })) {
-                                ForEach(PracticeViewZoom.allCases) { zoom in Text(zoom.label).tag(zoom) }
-                            }.pickerStyle(.segmented).labelsHidden()
-                        }
-                    }
-                    Text("Durante la práctica solo verás el ejercicio, el tempo, la vuelta y la pausa.").font(.caption2).foregroundColor(StudioDesign.textSecondary)
+            }
+        }
+    }
+
+    private var objectivePanel: some View {
+        StagePanel {
+            Text("Objetivo").font(.headline)
+            Text(model.lessonGoal).font(.studioBody).foregroundColor(StudioDesign.textSecondary)
+            HStack { StudioStatusPill(title: "\(model.selectedBPM) BPM"); StudioStatusPill(title: "\(model.selectedRepeats) vueltas"); StudioStatusPill(title: model.status, active: model.status.contains("MIDI")) }
+        }
+    }
+
+    private var tempoLadderPanel: some View {
+        StagePanel {
+            Text("Ritmo completo · escalera de tempo").font(.headline)
+            Text("Cada paso parte del BPM propio del ritmo. Base desbloquea el curso; Consolidar exige dos resultados sólidos.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            HStack(spacing: 8) {
+                ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
+                    tempoStepButton(index: index, step: step)
                 }
-                StagePanel {
-                    VStack(alignment: .leading, spacing: 10) {
-                    if model.showsTrainingPhases {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 5) {
-                                Text("Fase de entrenamiento D-A-I-T").font(.headline)
-                                ContextInfoButton(title: "D-A-I-T", detail: "Es una ruta para aprender sin saltos: Descubrir el patrón, Aislar una parte, Integrar el ritmo completo y Transferirlo retirando una guía. Puedes elegir cualquier fase según lo que necesites hoy.")
-                            }
-                            HStack(spacing: 8) {
-                                ForEach(TrainingPhase.allCases, id: \.self) { phase in
-                                    ActionButton(phase.label, prominence: model.trainingPhase == phase ? .primary : .secondary) { model.setTrainingPhase(phase) }
-                                }
-                            }
-                            Text("Activa ahora: \(model.trainingPhase.label). \(model.trainingPhase.explanation)").font(.caption).foregroundColor(StudioDesign.textSecondary)
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                    Text("Prácticas del ritmo").font(.headline).padding(.top, 4)
-                    Text("Elige el groove completo o una sola línea para practicarla con el resto como acompañamiento.").font(.studioBody).foregroundColor(StudioDesign.textSecondary)
-                    if model.showsTrainingPhases {
-                    HStack(spacing: 5) {
-                        Text("Ayudas").font(.subheadline.weight(.semibold))
-                        ContextInfoButton(title: "Ayudas", detail: "Completa muestra y suena todo lo necesario. Normal retira parte de la guía. Reducida deja más espacio para que sostengas el ritmo por tu cuenta. Empieza por Completa si es la primera vez.")
-                    }
-                    HStack(spacing: 8) {
-                        ForEach(PracticeHelp.allCases, id: \.self) { help in
-                            ActionButton(help.label, prominence: model.practiceHelp == help ? .primary : .secondary) { model.setPracticeHelp(help) }
-                        }
-                    }
-                    Text("Activa ahora: \(model.practiceHelp.label). \(model.practiceHelpDescription)").font(.caption).foregroundColor(StudioDesign.textSecondary)
-                    }
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack(spacing: 5) {
-                            Text("Qué tocas tú").font(.subheadline.weight(.semibold))
-                            ContextInfoButton(title: "Qué tocas tú", detail: "Puedes elegir una o varias líneas. Las seleccionadas son tus notas: aparecen con color vivo y se puntúan. Las que dejes fuera se ven en gris y xRoll las toca como acompañamiento.")
-                        }
-                        Text("Selecciona las líneas que vas a tocar. Las apagadas suenan como referencia, pero no tienes que golpearlas.").font(.caption).foregroundColor(StudioDesign.textSecondary)
-                        HStack(spacing: 8) {
-                            ActionButton("Ritmo completo", prominence: model.isFullRhythmSelection ? .primary : .secondary) { model.selectFullRhythm() }
-                            Text(model.isFullRhythmSelection ? "Tocas todas las líneas" : "Tocas \(model.selectedPlayerSounds.count) líneas").font(.caption2).foregroundColor(StudioDesign.textSecondary)
-                        }
-                        FlowSoundSelection(model: model)
-                    }
-                    if model.showsTrainingPhases {
-                        HStack(spacing: 5) {
-                            Toggle("Prueba de transferencia", isOn: $model.transferCheck)
-                            ContextInfoButton(title: "Prueba de transferencia", detail: "Oculta y deja sin puntuar el charles mientras sigue sonando. Sirve para comprobar si puedes conservar el groove sin depender de verlo en pantalla.")
-                        }
-                        if model.transferCheck { Text("El charles se oye, pero no aparece ni se puntúa: mantén el groove sin perseguirlo visualmente.").font(.caption).foregroundColor(StudioDesign.textSecondary) }
-                        Group {
-                            HStack(spacing: 5) {
-                                Text("Gap Metronome").font(.subheadline.weight(.semibold))
-                                ContextInfoButton(title: "Gap Metronome", detail: "La claqueta se calla durante algunos compases. Tu trabajo es mantener el pulso interno hasta que vuelva. “3+1” son tres compases con claqueta y uno sin ella.")
-                            }
-                            Picker("Gap Metronome", selection: $model.gapMetronomeLevel) { Text("Guía total").tag(0); Text("3+1 compases").tag(1); Text("2+2 compases").tag(2); Text("Pulso ancla").tag(3) }.pickerStyle(.menu).labelsHidden()
-                            Text("Los huecos de claqueta empiezan después de la cuenta inicial; sirven para medir tu pulso interno.").font(.caption2).foregroundColor(StudioDesign.textSecondary)
-                        }
-                    }
-                    }
-                    HStack { ActionButton("Escuchar y colocar", prominence: .secondary) { model.dismissPreparation(); model.previewExercise() }; ActionButton("Empezar práctica", prominence: .primary) { model.startFromPreparation() } }
+            }.padding(.top, 3)
+            Text(model.tempoGuidance).font(.caption).foregroundColor(StudioDesign.accent)
+        }
+    }
+
+    private func tempoStepButton(index: Int, step: TempoPracticeStep) -> some View {
+        let stars = model.starsForTempoTier(index)
+        let available = model.isTempoTierAvailable(index)
+        return Button { model.selectTempoTier(index) } label: {
+            VStack(spacing: 3) {
+                Text("\(step.label) · \(step.bpm) BPM").font(.subheadline.bold())
+                Text(step.minimumBars.map { "\(model.tempoTierProgressLabel(index)) · \($0) compases" } ?? model.tempoTierProgressLabel(index)).font(.caption2)
+                    .foregroundColor(stars == nil ? StudioDesign.textMuted : .yellow)
+                HStack(spacing: 3) {
+                    Image(systemName: step.award.symbolName).font(.caption2)
+                    Text(step.award.label).font(.caption2.bold())
+                }.foregroundColor(step.award.symbolName == "star.fill" ? .yellow : StudioDesign.regular)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 8)
+            .foregroundColor(model.selectedTempoTier == index ? StudioDesign.canvas : (available ? StudioDesign.textPrimary : StudioDesign.textMuted))
+            .background(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceRaised)
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceHover, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain).disabled(!available)
+    }
+
+    private var sessionViewPanel: some View {
+        StagePanel {
+            HStack(spacing: 5) {
+                Text("Sesión y vista").font(.headline)
+                ContextInfoButton(title: "Sesión y vista", detail: "Configura la práctica antes de entrar en la pantalla de ejecución. Durante el ejercicio estos controles se ocultan para dejar todo el espacio a los carriles.")
+            }
+            HStack(alignment: .center, spacing: 20) {
+                Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in model.savePreferences() }
+                repeatStepper(model: model)
+            }
+            Toggle("Metrónomo", isOn: $model.metronomeEnabled)
+            Toggle("Loop de acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
+            HStack(spacing: 14) {
+                gridGuidePicker
+                practiceZoomPicker
+            }
+            Text("Durante la práctica solo verás el ejercicio, el tempo, la vuelta y la pausa.").font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
+    }
+
+    private var gridGuidePicker: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Rejilla").font(.caption.weight(.semibold)).foregroundColor(StudioDesign.textSecondary)
+            Picker("Rejilla", selection: Binding(get: { model.gridGuide }, set: { model.setGridGuide($0) })) { ForEach(GridGuideSubdivision.allCases) { guide in Text(guide.label).tag(guide) } }.pickerStyle(.segmented).labelsHidden()
+        }
+    }
+
+    private var practiceZoomPicker: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Compases visibles").font(.caption.weight(.semibold)).foregroundColor(StudioDesign.textSecondary)
+            Picker("Compases visibles", selection: Binding(get: { model.practiceViewZoom }, set: { model.setPracticeViewZoom($0) })) { ForEach(PracticeViewZoom.allCases) { zoom in Text(zoom.label).tag(zoom) } }.pickerStyle(.segmented).labelsHidden()
+        }
+    }
+
+    private var practiceOptionsPanel: some View {
+        StagePanel {
+            VStack(alignment: .leading, spacing: 10) {
+                trainingPhaseControls
+                practiceSelectionControls
+                transferControls
+                HStack {
+                    ActionButton("Escuchar y colocar", prominence: .secondary) { model.dismissPreparation(); model.previewExercise() }
+                    ActionButton("Empezar práctica", prominence: .primary) { model.startFromPreparation() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var trainingPhaseControls: some View {
+        if model.showsTrainingPhases {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Text("Fase de entrenamiento D-A-I-T").font(.headline)
+                    ContextInfoButton(title: "D-A-I-T", detail: "Es una ruta para aprender sin saltos: Descubrir el patrón, Aislar una parte, Integrar el ritmo completo y Transferirlo retirando una guía. Puedes elegir cualquier fase según lo que necesites hoy.")
+                }
+                HStack(spacing: 8) {
+                    ForEach(TrainingPhase.allCases, id: \.self) { phase in
+                        ActionButton(phase.label, prominence: model.trainingPhase == phase ? .primary : .secondary) { model.setTrainingPhase(phase) }
                     }
                 }
-                HStack { ActionButton("Volver", prominence: .quiet) { model.dismissPreparation() }; Spacer() }
-            }.foregroundColor(StudioDesign.textPrimary).padding(36).frame(maxWidth: 720, alignment: .leading)
-            }.frame(maxWidth: .infinity)
+                Text("Activa ahora: \(model.trainingPhase.label). \(model.trainingPhase.explanation)").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            }
+        }
+    }
+
+    private var practiceSelectionControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Prácticas del ritmo").font(.headline).padding(.top, 4)
+            Text("Elige el groove completo o una sola línea para practicarla con el resto como acompañamiento.").font(.studioBody).foregroundColor(StudioDesign.textSecondary)
+            practiceHelpControls
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 5) {
+                    Text("Qué tocas tú").font(.subheadline.weight(.semibold))
+                    ContextInfoButton(title: "Qué tocas tú", detail: "Puedes elegir una o varias líneas. Las seleccionadas son tus notas: aparecen con color vivo y se puntúan. Las que dejes fuera se ven en gris y xRoll las toca como acompañamiento.")
+                }
+                Text("Selecciona las líneas que vas a tocar. Las apagadas suenan como referencia, pero no tienes que golpearlas.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                HStack(spacing: 8) {
+                    ActionButton("Ritmo completo", prominence: model.isFullRhythmSelection ? .primary : .secondary) { model.selectFullRhythm() }
+                    Text(model.isFullRhythmSelection ? "Tocas todas las líneas" : "Tocas \(model.selectedPlayerSounds.count) líneas").font(.caption2).foregroundColor(StudioDesign.textSecondary)
+                }
+                FlowSoundSelection(model: model)
+            }
+        }
+    }
+
+    @ViewBuilder private var practiceHelpControls: some View {
+        if model.showsTrainingPhases {
+            HStack(spacing: 5) {
+                Text("Ayudas").font(.subheadline.weight(.semibold))
+                ContextInfoButton(title: "Ayudas", detail: "Completa muestra y suena todo lo necesario. Normal retira parte de la guía. Reducida deja más espacio para que sostengas el ritmo por tu cuenta. Empieza por Completa si es la primera vez.")
+            }
+            HStack(spacing: 8) {
+                ForEach(PracticeHelp.allCases, id: \.self) { help in
+                    ActionButton(help.label, prominence: model.practiceHelp == help ? .primary : .secondary) { model.setPracticeHelp(help) }
+                }
+            }
+            Text("Activa ahora: \(model.practiceHelp.label). \(model.practiceHelpDescription)").font(.caption).foregroundColor(StudioDesign.textSecondary)
+        }
+    }
+
+    @ViewBuilder private var transferControls: some View {
+        if model.showsTrainingPhases {
+            HStack(spacing: 5) {
+                Toggle("Prueba de transferencia", isOn: $model.transferCheck)
+                ContextInfoButton(title: "Prueba de transferencia", detail: "Oculta y deja sin puntuar el charles mientras sigue sonando. Sirve para comprobar si puedes conservar el groove sin depender de verlo en pantalla.")
+            }
+            if model.transferCheck {
+                Text("El charles se oye, pero no aparece ni se puntúa: mantén el groove sin perseguirlo visualmente.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            }
+            HStack(spacing: 5) {
+                Text("Gap Metronome").font(.subheadline.weight(.semibold))
+                ContextInfoButton(title: "Gap Metronome", detail: "La claqueta se calla durante algunos compases. Tu trabajo es mantener el pulso interno hasta que vuelva. “3+1” son tres compases con claqueta y uno sin ella.")
+            }
+            Picker("Gap Metronome", selection: $model.gapMetronomeLevel) { Text("Guía total").tag(0); Text("3+1 compases").tag(1); Text("2+2 compases").tag(2); Text("Pulso ancla").tag(3) }.pickerStyle(.menu).labelsHidden()
+            Text("Los huecos de claqueta empiezan después de la cuenta inicial; sirven para medir tu pulso interno.").font(.caption2).foregroundColor(StudioDesign.textSecondary)
         }
     }
 }
@@ -871,15 +926,9 @@ private struct PlayerColumn: View {
     var body: some View {
         VStack(spacing: 14) {
             StagePanel {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("LISTO PARA TOCAR").font(.caption.bold()).foregroundColor(.cyan)
-                        Text(model.currentExerciseTitle).font(.title2.bold())
-                        Text(model.preview.isEmpty ? "Escucha el patrón o empieza cuando quieras." : model.preview).font(.caption).foregroundColor(.white.opacity(0.58))
-                    }
-                    Spacer()
-                    ActionButton("Comenzar", prominence: .primary) { model.openPreparation() }
-                }
+                Text("REGLAS DEL CURSO\n\n1. Aprender: 70 BPM, 1 estrella\n2. Base: 85 BPM, 2 estrellas\n3. Consolidar: 100 BPM, 3 estrellas\n4. Dificil: 120 BPM, 1 trofeo\n5. Jefe: 140 BPM, 2 trofeos\n6. Nivel dios: 160 BPM, 3 trofeos, 16 compases\n\nConsolidar todos los ritmos abre la siguiente estacion.")
+                    .font(.caption)
+                    .foregroundColor(StudioDesign.textPrimary)
             }
             StagePanel {
                 Text("EN ESTE NIVEL").font(.caption.bold()).foregroundColor(.cyan)
