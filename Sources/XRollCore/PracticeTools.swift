@@ -19,9 +19,54 @@ public struct PracticeConfiguration: Equatable {
 
     public func applying(to exercise: Exercise) -> Exercise {
         Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family,
-                 level: exercise.level, bpm: bpm, meter: exercise.meter, bars: exercise.bars,
-                 grid: exercise.grid, repeats: repeats, kit: exercise.kit, loop: exercise.loop,
-                 offset: exercise.offset, notes: exercise.notes)
+                  level: exercise.level, bpm: bpm, meter: exercise.meter, bars: exercise.bars,
+                  grid: exercise.grid, repeats: repeats, kit: exercise.kit, loop: exercise.loop,
+                  offset: exercise.offset, notes: exercise.notes, metadata: exercise.metadata)
+    }
+}
+
+/// Escalera de tempo relativa al BPM declarado por el MIDI. Evita convertir un
+/// tempo absoluto en una dificultad distinta según el ejercicio.
+public struct TempoPracticeStep: Equatable {
+    public let label: String
+    public let bpm: Int
+    public let requiredScore: Double
+    public let requiredPasses: Int
+
+    public init(label: String, bpm: Int, requiredScore: Double, requiredPasses: Int) {
+        self.label = label
+        self.bpm = bpm
+        self.requiredScore = requiredScore
+        self.requiredPasses = requiredPasses
+    }
+}
+
+public enum TempoLadder {
+    public static func steps(for exercise: Exercise) -> [TempoPracticeStep] {
+        let nominal = exercise.bpm
+        return [
+            .init(label: "Aprender", bpm: max(40, nominal - 8), requiredScore: 70, requiredPasses: 1),
+            .init(label: "Base", bpm: nominal, requiredScore: 70, requiredPasses: 1),
+            .init(label: "Consolidar", bpm: min(240, nominal + 6), requiredScore: 85, requiredPasses: 2),
+            .init(label: "Reto", bpm: min(240, nominal + 12), requiredScore: 85, requiredPasses: 1)
+        ]
+    }
+
+    public static func passedAttempts(for step: TempoPracticeStep, exerciseID: String, attempts: [PracticeAttempt]) -> Int {
+        attempts.filter {
+            $0.exerciseID == exerciseID
+                && $0.bpm == step.bpm
+                && $0.score >= step.requiredScore
+                && $0.trainingContext.evaluationScope.countsAsCompletePattern
+        }.count
+    }
+
+    public static func isPassed(_ step: TempoPracticeStep, exerciseID: String, attempts: [PracticeAttempt]) -> Bool {
+        passedAttempts(for: step, exerciseID: exerciseID, attempts: attempts) >= step.requiredPasses
+    }
+
+    public static func nextStep(for exercise: Exercise, attempts: [PracticeAttempt]) -> TempoPracticeStep? {
+        steps(for: exercise).first { !isPassed($0, exerciseID: exercise.id, attempts: attempts) }
     }
 }
 
@@ -108,6 +153,111 @@ public enum CourseProgress {
             return CourseLevelState(exerciseID: exercise.id, status: status, bestScore: item?.bestScore)
         }
     }
+
+    /// La progresión solo usa resultados que representan el ritmo completo. Los
+    /// intentos históricos conservan el desbloqueo anterior, pero no sirven para
+    /// sellos avanzados porque su alcance no se puede verificar.
+    public static func states(exercises: [Exercise], attempts: [PracticeAttempt], completionScore: Double = 70, fastStartID: String? = "00_i_03_ritmo_completo") -> [CourseLevelState] {
+        if let graph = try? CourseGraph(exercises: exercises) {
+            return graph.states(attempts: attempts, completionScore: completionScore)
+        }
+        let completeAttempts = attempts.filter { attempt in
+            guard let exercise = exercises.first(where: { $0.id == attempt.exerciseID }) else { return false }
+            return attempt.score >= completionScore
+                && attempt.bpm == exercise.bpm
+                && attempt.trainingContext.evaluationScope.countsAsCompletePattern
+        }
+        let bestScores = Dictionary(grouping: completeAttempts, by: \.exerciseID).mapValues { attempts in
+            attempts.map(\.score).max() ?? 0
+        }
+        let ordered = exercises.sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        let fastStartLevel = fastStartID.flatMap { id in ordered.first(where: { $0.id == id })?.level }
+        let fastStartPassed = fastStartID.flatMap { bestScores[$0] }.map { $0 >= completionScore } ?? false
+        var previousSatisfied = true
+
+        return ordered.map { exercise in
+            let bestScore = bestScores[exercise.id]
+            let completed = bestScore != nil
+            let status: CourseLevelStatus = completed ? .mastered : (previousSatisfied || exercise.id == fastStartID ? .available : .locked)
+            if completed || (fastStartPassed && (fastStartLevel.map { exercise.level < $0 } ?? false)) {
+                previousSatisfied = true
+            } else {
+                previousSatisfied = false
+            }
+            return CourseLevelState(exerciseID: exercise.id, status: status, bestScore: bestScore)
+        }
+    }
+}
+
+public enum NextSessionKind: Equatable {
+    case firstSession
+    case corrective
+    case consolidate
+    case continueCourse
+    case review
+}
+
+public struct NextSessionPlan: Equatable {
+    public let exerciseID: String
+    public let title: String
+    public let bpm: Int
+    public let repeats: Int
+    public let estimatedDurationMilliseconds: Double
+    public let kind: NextSessionKind
+    public let reason: String
+}
+
+/// Prioriza una única microtarea a partir de datos persistidos. La interfaz
+/// solo presenta el plan y confirma su configuración antes de iniciar audio.
+public enum NextSessionPlanner {
+    public static func plan(exercises: [Exercise], courseLevels: [CourseLevelState], attempts: [PracticeAttempt], eligibleExerciseIDs: Set<String>? = nil) -> NextSessionPlan? {
+        let availableIDs = Set(courseLevels.filter { $0.status != .locked }.map(\.exerciseID))
+        let candidates = exercises
+            .filter { exercise in
+                (eligibleExerciseIDs?.contains(exercise.id) ?? true) && (availableIDs.isEmpty || availableIDs.contains(exercise.id))
+            }
+            .sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        guard !candidates.isEmpty else { return nil }
+
+        let attemptsByExercise = Dictionary(grouping: attempts, by: \.exerciseID)
+        if attempts.isEmpty {
+            return makePlan(for: candidates[0], kind: .firstSession, reason: "Empieza por el primer groove: construye una base estable antes de añadir variaciones.")
+        }
+
+        if let recent = attempts.first,
+           let current = candidates.first(where: { $0.id == recent.exerciseID }),
+           recent.score < 70 {
+            if let weak = recent.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weak.accuracy < 70 {
+                return makePlan(for: current, kind: .corrective, reason: "Refuerza \(weak.sound): fue la voz con más margen en el último intento.")
+            }
+            return makePlan(for: current, kind: .consolidate, reason: "Repite este nivel: el último intento aún necesita consolidación antes de avanzar.")
+        }
+
+        if let next = candidates.first(where: { (attemptsByExercise[$0.id]?.map(\.score).max() ?? 0) < 70 }) {
+            return makePlan(for: next, kind: .continueCourse, reason: "Es el siguiente escalón disponible del curso.")
+        }
+
+        let review = candidates.min { left, right in
+            let leftScore = attemptsByExercise[left.id]?.last?.score ?? 100
+            let rightScore = attemptsByExercise[right.id]?.last?.score ?? 100
+            return leftScore == rightScore ? left.level < right.level : leftScore < rightScore
+        } ?? candidates[0]
+        return makePlan(for: review, kind: .review, reason: "El curso está consolidado; repasa el ritmo con más margen de mejora.")
+    }
+
+    private static func makePlan(for exercise: Exercise, kind: NextSessionKind, reason: String) -> NextSessionPlan {
+        let repeats = PracticeConfiguration.normalizedRepeats(exercise.repeats)
+        let configured = PracticeConfiguration(exercise: exercise, repeats: repeats).applying(to: exercise)
+        return NextSessionPlan(
+            exerciseID: exercise.id,
+            title: exercise.title,
+            bpm: configured.bpm,
+            repeats: repeats,
+            estimatedDurationMilliseconds: ExerciseTimeline(exercise: configured).patternDurationMilliseconds * Double(repeats),
+            kind: kind,
+            reason: reason
+        )
+    }
 }
 
 public struct PracticePreferences: Codable, Equatable {
@@ -152,15 +302,6 @@ public struct PracticeInsights: Equatable {
 
     public init(score: ExerciseScore) {
         let offsets = score.hits.compactMap(\.offsetMilliseconds).sorted()
-        let mean = offsets.isEmpty ? 0 : offsets.reduce(0, +) / Double(offsets.count)
-        timingLabel = mean < -15 ? "Tiendes a adelantar el golpe" : mean > 15 ? "Tiendes a retrasar el golpe" : "Tu pulso está centrado"
-        guard !offsets.isEmpty else { medianOffsetMilliseconds = nil; medianAbsoluteDeviationMilliseconds = nil; percentile95AbsoluteMilliseconds = nil; soundStatistics = []; return }
-        let median = offsets[offsets.count / 2]
-        medianOffsetMilliseconds = median
-        let deviations = offsets.map { abs($0 - median) }.sorted()
-        medianAbsoluteDeviationMilliseconds = deviations[deviations.count / 2]
-        let absolute = offsets.map(abs).sorted()
-        percentile95AbsoluteMilliseconds = absolute[min(absolute.count - 1, Int((Double(absolute.count - 1) * 0.95).rounded(.up)))]
         let sounds = Set(score.hits.compactMap { $0.expectedNote?.sound }).union(score.misses.map(\.sound))
         soundStatistics = sounds.sorted().map { sound in
             let judged = score.hits.filter { $0.expectedNote?.sound == sound }
@@ -170,6 +311,75 @@ public struct PracticeInsights: Equatable {
                                    regular: judged.filter { $0.judgement == .regular }.count,
                                    missed: score.misses.filter { $0.sound == sound }.count)
         }
+        guard !offsets.isEmpty else {
+            timingLabel = "Aún no hay golpes asociados"
+            medianOffsetMilliseconds = nil; medianAbsoluteDeviationMilliseconds = nil; percentile95AbsoluteMilliseconds = nil
+            return
+        }
+        let median = CalibrationEstimator.median(offsets)
+        timingLabel = median < -15 ? "Tiendes a adelantar el golpe" : median > 15 ? "Tiendes a retrasar el golpe" : "Tu pulso está centrado"
+        medianOffsetMilliseconds = median
+        let deviations = offsets.map { abs($0 - median) }
+        medianAbsoluteDeviationMilliseconds = CalibrationEstimator.median(deviations)
+        let absolute = offsets.map(abs).sorted()
+        percentile95AbsoluteMilliseconds = absolute[min(absolute.count - 1, Int((Double(absolute.count - 1) * 0.95).rounded(.up)))]
+    }
+}
+
+public enum PracticeResultDiagnosis: Equatable {
+    case insufficientEvidence
+    case weakSound(sound: String, accuracy: Double, missed: Int)
+    case inconsistent(spreadMilliseconds: Double)
+    case timingBias(offsetMilliseconds: Double)
+    case solid
+}
+
+public enum PracticeResultAction: Equatable {
+    case corrective
+    case repeatWithAdjustment
+    case advance
+    case repeatSame
+}
+
+public struct PracticeResultSummary: Equatable {
+    public let diagnosis: PracticeResultDiagnosis
+    public let action: PracticeResultAction
+    public let precision: Double
+    public let medianOffsetMilliseconds: Double?
+    public let consistencyMilliseconds: Double?
+    public let percentile95AbsoluteMilliseconds: Double?
+}
+
+public enum PracticeResultAnalyzer {
+    public static func summarize(score: ExerciseScore, insights: PracticeInsights, hasCorrectivePlan: Bool, canAdvance: Bool) -> PracticeResultSummary {
+        let diagnosis: PracticeResultDiagnosis
+        if let weakest = insights.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weakest.accuracy < 70 {
+            diagnosis = .weakSound(sound: weakest.sound, accuracy: weakest.accuracy, missed: weakest.missed)
+        } else if insights.medianOffsetMilliseconds == nil {
+            diagnosis = .insufficientEvidence
+        } else if let spread = insights.medianAbsoluteDeviationMilliseconds, spread > 45 {
+            diagnosis = .inconsistent(spreadMilliseconds: spread)
+        } else if let median = insights.medianOffsetMilliseconds, abs(median) > 15 {
+            diagnosis = .timingBias(offsetMilliseconds: median)
+        } else {
+            diagnosis = .solid
+        }
+
+        let action: PracticeResultAction
+        if hasCorrectivePlan, case .weakSound = diagnosis { action = .corrective }
+        else if case .inconsistent = diagnosis { action = .repeatWithAdjustment }
+        else if score.percentage >= 70, canAdvance { action = .advance }
+        else if score.percentage < 70 { action = .repeatWithAdjustment }
+        else { action = .repeatSame }
+
+        return PracticeResultSummary(
+            diagnosis: diagnosis,
+            action: action,
+            precision: score.percentage,
+            medianOffsetMilliseconds: insights.medianOffsetMilliseconds,
+            consistencyMilliseconds: insights.medianAbsoluteDeviationMilliseconds,
+            percentile95AbsoluteMilliseconds: insights.percentile95AbsoluteMilliseconds
+        )
     }
 }
 
@@ -197,10 +407,7 @@ public struct AutopilotRecommendation: Equatable {
 
 public enum PracticeAutopilot {
     public static func recommend(score: ExerciseScore, insights: PracticeInsights, bpm: Int, repeats: Int) -> AutopilotRecommendation {
-        let offsets = score.hits.compactMap(\.offsetMilliseconds)
-        let mean = offsets.isEmpty ? 0 : offsets.reduce(0, +) / Double(offsets.count)
-        let spread = offsets.isEmpty ? 0 : offsets.map { abs($0 - mean) }.reduce(0, +) / Double(offsets.count)
-        if spread > 45 { return .init(message: "Hay variación entre golpes: baja el tempo y toca una vuelta corta.", bpmAdjustment: -6, repeats: 2, help: .full) }
+        if let spread = insights.medianAbsoluteDeviationMilliseconds, spread > 45 { return .init(message: "Hay variación entre golpes: baja el tempo y toca una vuelta corta.", bpmAdjustment: -6, repeats: 2, help: .full) }
         if let weakest = insights.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weakest.accuracy < 70 { return .init(message: "Aísla \(weakest.sound) antes de integrar el patrón.", bpmAdjustment: 0, repeats: 2, help: .normal) }
         if score.percentage >= 85 { return .init(message: "Vas sólido: sube un poco el tempo o reduce ayudas.", bpmAdjustment: 4, repeats: repeats, help: .reduced) }
         return .init(message: "Repite el patrón con la misma configuración y centra cada golpe.", bpmAdjustment: 0, repeats: repeats, help: .normal)

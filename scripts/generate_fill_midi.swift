@@ -55,7 +55,7 @@ func be16(_ value: Int) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 0xFF)] }
 func be32(_ value: Int) -> [UInt8] { [UInt8(value >> 24), UInt8(value >> 16), UInt8(value >> 8), UInt8(value & 0xFF)] }
 
 let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("data/exercises")
-for exercise in exercises {
+for (index, exercise) in exercises.enumerated() {
     let ppq = 480
     let tempo = 60_000_000 / exercise.bpm
     let title = Array(exercise.title.utf8)
@@ -64,10 +64,26 @@ for exercise in exercises {
         (0, 1, [0xFF, 0x51, 0x03, UInt8((tempo >> 16) & 0xFF), UInt8((tempo >> 8) & 0xFF), UInt8(tempo & 0xFF)]),
         (0, 2, [0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08])
     ]
+    let pair = index / 2 + 1
+    let position = index % 2 + 1
+    var metadata = [
+        "xroll/1 id=\(exercise.file)",
+        "xroll/1 chapter=fills-\(pair)",
+        "xroll/1 position=\(position)",
+        "xroll/1 objective=\(exercise.title)",
+        "xroll/1 new-difficulty=fill-\(pair)-\(position)",
+        "xroll/1 recommended-help=full",
+        "xroll/1 prerequisite=\(position == 1 ? "03_coord_08_independencia" : exercises[index - 1].file)"
+    ]
+    if position == 2 { metadata.append("xroll/1 flag=checkpoint") }
+    for (metadataIndex, text) in metadata.enumerated() {
+        let bytes = Array(text.utf8)
+        events.append((0, 3 + metadataIndex, [0xFF, 0x01] + vlq(bytes.count) + bytes))
+    }
     for (step, note) in exercise.notes {
         let tick = step * ppq / 4
-        events.append((tick, 3, [0x99, UInt8(note), 100]))
-        events.append((tick + 60, 2, [0x89, UInt8(note), 0]))
+        events.append((tick, 100, [0x99, UInt8(note), 100]))
+        events.append((tick + 60, 99, [0x89, UInt8(note), 0]))
     }
     events.sort { $0.0 == $1.0 ? $0.1 < $1.1 : $0.0 < $1.0 }
     var track = [UInt8](), lastTick = 0

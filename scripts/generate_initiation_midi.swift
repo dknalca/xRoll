@@ -39,10 +39,26 @@ for exercise in exercises {
         (0, 1, [0xFF, 0x51, 0x03, UInt8((tempo >> 16) & 0xFF), UInt8((tempo >> 8) & 0xFF), UInt8(tempo & 0xFF)]),
         (0, 2, [0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08])
     ]
+    let position = Int(exercise.filename.split(separator: "_")[2])!
+    let prerequisite = position == 1 ? nil : exercises[position - 2].filename
+    var metadata = [
+        "xroll/1 id=\(exercise.filename)",
+        "xroll/1 chapter=initiation",
+        "xroll/1 position=\(position)",
+        "xroll/1 objective=\(exercise.title)",
+        "xroll/1 new-difficulty=initiation-\(position)",
+        "xroll/1 recommended-help=full"
+    ]
+    if let prerequisite { metadata.append("xroll/1 prerequisite=\(prerequisite)") }
+    if position == 3 { metadata.append("xroll/1 flag=fast-start") }
+    for (index, text) in metadata.enumerated() {
+        let bytes = Array(text.utf8)
+        events.append((0, 3 + index, [0xFF, 0x01] + vlq(bytes.count) + bytes))
+    }
     for hit in exercise.notes {
         let tick = hit.step * ppq / 4
-        events.append((tick, 3, [0x99, UInt8(hit.note), 100]))
-        events.append((tick + 60, 2, [0x89, UInt8(hit.note), 0]))
+        events.append((tick, 100, [0x99, UInt8(hit.note), 100]))
+        events.append((tick + 60, 99, [0x89, UInt8(hit.note), 0]))
     }
     events.sort { $0.tick == $1.tick ? $0.order < $1.order : $0.tick < $1.tick }
     var track = [UInt8](); var previousTick = 0

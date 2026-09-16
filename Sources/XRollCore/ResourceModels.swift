@@ -103,11 +103,12 @@ public struct Exercise: Codable, Equatable {
     public let loop: String?
     public let offset: Int
     public let notes: [Note]
+    public let metadata: MIDIExerciseMetadata?
 
-    public init(format: Int, id: String, title: String, family: String, level: Int, bpm: Int, meter: [Int], bars: Int, grid: Int, repeats: Int, kit: String, loop: String?, offset: Int, notes: [Note]) {
+    public init(format: Int, id: String, title: String, family: String, level: Int, bpm: Int, meter: [Int], bars: Int, grid: Int, repeats: Int, kit: String, loop: String?, offset: Int, notes: [Note], metadata: MIDIExerciseMetadata? = nil) {
         self.format = format; self.id = id; self.title = title; self.family = family; self.level = level
         self.bpm = bpm; self.meter = meter; self.bars = bars; self.grid = grid; self.repeats = repeats
-        self.kit = kit; self.loop = loop; self.offset = offset; self.notes = notes
+        self.kit = kit; self.loop = loop; self.offset = offset; self.notes = notes; self.metadata = metadata
     }
 
     public func validate(availableSounds: Set<String>) throws {

@@ -30,11 +30,11 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 - [SCORING.md](SCORING.md): puntuación y diagnóstico temporal.
 
 ### Pads, MIDI y audio
-- [PAD_LAYOUTS.md](PAD_LAYOUTS.md): Core, Drum Kit, Mirror y orientación.
+- [PAD_LAYOUTS.md](PAD_LAYOUTS.md): Core, Drum Kit y Mirror.
 - [PADMAP_V2.md](PADMAP_V2.md): modelo many-to-one y migración.
 - [MIDI_MAPPING.md](MIDI_MAPPING.md): MIDI y aprendizaje del controlador.
 - [AUDIO.md](AUDIO.md): muestras, kits y loops.
-- [LATENCY_PROTOCOL.md](LATENCY_PROTOCOL.md): protocolo físico de latencia.
+- [LATENCY_PROTOCOL.md](LATENCY_PROTOCOL.md): diagnóstico interno de audio y MIDI.
 
 ### Desarrollo y distribución
 - [DEVELOPMENT.md](DEVELOPMENT.md)
@@ -53,5 +53,5 @@ Para evitar contradicciones:
    catálogo ni formato histórico distribuido.
 4. El layout describe funciones físicas; el mapeo MIDI describe los mensajes del dispositivo.
 5. La latencia técnica y el sesgo humano se almacenan por separado.
-6. El catálogo activo contiene 64 ejercicios MIDI: tronco común, Hip-hop,
+6. El catálogo activo contiene 65 ejercicios MIDI: tronco común, Hip-hop,
    Rock, Funk, Blues/Shuffle y Jazz. El test de recursos verifica el conteo.

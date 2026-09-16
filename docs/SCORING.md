@@ -104,11 +104,11 @@ El desvio bruto se define como `instante_del_golpe - instante_objetivo`: positiv
 significa atrasado y negativo, adelantado. El desvio puntuado es
 `desvio_bruto - compensacion_del_perfil`.
 
-Esta prueba mide la compensacion practica del conjunto, incluida la tendencia
-del usuario al seguir la claqueta; no pretende sustituir la medida fisica de la
-fase 0. Si los golpes tienen demasiada dispersion para dar una compensacion
-fiable, se explica el problema y se repite. El umbral de dispersion se fija con
-pruebas reales, no por intuicion.
+Esta prueba mide la compensación práctica del conjunto, incluida la tendencia
+del usuario al seguir la claqueta, y aplica su mediana al scoring de esa ruta.
+Si los golpes tienen demasiada dispersión para dar una compensación fiable, se
+explica el problema y se repite. El umbral de dispersión se fija con pruebas
+reales, no por intuición.
 
 Se guarda por perfil completo: tipo e identificador estable de entrada,
 identificador de salida, frecuencia de muestreo y tamano de buffer. El teclado
@@ -154,12 +154,12 @@ La media no se utiliza sola: errores positivos y negativos pueden cancelarse.
 
 ```text
 offset_bruto = golpe - objetivo
-offset_tecnico = offset_bruto - systemLatencyMs
 offset_puntuado = offset_bruto - scoringCompensationMs
-sesgo_observado = mediana(offset_tecnico)
+sesgo_observado = mediana(offset_bruto)
 ```
 
-`userCalibrationBiasMs` se muestra como observación y no se aplica automáticamente como compensación permanente.
+La compensación guiada se guarda por ruta; el sesgo observado sigue disponible
+para diagnóstico de la sesión.
 
 ## Matching
 

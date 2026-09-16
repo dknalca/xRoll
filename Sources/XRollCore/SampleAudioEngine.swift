@@ -28,24 +28,34 @@ public enum SampleAudioEngineError: LocalizedError {
     }
 }
 
-/// Una instancia se confina a un único contexto de control. `XRollPads` la usa
-/// en main; las CLIs la preparan antes de conectar MIDI y su worker de entrega
-/// pasa a ser el único emisor de golpes vivos. No se pueden mezclar contextos.
+/// Separa las colas temporales cancelables de los golpes inmediatos. Un golpe
+/// MIDI nunca comparte nodo con una nota programada para el acompañamiento.
+public enum ScheduledAudioDomain: Hashable {
+    case preview
+    case accompaniment
+}
+
+/// Un cerrojo serializa la configuración y los golpes vivos. El render sigue
+/// ocurriendo en Core Audio, fuera de la cola de entrega MIDI y de la interfaz.
 public final class SampleAudioEngine {
     private final class LoadedSound {
         let chokeGroup: String?
         let buffer: AVAudioPCMBuffer
-        let voices: [AVAudioPlayerNode]
-        var nextVoice = 0
+        let liveVoices: [AVAudioPlayerNode]
+        let scheduledVoices: [AVAudioPlayerNode]
+        var nextLiveVoice = 0
+        var nextScheduledVoice = 0
 
-        init(chokeGroup: String?, buffer: AVAudioPCMBuffer, voices: [AVAudioPlayerNode]) {
+        init(chokeGroup: String?, buffer: AVAudioPCMBuffer, liveVoices: [AVAudioPlayerNode], scheduledVoices: [AVAudioPlayerNode]) {
             self.chokeGroup = chokeGroup
             self.buffer = buffer
-            self.voices = voices
+            self.liveVoices = liveVoices
+            self.scheduledVoices = scheduledVoices
         }
     }
 
     private let engine = AVAudioEngine()
+    private let controlLock = NSRecursiveLock()
     private let loopPlayer = AVAudioPlayerNode()
     private let loopTimePitch = AVAudioUnitTimePitch()
     private let metronomePlayer = AVAudioPlayerNode()
@@ -79,6 +89,8 @@ public final class SampleAudioEngine {
     }
 
     public func load(kit: KitManifest, from directory: URL) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         stop()
         samplePlayers.forEach { engine.detach($0) }
         samplePlayers.removeAll()
@@ -108,7 +120,16 @@ public final class SampleAudioEngine {
             // overlap. Keeping this pool small is intentional: a finger roll
             // should replace an old tail, never create a delayed audio queue.
             let voiceCount = ["crash", "ride"].contains(sound.id) ? voicesPerSound : min(4, voicesPerSound)
-            let voices = (0..<voiceCount).map { _ -> AVAudioPlayerNode in
+            let liveVoices = (0..<voiceCount).map { _ -> AVAudioPlayerNode in
+                let node = AVAudioPlayerNode()
+                engine.attach(node)
+                engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
+                samplePlayers.append(node)
+                return node
+            }
+            // Las voces programadas no se roban desde la ruta MIDI. Así, un
+            // golpe nuevo no puede vaciar una cola de acompañamiento futura.
+            let scheduledVoices = (0..<voiceCount).map { _ -> AVAudioPlayerNode in
                 let node = AVAudioPlayerNode()
                 engine.attach(node)
                 engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
@@ -118,17 +139,22 @@ public final class SampleAudioEngine {
             sounds[sound.id] = LoadedSound(
                 chokeGroup: sound.chokeGroup,
                 buffer: buffer,
-                voices: voices
+                liveVoices: liveVoices,
+                scheduledVoices: scheduledVoices
             )
         }
     }
 
     public func start() throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard !engine.isRunning else { return }
         try engine.start()
     }
 
     public func setOutputDevice(_ deviceID: AudioDeviceID) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         let wasRunning = engine.isRunning
         if wasRunning { engine.stop() }
         do {
@@ -153,20 +179,26 @@ public final class SampleAudioEngine {
     }
 
     public func stop() {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         engine.stop()
-        sounds.values.flatMap(\.voices).forEach { $0.stop() }
+        sounds.values.flatMap(\.liveVoices).forEach { $0.stop() }
+        sounds.values.flatMap(\.scheduledVoices).forEach { $0.stop() }
         loopPlayer.stop()
         metronomePlayer.stop()
     }
 
-    /// Cancels preview and metronome buffers while keeping the audio engine ready
-    /// for the next exercise.
+    /// Cancela solo notas programadas; los golpes vivos siguen disponibles.
     public func stopScheduledSounds() {
-        sounds.values.flatMap(\.voices).forEach { $0.stop() }
+        controlLock.lock()
+        defer { controlLock.unlock() }
+        sounds.values.flatMap(\.scheduledVoices).forEach { $0.stop() }
         metronomePlayer.stop()
     }
 
     public func loadLoop(url: URL) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         let file = try AVAudioFile(forReading: url)
         guard file.length <= AVAudioFramePosition(UInt32.max), let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
             throw SampleAudioEngineError.loopNotLoaded
@@ -179,6 +211,8 @@ public final class SampleAudioEngine {
     /// Loads a dedicated click. If absent, scheduleMetronome keeps the kit
     /// fallback so an old project remains usable.
     public func loadMetronome(url: URL) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         let file = try AVAudioFile(forReading: url)
         guard file.length <= AVAudioFramePosition(UInt32.max), let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
             throw SampleAudioEngineError.unableToReadSample(url.lastPathComponent)
@@ -189,6 +223,8 @@ public final class SampleAudioEngine {
     }
 
     public func previewMetronome(volume: Float = 1, pitchCents: Float = 0) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let buffer = metronomeBuffer ?? sounds["clap"]?.buffer else {
             throw SampleAudioEngineError.soundNotLoaded("metrónomo")
         }
@@ -200,6 +236,8 @@ public final class SampleAudioEngine {
     }
 
     public func startLoop(atHostTime hostTime: UInt64, targetBPM: Double, volume: Float = 0.72) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let loopBuffer, let sourceBPM = loopTempo?.bpm, sourceBPM > 0 else { throw SampleAudioEngineError.loopNotLoaded }
         loopPlayer.stop()
         loopTimePitch.rate = Float(targetBPM / sourceBPM)
@@ -208,16 +246,24 @@ public final class SampleAudioEngine {
         loopPlayer.play(at: AVAudioTime(hostTime: hostTime))
     }
 
-    public func stopLoop() { loopPlayer.stop() }
+    public func stopLoop() {
+        controlLock.lock()
+        defer { controlLock.unlock() }
+        loopPlayer.stop()
+    }
 
     /// El volumen por sonido se guarda fuera del WAV: todos los samples se
     /// normalizan a un pico común al cargar y esta ganancia permite equilibrar
     /// el kit sin modificar archivos del usuario.
     public func setSoundVolume(_ volume: Float, for soundID: String) {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         soundGains[soundID] = min(1.5, max(0, volume))
     }
 
     public func play(soundID: String, volume: Float = 1) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
@@ -225,7 +271,7 @@ public final class SampleAudioEngine {
         if let chokeGroup = sound.chokeGroup {
             sounds.values
                 .filter { $0.chokeGroup == chokeGroup }
-                .flatMap(\.voices)
+                .flatMap(\.liveVoices)
                 .forEach { $0.stop() }
         }
 
@@ -233,9 +279,9 @@ public final class SampleAudioEngine {
         // hits feel swallowed by long crash/tom tails. Prefer an idle voice;
         // if all are busy, steal the oldest round-robin voice so the new hit is
         // always immediate.
-        let voice = sound.voices.first(where: { !$0.isPlaying }) ?? sound.voices[sound.nextVoice]
+        let voice = sound.liveVoices.first(where: { !$0.isPlaying }) ?? sound.liveVoices[sound.nextLiveVoice]
         if voice.isPlaying { voice.stop() }
-        sound.nextVoice = (sound.nextVoice + 1) % sound.voices.count
+        sound.nextLiveVoice = (sound.nextLiveVoice + 1) % sound.liveVoices.count
         voice.volume = effectiveVolume(for: soundID, requested: volume)
         // .interrupts is the critical live-input rule. AVAudioPlayerNode may
         // otherwise append a buffer behind a tail on some CoreAudio devices;
@@ -250,6 +296,8 @@ public final class SampleAudioEngine {
     /// Prepara una señal de diagnóstico de 3,5 kHz fuera de la ruta MIDI. Se
     /// conecta directamente al mixer para no medir la latencia de TimePitch.
     public func prepareLatencyClick() throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         let format = engine.mainMixerNode.outputFormat(forBus: 0)
         let sampleRate = max(44_100, format.sampleRate)
         guard format.channelCount > 0,
@@ -268,19 +316,23 @@ public final class SampleAudioEngine {
     }
 
     public func playLatencyClick() throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let latencyClickBuffer else { throw SampleAudioEngineError.soundNotLoaded("click de latencia") }
         latencyClickPlayer.stop()
         latencyClickPlayer.scheduleBuffer(latencyClickBuffer, at: nil, options: [.interrupts])
         latencyClickPlayer.play()
     }
 
-    public func schedule(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1) throws {
+    public func schedule(soundID: String, atHostTime hostTime: UInt64, domain: ScheduledAudioDomain = .accompaniment, volume: Float = 1) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
 
-        let voice = sound.voices[sound.nextVoice]
-        sound.nextVoice = (sound.nextVoice + 1) % sound.voices.count
+        let voice = sound.scheduledVoices[sound.nextScheduledVoice]
+        sound.nextScheduledVoice = (sound.nextScheduledVoice + 1) % sound.scheduledVoices.count
         voice.volume = effectiveVolume(for: soundID, requested: volume)
         voice.scheduleBuffer(sound.buffer, at: AVAudioTime(hostTime: hostTime), options: [])
         if !voice.isPlaying { voice.play() }
@@ -289,6 +341,8 @@ public final class SampleAudioEngine {
     /// Schedules the click through its own pitch unit so the metronome can be
     /// tuned without transposing drum pads or the accompaniment.
     public func scheduleMetronome(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
         guard let buffer = metronomeBuffer ?? sounds[soundID]?.buffer else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }

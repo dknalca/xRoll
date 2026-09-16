@@ -19,6 +19,7 @@ struct XRollRealtimeQueue {
     _Atomic uint64_t enqueue_position;
     _Atomic uint64_t dequeue_position;
     _Atomic uint64_t dropped;
+    _Atomic bool consumer_waiting;
 };
 
 static uint64_t next_power_of_two(uint32_t value) {
@@ -40,6 +41,7 @@ XRollRealtimeQueue *xroll_realtime_queue_create(uint32_t capacity) {
     atomic_init(&queue->enqueue_position, 0);
     atomic_init(&queue->dequeue_position, 0);
     atomic_init(&queue->dropped, 0);
+    atomic_init(&queue->consumer_waiting, false);
     return queue;
 }
 
@@ -98,4 +100,19 @@ bool xroll_realtime_queue_pop(XRollRealtimeQueue *queue, uint64_t *host_time, ui
 
 uint64_t xroll_realtime_queue_dropped(const XRollRealtimeQueue *queue) {
     return queue ? atomic_load_explicit(&queue->dropped, memory_order_relaxed) : 0;
+}
+
+bool xroll_realtime_queue_mark_consumer_waiting(XRollRealtimeQueue *queue) {
+    if (!queue) { return false; }
+    atomic_store_explicit(&queue->consumer_waiting, true, memory_order_release);
+    return true;
+}
+
+bool xroll_realtime_queue_consumer_needs_wake(XRollRealtimeQueue *queue) {
+    if (!queue) { return false; }
+    return atomic_exchange_explicit(&queue->consumer_waiting, false, memory_order_acq_rel);
+}
+
+void xroll_realtime_queue_clear_consumer_waiting(XRollRealtimeQueue *queue) {
+    if (queue) { atomic_store_explicit(&queue->consumer_waiting, false, memory_order_release); }
 }

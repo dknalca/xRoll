@@ -36,7 +36,7 @@ swift run xroll-export-progress ~/Desktop/xroll-progreso.json --exercise hh_03 -
 
 El diagnostico enumera las fuentes MIDI, informa de la salida de audio y valida
 el kit y los ejercicios. `xroll-latency` conecta todas las fuentes MIDI al sonido
-indicado y sirve para la medicion fisica de la fase 0.
+indicado y sirve para diagnóstico interno de la ruta MIDI-audio.
 
 `xroll-play-kit` usa el mapa GM del `kit.json`: bombo 36, caja 38, palmada 39,
 tom grave 41, charles cerrado 42, charles abierto 46, tom agudo 48, crash 49 y
@@ -89,7 +89,7 @@ quiera revisar. Los datos permanecen locales en
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 64 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 65 ejercicios MIDI progresivos
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad
@@ -105,17 +105,14 @@ La guía detallada está en `docs/USER_GUIDE.md`.
 
 ## Licencias
 
-- **Codigo: GPL-3.0-or-later.** Cualquier obra derivada debe seguir siendo
-  libre. Un fork no puede cerrarse.
-- **Audio, graficos y documentacion: CC BY-SA 4.0.**
+- **Código, audio, gráficos y documentación: MIT.** Permite uso comercial,
+  modificación y redistribución conservando el aviso de copyright y licencia.
 
 La procedencia de cada pieza de audio esta en `Resources/Loops/ATTRIBUTION.md`.
 
 ## Contribuir
 
-Las contribuciones se entienden licenciadas bajo la licencia del proyecto. No
-hay CLA que firmar. Es deliberado: menos friccion para quien aporta, y la
-garantia de que el proyecto no puede relicenciarse a algo cerrado mas adelante.
+Las contribuciones se entienden licenciadas bajo MIT. No hay CLA que firmar.
 
 ## Validacion
 
@@ -132,9 +129,8 @@ scripts/build-app.sh
 open dist/xRoll.app
 ```
 
-El script incluye los diez WAV de `hiphop_basic` dentro del bundle.
-Sus atribuciones y licencia CC BY-SA 4.0 están en
-`Resources/Loops/ATTRIBUTION.md`.
+El script incluye los diez WAV de `hiphop_basic` dentro del bundle. Sus
+atribuciones y licencia MIT están en `Resources/Loops/ATTRIBUTION.md`.
 
 Las notas se redactan al preparar cada versión; no se conserva una plantilla de
 release desactualizada en el repositorio.

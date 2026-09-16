@@ -274,3 +274,34 @@ public enum AudioInspector {
         return value?.takeRetainedValue() as String?
     }
 }
+
+/// Observa los cambios globales de dispositivos y de salida predeterminada. La
+/// aplicación decide la política de fallback; Core no cambia rutas por sí solo.
+public final class AudioRouteMonitor {
+    private let onChange: () -> Void
+    private let listener: AudioObjectPropertyListenerBlock
+    private var devicesAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    private var defaultOutputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    public init(onChange: @escaping () -> Void) {
+        self.onChange = onChange
+        listener = { _, _ in onChange() }
+        let object = AudioObjectID(kAudioObjectSystemObject)
+        AudioObjectAddPropertyListenerBlock(object, &devicesAddress, .main, listener)
+        AudioObjectAddPropertyListenerBlock(object, &defaultOutputAddress, .main, listener)
+    }
+
+    deinit {
+        let object = AudioObjectID(kAudioObjectSystemObject)
+        AudioObjectRemovePropertyListenerBlock(object, &devicesAddress, .main, listener)
+        AudioObjectRemovePropertyListenerBlock(object, &defaultOutputAddress, .main, listener)
+    }
+}

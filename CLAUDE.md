@@ -22,10 +22,9 @@ tocar bateria. Todo el diseno debe asumir que el usuario tampoco.
    navegador, ni una fuente de sonido del sistema. Se abre la app y funciona.
    Los samples viajan dentro del binario.
 
-2. **La latencia es el rasgo principal del producto.** Objetivo: 15 ms desde el
-   golpe fisico hasta el sonido. Por encima de 20 ms el usuario aprende a
-   destiempo y la app hace mas dano que bien. Cualquier decision tecnica que
-   comprometa esto se rechaza, por comoda que sea.
+2. **La respuesta temporal es el rasgo principal del producto.** La ruta MIDI a
+   audio evita esperas y colas innecesarias. Cualquier decisión técnica que
+   comprometa esa respuesta se rechaza, por cómoda que sea.
 
 3. **La calibracion guiada es obligatoria, no opcional.** Con ventanas de
    +/- 35 ms, un desfase sin compensar de 20 ms se come dos tercios de la ventana
@@ -65,10 +64,9 @@ rendimiento se valida en la maquina objetivo antes de darlo por conseguido.
 
 ## Licencias
 
-- **Codigo: GPL-3.0-or-later.** Copyleft deliberado: un fork no puede cerrarse.
-  Sin CLA, las contribuciones entran bajo la misma licencia automaticamente.
-- **Audio, graficos y documentacion: CC BY-SA 4.0.** Son obras separadas y la
-  licencia del codigo no las cubre.
+- **Código, audio, gráficos y documentación: MIT.** Permite uso, modificación
+  y distribución, incluida la publicación en App Store, conservando el aviso
+  de copyright y licencia.
 
 Toda pieza de audio anadida al repositorio debe registrarse en
 Resources/Loops/ATTRIBUTION.md en el mismo commit. Sin excepciones: reconstruir

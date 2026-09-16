@@ -12,6 +12,19 @@ public struct MIDINoteOn: Equatable {
 public enum MIDIByteDecoder {
     public static func noteOnEvents(bytes: [UInt8], hostTime: MIDITimeStamp) -> [MIDINoteOn] {
         var events: [MIDINoteOn] = []
+        bytes.withUnsafeBufferPointer { buffer in
+            decodeNoteOnEvents(bytes: buffer, hostTime: hostTime) { events.append($0) }
+        }
+        return events
+    }
+
+    /// Decodifica sobre memoria prestada para que el worker MIDI no cree arrays
+    /// intermedios antes de reproducir el golpe.
+    public static func decodeNoteOnEvents(
+        bytes: UnsafeBufferPointer<UInt8>,
+        hostTime: MIDITimeStamp,
+        consume: (MIDINoteOn) -> Void
+    ) {
         var index = 0
         var runningStatus: UInt8?
 
@@ -46,14 +59,13 @@ public enum MIDIByteDecoder {
             index += dataLength
 
             guard status & 0xF0 == 0x90, data2 > 0 else { continue }
-            events.append(MIDINoteOn(
+            consume(MIDINoteOn(
                 hostTime: hostTime,
                 channel: Int(status & 0x0F) + 1,
                 note: Int(data1),
                 velocity: Int(data2)
             ))
         }
-        return events
     }
 }
 
@@ -166,6 +178,7 @@ private final class MIDIInputCallbackContext {
 private final class MIDIEventDelivery {
     private let queue: OpaquePointer
     private let onNoteOn: (MIDINoteOn) -> Void
+    private let wake = DispatchSemaphore(value: 0)
     private let stopped = DispatchSemaphore(value: 0)
     private var thread: Thread?
 
@@ -195,13 +208,16 @@ private final class MIDIEventDelivery {
     func stop() {
         guard let thread else { return }
         thread.cancel()
+        xroll_realtime_queue_clear_consumer_waiting(queue)
+        wake.signal()
         stopped.wait()
         self.thread = nil
     }
 
     func enqueue(hostTime: MIDITimeStamp, bytes: UnsafePointer<UInt8>?, length: UInt16) {
         guard let bytes else { return }
-        _ = xroll_realtime_queue_push(queue, hostTime, bytes, length)
+        guard xroll_realtime_queue_push(queue, hostTime, bytes, length) else { return }
+        if xroll_realtime_queue_consumer_needs_wake(queue) { wake.signal() }
     }
 
     private func drain() {
@@ -212,10 +228,22 @@ private final class MIDIEventDelivery {
             var delivered = false
             while xroll_realtime_queue_pop(queue, &hostTime, &bytes, &length) {
                 delivered = true
-                let events = MIDIByteDecoder.noteOnEvents(bytes: Array(bytes.prefix(Int(length))), hostTime: hostTime)
-                for event in events { onNoteOn(event) }
+                bytes.withUnsafeBufferPointer { buffer in
+                    let packet = UnsafeBufferPointer(start: buffer.baseAddress, count: Int(length))
+                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, consume: onNoteOn)
+                }
             }
-            if !delivered { Thread.sleep(forTimeInterval: 0.0005) }
+            guard !delivered else { continue }
+            _ = xroll_realtime_queue_mark_consumer_waiting(queue)
+            if xroll_realtime_queue_pop(queue, &hostTime, &bytes, &length) {
+                xroll_realtime_queue_clear_consumer_waiting(queue)
+                bytes.withUnsafeBufferPointer { buffer in
+                    let packet = UnsafeBufferPointer(start: buffer.baseAddress, count: Int(length))
+                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, consume: onNoteOn)
+                }
+                continue
+            }
+            wake.wait()
         }
         stopped.signal()
     }

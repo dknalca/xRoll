@@ -32,15 +32,17 @@ print("Audio: \(name) [\(uid)], dispositivo \(device), \(audio.sampleRate) Hz, \
 do {
     let kit = try catalog.loadKit(at: kitURL)
     let exercises = try catalog.loadExercises(in: exercisesDirectory, kit: kit)
+    try CurriculumValidator.validateIntegratedExercises(exercises)
     print("Recursos: kit \(kit.id), \(kit.sounds.count) sonidos, \(exercises.count) ejercicios validos.")
+    print("Currículo: metadatos, prerrequisitos y vía rápida validados.")
 
     let missingFiles = catalog.missingSampleFiles(for: kit, in: kitDirectory)
     if missingFiles.isEmpty {
         let audio = SampleAudioEngine()
         try audio.load(kit: kit, from: kitDirectory)
-        print("Samples: todos presentes y legibles; listos para la prueba de latencia.")
+        print("Samples: todos presentes y legibles; listos para práctica y diagnóstico interno.")
     } else {
-        print("Samples: faltan \(missingFiles.count) WAV. La medicion de la fase 0 queda pendiente.")
+        print("Samples: faltan \(missingFiles.count) WAV.")
     }
 } catch {
     fputs("Error de recursos: \(error.localizedDescription)\n", stderr)

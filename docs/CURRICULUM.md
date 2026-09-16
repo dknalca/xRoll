@@ -7,9 +7,19 @@
 3. Subdivisión y lectura.
 4. Coordinación e independencia.
 5. Groove y fraseo.
-6. Rutas intermedias por género.
+6. Hip-hop.
+7. Rock.
+8. Disco.
+9. Funk.
+10. Reggae.
+11. Dembow.
+12. Blues/Shuffle.
+13. Jazz.
+14. Clave/Bossa.
 
-El tronco común prepara las habilidades; las rutas de género aplican ese lenguaje.
+El tronco común prepara las habilidades. Las rutas de género siguen una
+secuencia fija: la siguiente ruta se abre al completar el cierre de la anterior.
+Redobles es una ruta técnica transversal y no bloquea esta secuencia.
 
 ## Regla didáctica
 
@@ -24,14 +34,18 @@ Cada nivel introduce una dificultad principal:
 
 Cada habilidad recorre: descubrir, aislar, integrar y transferir.
 
-## Estados de dominio
+## Estados de progreso
 
-- **Completado:** 70 % o más.
-- **Sólido:** 80 % o más en dos intentos.
-- **Dominado:** 90 %, sin sesgo o dispersión graves.
-- **Transferido:** sólido con ayudas reducidas o variación desconocida.
+- **Practicado:** existe al menos un intento puntuado.
+- **Completado:** ritmo completo con 70 % o más; abre la siguiente estación.
+- **Dominado:** ritmo completo con 85 % o más al BPM nominal, sin sesgo o
+  dispersión graves según la política de evaluación vigente.
+- **Transferido:** ejercicio ya dominado y superado con ayudas reducidas o en
+  fase de transferencia.
 
-El usuario puede avanzar al completar. xRoll recomienda refuerzo si no está sólido.
+Las prácticas de voces, fragmentos y corrección cuentan como práctica, pero no
+como completado, dominado ni transferido. El usuario puede avanzar al completar;
+xRoll recomienda refuerzo hasta dominar y transferir.
 
 ## Tronco común
 
@@ -62,6 +76,7 @@ Definida en [INITIATION.md](INITIATION.md).
 | 2.6 | Semicorcheas aisladas | Rejilla de 16 | 68 |
 | 2.7 | Una semicorchea | Integración en bombo | 68 |
 | 2.8 | Consolidación | Aumento de tempo | 78 |
+| 2.9 | Frase integrada | Dos compases de caja desplazada y dos de bombo doble | 78 |
 
 ### Coordinación e independencia
 
@@ -88,14 +103,15 @@ Definida en [INITIATION.md](INITIATION.md).
 | 4.6 | Crash de entrada | Marcar frase |
 | 4.7 | Groove completo | Cuatro compases |
 
-## Rutas por género
+## Secuencia de rutas por género
 
 ### Hip-hop
 Boom bap, bombos sincopados, silencios, palmada/aro, half-time, dos compases, charles de semicorcheas y fill de cierre.
 
-### Rutas disponibles
+### Orden posterior a Hip-hop
 
-Rock, Funk, Blues/Shuffle y Jazz incluyen ahora cuatro ejercicios MIDI cada una.
+Rock, Disco, Funk, Reggae, Dembow, Blues/Shuffle, Jazz y Clave/Bossa se abren
+en ese orden. Todas incluyen rutas cortas de patrones esenciales en 4/4.
 Blues/Shuffle y Jazz usan una rejilla ternaria nativa de 12 pasos; las
 miniaturas y el generador curricular conservan esa subdivisión.
 
@@ -115,6 +131,22 @@ Requiere rejilla ternaria validada: tresillos, shuffle, fills ternarios y forma 
 
 ### Introducción al jazz
 Ride ternario, dos y cuatro, comping sencillo, independencia y fraseo. Sin velocity enseña estructura rítmica; dinámica y articulación quedan para una fase posterior.
+
+### Disco
+Bombo a negras, backbeat y charles abierto. Consolida un pulso continuo antes de
+extenderlo a una frase de cuatro compases.
+
+### Reggae
+One drop, skank a contratiempo y silencios del bombo. El patrón se enseña como
+estructura rítmica simplificada para pads, no como sustituto de una batería reggae completa.
+
+### Dembow
+Patrón base de bombo y caja, después charles a corcheas y frase de cuatro compases.
+
+### Clave y bossa
+Clave de son 3-2 y 2-3 en dos compases, seguida de una bossa básica. Se nombra el
+patrón concreto y se mantiene 4/4; no se agrupan tradiciones distintas bajo una
+etiqueta genérica.
 
 ## Retirada de ayudas
 

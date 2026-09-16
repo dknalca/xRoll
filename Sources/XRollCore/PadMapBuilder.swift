@@ -16,7 +16,7 @@ public enum PadMapCaptureResult: Equatable {
     case assigned(sound: String, remaining: Int)
     case skipped(sound: String, remaining: Int)
     case duplicate(note: Int, channel: Int, existingSound: String)
-    case complete(PadMap)
+    case complete(PadMapV2)
 }
 
 public struct PadMapBuilder {
@@ -25,11 +25,17 @@ public struct PadMapBuilder {
         PadMapCaptureStep(sound: "rim", row: 0, column: 1),
         PadMapCaptureStep(sound: "snare", row: 0, column: 2),
         PadMapCaptureStep(sound: "clap", row: 0, column: 3),
+        PadMapCaptureStep(sound: "kick", row: 1, column: 0),
         PadMapCaptureStep(sound: "tom_low", row: 1, column: 1),
         PadMapCaptureStep(sound: "hihat_closed", row: 1, column: 2),
+        PadMapCaptureStep(sound: "snare", row: 1, column: 3),
+        PadMapCaptureStep(sound: "hihat_closed", row: 2, column: 0),
+        PadMapCaptureStep(sound: "hihat_closed", row: 2, column: 1),
         PadMapCaptureStep(sound: "hihat_open", row: 2, column: 2),
+        PadMapCaptureStep(sound: "hihat_open", row: 2, column: 3),
         PadMapCaptureStep(sound: "tom_high", row: 3, column: 0),
         PadMapCaptureStep(sound: "crash", row: 3, column: 1),
+        PadMapCaptureStep(sound: "crash", row: 3, column: 2),
         PadMapCaptureStep(sound: "ride", row: 3, column: 3)
     ]
 
@@ -37,7 +43,7 @@ public struct PadMapBuilder {
     private let deviceUID: Int
     private let created: String
     private let steps: [PadMapCaptureStep]
-    private var pads: [PadMap.Pad] = []
+    private var pads: [PadMapV2.Pad] = []
     private var stepIndex = 0
 
     public init(device: String, deviceUID: Int, created: String, steps: [PadMapCaptureStep] = suggestedSteps) {
@@ -54,27 +60,29 @@ public struct PadMapBuilder {
 
     public mutating func assign(_ event: MIDINoteOn) -> PadMapCaptureResult {
         guard let step = nextStep else {
-            return .complete(PadMap(device: device, deviceUID: deviceUID, created: created, pads: pads))
+            return .complete(map)
         }
-        if let existing = pads.first(where: { $0.number == event.note && $0.channel == event.channel }) {
+        if let existing = pads.first(where: { $0.input.number == event.note && $0.input.channel == event.channel }) {
             return .duplicate(note: event.note, channel: event.channel, existingSound: existing.sound)
         }
-        pads.append(.init(
-            sound: step.sound,
-            number: event.note,
-            channel: event.channel,
+        pads.append(PadMapV2.Pad(
+            id: "r\(step.row)c\(step.column)",
             row: step.row,
-            column: step.column
+            column: step.column,
+            sound: step.sound,
+            input: PadMapV2.Input(number: event.note, channel: event.channel)
         ))
         stepIndex += 1
-        let map = PadMap(device: device, deviceUID: deviceUID, created: created, pads: pads)
         return nextStep == nil ? .complete(map) : .assigned(sound: step.sound, remaining: steps.count - stepIndex)
     }
 
     public mutating func skip() -> PadMapCaptureResult? {
         guard let step = nextStep else { return nil }
         stepIndex += 1
-        let map = PadMap(device: device, deviceUID: deviceUID, created: created, pads: pads)
         return nextStep == nil ? .complete(map) : .skipped(sound: step.sound, remaining: steps.count - stepIndex)
+    }
+
+    private var map: PadMapV2 {
+        PadMapV2(id: PadLayoutPreset.core.rawValue, name: "xRoll Core", preset: .core, device: .init(name: device, uid: deviceUID), created: created, pads: pads)
     }
 }

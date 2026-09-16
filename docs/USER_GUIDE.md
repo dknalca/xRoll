@@ -65,7 +65,7 @@ la práctica diferencian izquierda y derecha además del color.
 
 En `Equipo → Pads y layout`:
 1. selecciona Core para iniciación, Drum Kit para técnica de batería o Mirror para alternancia;
-2. elige orientación;
+2. completa el mapeo de los dieciséis pads físicos si el controlador aún no lo conoce;
 3. prueba cada celda;
 4. confirma que cada pad ilumina y suena en la posición esperada.
 

@@ -108,23 +108,14 @@ El MVP termina al completar la fase 5. El historial y los loops son ampliaciones
 posteriores: ayudan a practicar, pero no son necesarios para validar que entrada,
 audio, notacion, puntuacion y progresion de ejercicios forman un entrenador util.
 
-## D-013 - GPL-3.0-or-later para el codigo, CC BY-SA 4.0 para el resto
+## D-013 - MIT para todo el proyecto
 
-Los requisitos eran: abierta, poca friccion para quien contribuya, y que un fork
-no pueda cerrarla. El copyleft es lo unico que cumple el tercero. Sin CLA se
-cumple el segundo.
+xRoll usa MIT para código, audio, gráficos y documentación. Es una licencia
+permisiva, apta para distribución comercial y para publicar en App Store de
+iOS y macOS. Solo exige conservar el aviso de copyright y el texto de licencia.
 
-La contrapartida asumida: sin CLA el proyecto **nunca** podra relicenciarse, ni
-siquiera para abrirlo mas. Se acepta a proposito.
-
-La distribucion sera por DMG o Homebrew, no por la Mac App Store, cuyas
-condiciones son incompatibles con la GPL. No es una perdida porque no estaba en
-los planes.
-
-El audio y los graficos son obras separadas y la licencia del codigo no las
-cubre. CC BY-SA es ademas la eleccion coherente con las dos procedencias
-posibles: un loop CC0 puede ponerse bajo BY-SA, y uno que ya venia BY-SA debe
-mantenerse asi.
+La procedencia de cada recurso de audio continúa registrada por mantenimiento
+técnico, aunque todos los recursos propios se distribuyan bajo MIT.
 
 ## D-014 - Un solo kit, nunca importado por el usuario
 
@@ -132,18 +123,23 @@ Un kit para arrancar, dos o tres predefinidos mas adelante. Permitir kits
 propios abriria un frente de soporte enorme (formatos, longitudes, niveles
 dispares) a cambio de poco valor para el publico objetivo.
 
-## D-015 - Compas de 4/4 y un BPM fijo por ejercicio
+## D-015 - Compas de 4/4, BPM nominal fijo y practica temporal configurable
 
-Con BPM fijo el loop de acompanamiento encaja exacto y suena perfecto. Permitir
-un rango obligaria a estirar el audio con la degradacion consiguiente. Para
-cambiar de tempo se sale y se elige otro ejercicio.
+Cada MIDI declara un BPM nominal fijo: es la referencia del contenido, de los
+loops compatibles y del dominio. La practica puede usar un BPM temporal sin
+modificar el MIDI ni crear un ejercicio nuevo.
 
-## D-016 - Dieciseis posiciones visuales, incluidos los huecos
+Esto permite preparacion manual, Autopilot, Whale y pruebas de elasticidad. La
+configuracion temporal no altera el orden curricular ni sustituye el BPM nominal
+del ejercicio.
+
+## D-016 - Dieciseis posiciones visuales físicas
 
 La interfaz conserva las dieciseis posiciones del controlador 4x4 aunque el kit
-solo tenga diez sonidos. Comprimir los seis pads libres haria que dos sonidos
-fisicamente separados apareciesen juntos en pantalla y debilitaria la memoria
-espacial que se quiere entrenar.
+solo tenga diez sonidos. Core repite las voces principales en las seis posiciones
+restantes. Comprimir la matriz haría que dos sonidos físicamente separados
+apareciesen juntos en pantalla y debilitaría la memoria espacial que se quiere
+entrenar.
 
 La contrapartida es una anchura de unos 80 puntos por posicion en la maquina
 objetivo. Por eso la ejecucion usa pantalla completa y deja los controles fuera
@@ -155,9 +151,9 @@ La calibracion se guarda por entrada, salida, frecuencia de muestreo y buffer.
 Guardar solo el controlador es insuficiente: cambiar de altavoces a auriculares
 puede cambiar el desfase aunque el pad siga siendo el mismo.
 
-La prueba de usuario compensa el conjunto practico y puede contener su tendencia
-personal al seguir la claqueta. La medicion fisica de la fase 0 sigue siendo la
-puerta objetiva de latencia.
+La prueba guiada compensa el conjunto práctico, incluida la tendencia del
+usuario al seguir la claqueta. La aplicación no requiere una medición física;
+las herramientas de grabación quedan como diagnóstico interno.
 
 ## D-018 - Un nivel introduce una sola dificultad
 
@@ -166,13 +162,13 @@ un patron o cambiar el tempo, pero solo una de esas cosas a la vez. Un principia
 necesita practicar una coordinacion antes de acumular otra voz encima.
 
 Cada nivel ofrece primero una vuelta de escucha y colocacion sin puntuacion. La
-orientacion previa reduce errores que no son de tiempo, como no recordar que pad
-o que mano corresponde.
+vista previa reduce errores que no son de tiempo, como no recordar que pad o que
+mano corresponde.
 
-Como referencia de producto se reviso el enfoque publico de Melodics: orientacion
-previa, contenido dividido en pasos, practica deliberada y evaluacion inmediata.
-xRoll adopta para el MVP la orientacion y los pasos pequenos; tempo automatico,
-modo de espera, rachas y objetivos diarios quedan fuera del alcance inicial.
+Como referencia de producto se reviso el enfoque publico de Melodics: contenido
+dividido en pasos, practica deliberada y evaluacion inmediata. xRoll adopta para
+el MVP los pasos pequeños; tempo automático, modo de espera, rachas y objetivos
+diarios quedan fuera del alcance inicial.
 
 Referencias consultadas el 5 de septiembre de 2026:
 
@@ -184,9 +180,11 @@ Referencias consultadas el 5 de septiembre de 2026:
 
 El resultado prioriza precisión, tendencia, consistencia y una recomendación. Las estrellas permanecen como resumen secundario.
 
-## D-020 - Latencia técnica y sesgo humano se separan
+## D-020 - La calibración guiada compensa por ruta
 
-La calibración no debe convertir la tendencia personal del músico en «latencia» y borrarla del diagnóstico. Se almacenan `systemLatencyMs`, `userCalibrationBiasMs` y `scoringCompensationMs` por separado.
+La mediana guiada se aplica como `scoringCompensationMs` para la ruta completa.
+El sesgo bruto de cada sesión permanece disponible para diagnóstico; no se
+presenta como una medición técnica de hardware.
 
 ## D-021 - La interfaz sigue «Estudio musical moderno»
 
@@ -210,9 +208,12 @@ controlador.
 
 La versión 2 separa sonido, posición, rol e input MIDI. Los objetivos pueden dirigirse a cualquier pad del sonido, a un rol o a una posición concreta.
 
-## D-026 - La orientación zurda es una transformación
+## D-026 - La orientación se retira del producto
 
-Diestra/zurda no duplica presets. Cada layout declara si admite reflexión horizontal y cómo conservar compatibilidad MIDI.
+La reflexión diestra/zurda no aporta valor al flujo actual y complicaba la
+validación de la posición física. Core, Drum Kit y Mirror tienen una única
+distribución. El campo histórico de `.padmap` v2 se conserva solo para abrir
+mapas ya guardados sin alterar sus notas ni canales MIDI.
 
 ## D-027 - MIDI es el único formato de ejercicios
 
@@ -220,3 +221,37 @@ Los ejercicios integrados y los comunitarios son Standard MIDI Files. El
 cargador los convierte a un modelo interno validado; los metadatos didácticos
 se derivan del ritmo o se incorporarán como extensión de MIDI, nunca como un
 catálogo JSON paralelo.
+
+## D-028 - El curso principal sigue una secuencia fija
+
+El curso no abre rutas de género en paralelo. Tras el tronco común, las rutas se
+recorren en este orden: Hip-hop, Rock, Disco, Funk, Reggae, Dembow,
+Blues/Shuffle, Jazz y Clave/Bossa. Redobles es una ruta técnica transversal que
+no bloquea el curso principal.
+
+**Por qué:** el principiante necesita una única próxima estación clara. La
+secuencia mantiene primero grooves binarios y coordinación, después síncopa y
+espacio, y deja la rejilla ternaria e independencia de jazz para el final.
+
+## D-029 - Progreso solo con evidencia equivalente al objetivo
+
+Un intento se clasifica como ritmo completo, voces seleccionadas, fragmento,
+correctivo o histórico desconocido. Solo un ritmo completo puede completar,
+dominar, transferir o desbloquear una estación. Whale y las prácticas por voces
+son herramientas de aprendizaje, no atajos de progreso.
+
+**Por qué:** una célula aislada o una sola voz puede salir perfecta sin demostrar
+que el usuario controla el groove completo.
+
+## D-030 - El tempo progresa respecto al BPM nominal del ejercicio
+
+Cada ritmo ofrece cuatro pasos: Aprender (−8 BPM), Base (BPM nominal),
+Consolidar (+6 BPM, dos resultados de al menos 85 %) y Reto (+12 BPM). Solo
+un ritmo completo al paso Base con al menos 70 % completa el nivel y desbloquea
+el siguiente; los demás pasos guían la consolidación sin impedir el avance
+amable del curso.
+
+**Por qué:** una escala absoluta convierte la misma etiqueta de nivel en una
+dificultad muy distinta según el estilo. Separar completado y consolidación
+evita que practicar siempre lento acredite un ritmo sin obligar al principiante
+a dominar todas las variantes antes de continuar.

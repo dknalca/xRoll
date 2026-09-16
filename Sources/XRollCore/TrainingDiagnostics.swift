@@ -1,16 +1,44 @@
 import Foundation
 
+/// Alcance de la evidencia recogida durante una práctica.
+public enum EvaluationScope: String, Codable, Equatable {
+    case fullPattern
+    case selectedVoices
+    case fragment
+    case corrective
+    case legacyUnknown
+
+    public var countsAsCompletePattern: Bool {
+        self == .fullPattern || self == .legacyUnknown
+    }
+}
+
 /// Contexto de una sesión evaluada. Se conserva junto al resultado para que
 /// los sellos de dominio no dependan de la interfaz que la produjo.
 public struct TrainingContext: Codable, Equatable {
     public let phase: TrainingPhase
     public let gapMetronomeLevel: Int
     public let showsVisualGuides: Bool
+    public let evaluationScope: EvaluationScope
 
-    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true) {
+    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern) {
         self.phase = phase
         self.gapMetronomeLevel = min(3, max(0, gapMetronomeLevel))
         self.showsVisualGuides = showsVisualGuides
+        self.evaluationScope = evaluationScope
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case phase, gapMetronomeLevel, showsVisualGuides, evaluationScope
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        phase = try values.decodeIfPresent(TrainingPhase.self, forKey: .phase) ?? .integrate
+        gapMetronomeLevel = min(3, max(0, try values.decodeIfPresent(Int.self, forKey: .gapMetronomeLevel) ?? 0))
+        showsVisualGuides = try values.decodeIfPresent(Bool.self, forKey: .showsVisualGuides) ?? true
+        // Los intentos anteriores no describen si se puntuó el ritmo completo.
+        evaluationScope = try values.decodeIfPresent(EvaluationScope.self, forKey: .evaluationScope) ?? .legacyUnknown
     }
 }
 
@@ -138,7 +166,9 @@ public enum MasteryEvaluator {
             let offsets = attempt.hitRecords.compactMap(\.offsetMilliseconds).map(abs).sorted()
             return offsets.isEmpty || offsets[offsets.count / 2] <= 20
         }
-        let relevant = attempts.filter { $0.exerciseID == exercise.id }
+        let relevant = attempts.filter {
+            $0.exerciseID == exercise.id && $0.trainingContext.evaluationScope == .fullPattern
+        }
         let precision = relevant.contains { abs($0.bpm - exercise.bpm) <= 2 && passes($0) }
         let slow = relevant.contains { $0.bpm <= exercise.bpm - 15 && passes($0) }
         let fast = relevant.contains { $0.bpm >= exercise.bpm + 15 && passes($0) }

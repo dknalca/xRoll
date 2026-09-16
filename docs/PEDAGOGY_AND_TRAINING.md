@@ -205,3 +205,6 @@ Al implementar o modificar código relacionado con el motor de xRoll:
 - Los sellos de dominio requieren: 85 % a tempo nominal, −15/+15 BPM, Gap
   Metronome 2+2 y transferencia sin guía. Son evidencia adicional: el curso
   básico conserva su desbloqueo amable al 70 %.
+- La escalera visible de cada ritmo es relativa a su BPM MIDI: Aprender (−8),
+  Base (nominal), Consolidar (+6, dos resultados ≥85 %) y Reto (+12). Solo
+  Base al 70 % desbloquea la siguiente estación.

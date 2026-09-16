@@ -5,7 +5,8 @@ xRoll carga ejercicios desde `data/exercises/` en formato Standard MIDI File
 
 Desde la app, abre **Ajustes → Ejercicios MIDI comunitarios → Importar ejercicio
 MIDI**. El archivo se valida y se copia al almacenamiento local de xRoll; queda
-disponible en el curso sin bloquearse por el progreso del curso base.
+disponible en la biblioteca comunitaria sin bloquearse por el progreso del curso
+base.
 
 ## Reglas del archivo
 
@@ -27,10 +28,10 @@ disponible en el curso sin bloquearse por el progreso del curso base.
 | Crash | 49 |
 | Ride | 51 |
 
-El nombre del archivo determina el orden del curso. Usa prefijos como
-`01_bombo_caja.mid`, `02_charles_negras.mid` y conserva una sola dificultad
-nueva por nivel. Las notas que no pertenezcan al kit se ignoran; si no queda
-ninguna nota compatible el archivo se rechaza.
+El nombre del archivo identifica el archivo importado, pero no modifica el orden
+del curso oficial. Conserva una sola dificultad nueva por nivel si lo publicas
+como una progresión propia. Las notas que no pertenezcan al kit se ignoran; si
+no queda ninguna nota compatible el archivo se rechaza.
 
 ## Recomendaciones didácticas
 
@@ -47,8 +48,8 @@ repositorio donde lo compartas. No distribuyas audio ajeno dentro del MIDI.
 
 Los ejercicios integrados usan el mismo formato MIDI que los comunitarios. La
 app los carga desde `data/exercises/`; los ejercicios importados se copian al
-almacenamiento local y se añaden al final del catálogo sin bloquearse por la
-progresión base. No existe un formato alternativo de ejercicios.
+almacenamiento local y se muestran en la biblioteca comunitaria, sin desbloqueos
+ni requisitos del curso base. No existe un formato alternativo de ejercicios.
 
 ## Informe didáctico de importación
 

@@ -88,8 +88,8 @@ centro, el usuario hace una transposicion mental en cada nota, que es
 exactamente la carga cognitiva que la memoria espacial deberia eliminar.
 
 El `.padmap` es la fuente de verdad de la disposición visual. El asistente pide
-los diez sonidos del kit: bombo, aro, caja, palmada, tom grave, charles cerrado,
-charles abierto, tom agudo, crash y ride.
+los dieciséis pads físicos. Core conserva las posiciones principales de los diez
+sonidos del kit y repite bombo, caja y charles en las demás posiciones.
 
 ## Teclado del portatil
 

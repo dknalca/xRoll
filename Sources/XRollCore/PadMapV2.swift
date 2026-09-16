@@ -41,6 +41,7 @@ public struct PadMapV2: Codable, Equatable {
     public let id: String
     public let name: String
     public let preset: PadLayoutPreset
+    /// Campo legado para abrir mapas v2 anteriores; no altera el layout.
     public let orientation: PadOrientation
     public let device: Device
     public let created: String
@@ -71,37 +72,39 @@ public struct PadMapV2: Codable, Equatable {
         }
     }
 
-    public func reflected() -> PadMapV2 {
-        PadMapV2(id: id, name: name, preset: preset, orientation: orientation == .rightHanded ? .leftHanded : .rightHanded, device: device, created: created, pads: pads.map {
-            .init(id: "r\($0.row)c\(3 - $0.column)", row: $0.row, column: 3 - $0.column, sound: $0.sound, role: $0.role, input: $0.input)
-        })
-    }
 }
 
 public struct PadMapV2Router {
-    private let byInput: [String: PadMapV2.Pad]
-    public init(_ map: PadMapV2) { byInput = Dictionary(uniqueKeysWithValues: map.pads.map { ("\($0.input.number):\($0.input.channel)", $0) }) }
-    public func pad(for event: MIDINoteOn) -> PadMapV2.Pad? { byInput["\(event.note):\(event.channel)"] }
+    private let byInput: [PadMapV2.Pad?]
+    public init(_ map: PadMapV2) {
+        var inputs = Array<PadMapV2.Pad?>(repeating: nil, count: 16 * 128)
+        for pad in map.pads { inputs[Self.index(note: pad.input.number, channel: pad.input.channel)] = pad }
+        byInput = inputs
+    }
+    public func pad(for event: MIDINoteOn) -> PadMapV2.Pad? {
+        guard (0...127).contains(event.note), (1...16).contains(event.channel) else { return nil }
+        return byInput[Self.index(note: event.note, channel: event.channel)]
+    }
     public func soundID(for event: MIDINoteOn) -> String? { pad(for: event)?.sound }
+    private static func index(note: Int, channel: Int) -> Int { (channel - 1) * 128 + note }
 }
 
 public enum PadLayoutFactory {
-    public static func make(_ preset: PadLayoutPreset, device: PadMapV2.Device, orientation: PadOrientation = .rightHanded, channel: Int = 10) -> PadMapV2 {
-        let core: [(Int, Int, String, String?)] = [(0,0,"kick","kick"),(0,1,"rim",nil),(0,2,"snare","snare"),(0,3,"clap",nil),(1,1,"tom_low",nil),(1,2,"hihat_closed",nil),(2,2,"hihat_open",nil),(3,0,"tom_high",nil),(3,1,"crash",nil),(3,3,"ride",nil)]
+    public static func make(_ preset: PadLayoutPreset, device: PadMapV2.Device, channel: Int = 10) -> PadMapV2 {
+        let core: [(Int, Int, String, String?)] = [(0,0,"kick","kick"),(0,1,"rim",nil),(0,2,"snare","snare"),(0,3,"clap",nil),(1,0,"kick","kick_alt"),(1,1,"tom_low",nil),(1,2,"hihat_closed","hh_center"),(1,3,"snare","snare_alt"),(2,0,"hihat_closed","hh_left"),(2,1,"hihat_closed","hh_right"),(2,2,"hihat_open",nil),(2,3,"hihat_open","hh_open_alt"),(3,0,"tom_high",nil),(3,1,"crash",nil),(3,2,"crash","crash_alt"),(3,3,"ride",nil)]
         let drum: [(Int, Int, String, String?)] = [(0,0,"crash",nil),(0,1,"kick","kick_left"),(0,2,"kick","kick_right"),(0,3,"ride",nil),(1,0,"rim",nil),(1,1,"snare","snare_left"),(1,2,"snare","snare_right"),(1,3,"clap",nil),(2,0,"hihat_closed","hh_left"),(2,1,"hihat_open",nil),(2,2,"hihat_closed","hh_right"),(2,3,"ride","ride_alt"),(3,0,"tom_low",nil),(3,1,"tom_low","tom_low_alt"),(3,2,"tom_high",nil),(3,3,"crash","crash_alt")]
         let mirror: [(Int, Int, String, String?)] = [(0,0,"crash",nil),(0,1,"kick","kick_left"),(0,2,"kick","kick_right"),(0,3,"ride",nil),(1,0,"clap",nil),(1,1,"snare","snare_left"),(1,2,"snare","snare_right"),(1,3,"clap","clap_alt"),(2,0,"hihat_open",nil),(2,1,"hihat_closed","hh_left"),(2,2,"hihat_closed","hh_right"),(2,3,"hihat_open","hh_alt"),(3,0,"tom_high",nil),(3,1,"tom_low","tom_left"),(3,2,"tom_low","tom_right"),(3,3,"tom_high","tom_alt")]
         let definition = preset == .drumKit ? drum : (preset == .mirror ? mirror : core)
         let pads = definition.map { value in PadMapV2.Pad(id: "r\(value.0)c\(value.1)", row: value.0, column: value.1, sound: value.2, role: value.3, input: .init(number: 36 + value.0 * 4 + value.1, channel: min(16, max(1, channel)))) }
         let title = preset == .drumKit ? "Drum Kit" : (preset == .mirror ? "Mirror" : "xRoll Core")
-        let map = PadMapV2(id: preset.rawValue, name: title, preset: preset, device: device, created: ISO8601DateFormatter().string(from: Date()), pads: pads)
-        return orientation == .leftHanded ? map.reflected() : map
+        return PadMapV2(id: preset.rawValue, name: title, preset: preset, device: device, created: ISO8601DateFormatter().string(from: Date()), pads: pads)
     }
 
     /// Applies a visual/sound layout to pads already learned from a real
     /// controller. MIDI note and channel remain attached to their physical
     /// row/column; only the sound assigned to that pad changes.
-    public static func applying(_ preset: PadLayoutPreset, to physicalMap: PadMapV2, orientation: PadOrientation = .rightHanded) -> PadMapV2 {
-        let template = make(preset, device: physicalMap.device, orientation: orientation)
+    public static func applying(_ preset: PadLayoutPreset, to physicalMap: PadMapV2) -> PadMapV2 {
+        let template = make(preset, device: physicalMap.device)
         let physicalByPosition = Dictionary(uniqueKeysWithValues: physicalMap.pads.map { ("\($0.row):\($0.column)", $0) })
         let pads = template.pads.compactMap { desired -> PadMapV2.Pad? in
             guard let physical = physicalByPosition["\(desired.row):\(desired.column)"] else { return nil }
@@ -118,7 +121,6 @@ public enum PadLayoutFactory {
             id: preset.rawValue,
             name: template.name,
             preset: preset,
-            orientation: orientation,
             device: physicalMap.device,
             created: ISO8601DateFormatter().string(from: Date()),
             pads: pads

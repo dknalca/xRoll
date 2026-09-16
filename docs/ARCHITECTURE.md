@@ -31,7 +31,7 @@ el kit. Ejecuta `swift run xroll-preflight` antes de usarlo.
 - `XRollUI`: tokens y componentes SwiftUI.
 - `XRollPads`: aplicación y navegación.
 - `PracticeScene`: render SpriteKit sin lógica de scoring.
-- `LayoutEngine`: presets, `.padmap` v2, orientación, roles y resolución de entradas.
+- `LayoutEngine`: presets, `.padmap` v2, roles y resolución de entradas.
 - `DiagnosticEngine`: métricas por voz y sesgo temporal persistidas por intento;
   el desglose por rol, subdivisión, vuelta y transición es la siguiente capa.
 - `RecommendationEngine`: reglas de siguiente microtarea.

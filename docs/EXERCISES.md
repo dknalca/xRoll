@@ -57,27 +57,24 @@ pensar, que es lo que necesita un principiante.
 - Comprobar que la subdivision mas corta no estrecha las ventanas de juicio mas
   de la cuenta. Ver el recorte en docs/SCORING.md.
 
-## Metadatos pedagógicos futuros
+## Metadatos pedagógicos MIDI
 
-Los metadatos enriquecidos aún no se escriben en los MIDI activos. Si se añade
-un sidecar comunitario en el futuro, podrá contener:
+Los ejercicios integrados incorporarán metadatos curriculares como metaeventos
+de texto estándar al inicio del MIDI. El espacio de nombres versionado será
+`xroll/1`; por ejemplo:
 
-```json
-{
-  "chapter": "subdivision",
-  "skills": {"pulse": 0.3, "eighth_notes": 0.5, "syncopation": 1.0},
-  "new_difficulty": "first_offbeat_kick",
-  "prerequisites": ["foundation_2_03"],
-  "learning_objective": "Colocar el bombo entre pulsos sin mover la caja",
-  "recommended_help": "full",
-  "mastery": {
-    "minimum_score": 80,
-    "maximum_absolute_bias_ms": 25,
-    "maximum_dispersion_ms": 35,
-    "required_attempts": 2
-  }
-}
+```text
+xroll/1 id=02_sub_04_bombo_y
+xroll/1 chapter=subdivision
+xroll/1 position=4
+xroll/1 prerequisite=02_sub_03_groove
+xroll/1 objective=Colocar el bombo entre pulsos sin mover la caja
+xroll/1 new-difficulty=first-offbeat-kick
+xroll/1 recommended-help=full
 ```
+
+No hay sidecar JSON. Un MIDI comunitario sin estos metadatos sigue siendo válido
+y practicable, pero no se incorpora al recorrido oficial.
 
 Una nota puede añadir `target` por sonido, rol o pad según [PADMAP_V2.md](PADMAP_V2.md).
 

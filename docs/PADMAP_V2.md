@@ -79,7 +79,7 @@ En ejercicios v1, una nota sin `target` se interpreta como `any`.
 2. Crear `id` con `r{row}c{col}`.
 3. Mover MIDI dentro de `input`.
 4. Establecer `preset: custom` si no puede inferirse.
-5. Establecer `orientation: right_handed` solo como valor de compatibilidad y pedir confirmación al usuario.
+5. Establecer `orientation: right_handed` solo como valor de compatibilidad.
 6. Dejar `role: null`.
 7. Guardar copia del v1 hasta confirmar que v2 carga correctamente.
 
@@ -88,7 +88,9 @@ En ejercicios v1, una nota sin `target` se interpreta como `any`.
 El perfil se identifica por:
 - layout funcional;
 - UID de dispositivo;
-- orientación;
 - mapeo MIDI.
+
+El campo histórico `orientation` puede existir en un archivo v2 anterior. xRoll
+lo conserva al leerlo, pero ya no lo muestra ni transforma layouts con él.
 
 Cambiar notas MIDI no debería alterar el layout pedagógico. Cambiar layout sí puede cambiar compatibilidad de cursos.

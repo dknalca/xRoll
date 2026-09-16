@@ -64,10 +64,9 @@ un kit debe consistir en soltar una carpeta.
 - Grupo de silenciado en los charles: el cerrado corta al abierto, como en una
   bateria real.
 
-Los WAV definitivos los aporta el propietario del proyecto. La fase 0 no empieza
-hasta disponer al menos de un sample que cumpla estos requisitos, porque medir
-con un sonido provisional haria que la puerta de latencia no representase la app
-que se va a distribuir.
+Los WAV definitivos los aporta el propietario del proyecto. Un sample provisional
+no debe llegar a distribuirse: su silencio inicial o su nivel pueden deteriorar
+la respuesta percibida y el equilibrio del kit.
 
 ## Licencia de los samples
 

@@ -1,7 +1,7 @@
 # Mediciones
 
-Aqui van los informes y grabaciones de la fase 0. Cada informe sigue
-`docs/LATENCY_PROTOCOL.md` y nombra el perfil completo de MIDI y audio usado.
+Aquí se conservan grabaciones e informes de diagnóstico interno de audio y
+MIDI. No forman parte de la calibración de la aplicación ni de la publicación.
 
 No se inventan valores: cada numero debe poder rastrearse a una grabacion
 original o a su hash.

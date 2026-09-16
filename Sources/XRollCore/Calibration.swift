@@ -78,16 +78,52 @@ public enum CalibrationEstimator {
 }
 
 public struct CalibrationProfile: Codable, Equatable {
+    public static let currentSchemaVersion = 2
+
+    public let schemaVersion: Int
     public let key: CalibrationProfileKey
-    public let offsetMilliseconds: Double
+    /// Reservado para diagnósticos internos; la app no depende de esta medida.
+    public let systemLatencyMilliseconds: Double?
+    /// La prueba guiada estima el desfase práctico de la ruta y del usuario.
+    public let userCalibrationBiasMilliseconds: Double?
+    public let scoringCompensationMilliseconds: Double
     public let medianAbsoluteDeviationMilliseconds: Double
     public let calibratedAt: Date
 
+    /// La compensación guiada se aplica al scoring de su ruta exacta.
+    public var offsetMilliseconds: Double { scoringCompensationMilliseconds }
+
     public init(key: CalibrationProfileKey, estimate: CalibrationEstimate, calibratedAt: Date = Date()) {
+        schemaVersion = Self.currentSchemaVersion
         self.key = key
-        offsetMilliseconds = estimate.offsetMilliseconds
+        systemLatencyMilliseconds = nil
+        userCalibrationBiasMilliseconds = estimate.offsetMilliseconds
+        scoringCompensationMilliseconds = estimate.offsetMilliseconds
         medianAbsoluteDeviationMilliseconds = estimate.medianAbsoluteDeviationMilliseconds
         self.calibratedAt = calibratedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, key, systemLatencyMilliseconds, userCalibrationBiasMilliseconds
+        case scoringCompensationMilliseconds, medianAbsoluteDeviationMilliseconds, calibratedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try container.decode(Int.self, forKey: .schemaVersion)
+        guard version == Self.currentSchemaVersion else {
+            throw DecodingError.dataCorruptedError(forKey: .schemaVersion, in: container, debugDescription: "El perfil de calibración pertenece a un esquema anterior.")
+        }
+        schemaVersion = version
+        key = try container.decode(CalibrationProfileKey.self, forKey: .key)
+        systemLatencyMilliseconds = try container.decodeIfPresent(Double.self, forKey: .systemLatencyMilliseconds)
+        userCalibrationBiasMilliseconds = try container.decodeIfPresent(Double.self, forKey: .userCalibrationBiasMilliseconds)
+        guard userCalibrationBiasMilliseconds != nil else {
+            throw DecodingError.dataCorruptedError(forKey: .userCalibrationBiasMilliseconds, in: container, debugDescription: "El perfil no contiene calibración guiada.")
+        }
+        scoringCompensationMilliseconds = try container.decode(Double.self, forKey: .scoringCompensationMilliseconds)
+        medianAbsoluteDeviationMilliseconds = try container.decode(Double.self, forKey: .medianAbsoluteDeviationMilliseconds)
+        calibratedAt = try container.decode(Date.self, forKey: .calibratedAt)
     }
 }
 

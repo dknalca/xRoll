@@ -46,6 +46,27 @@ public struct ExerciseTimeline: Equatable {
             return $0.timeMilliseconds < $1.timeMilliseconds
         }
     }
+
+    /// Devuelve posiciones contiguas de la línea temporal sin recorrer notas
+    /// que quedan fuera de la ventana solicitada.
+    public func noteRange(from startMilliseconds: Double, through endMilliseconds: Double) -> Range<Int> {
+        guard startMilliseconds <= endMilliseconds, !notes.isEmpty else { return 0..<0 }
+        var lower = 0
+        var upper = notes.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if notes[middle].timeMilliseconds < startMilliseconds { lower = middle + 1 }
+            else { upper = middle }
+        }
+        let start = lower
+        upper = notes.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if notes[middle].timeMilliseconds <= endMilliseconds { lower = middle + 1 }
+            else { upper = middle }
+        }
+        return start..<lower
+    }
 }
 
 public struct ScoringWindows: Equatable {

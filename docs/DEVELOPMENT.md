@@ -24,11 +24,11 @@ El segundo comando comprueba tres cosas antes de cualquier prueba musical:
 
 La latencia de presentacion informada por el sistema no es la latencia total.
 `xroll-latency <sound-id>` carga el kit, conecta todas las fuentes MIDI y hace
-sonar ese identificador ante cualquier Note On. La medicion de la fase 0 empieza
+sonar ese identificador ante cualquier Note On. El diagnóstico interno empieza
 cuando haya un sample definitivo y un controlador MIDI conectado; se registra
 entonces tambien el golpe fisico y el sonido audible en una grabacion externa,
 como especifica `LATENCY_PROTOCOL.md`. El modificador `--log-events` es diagnostico: no se usa
-durante la medicion porque escribir en consola anade trabajo al callback MIDI.
+durante el diagnóstico porque escribir en consola anade trabajo al callback MIDI.
 El modificador `--check` inicia audio y conecta MIDI para comprobar la
 preparacion, y termina sin esperar un golpe.
 

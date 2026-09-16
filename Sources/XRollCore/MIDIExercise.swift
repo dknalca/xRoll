@@ -35,6 +35,7 @@ public enum MIDIExerciseLoader {
         var title: String?
         var endTick = 0
         var hits: [(tick: Int, note: Int, velocity: Int)] = []
+        var textEvents = [String]()
 
         for _ in 0..<tracks {
             guard reader.readASCII(count: 4) == "MTrk" else { throw MIDIExerciseError.invalidFile("falta MTrk") }
@@ -46,6 +47,7 @@ public enum MIDIExerciseLoader {
             title = title ?? parsed.title
             endTick = max(endTick, parsed.endTick)
             hits.append(contentsOf: parsed.hits)
+            textEvents.append(contentsOf: parsed.textEvents)
         }
 
         guard meter == [4, 4] else { throw MIDIExerciseError.unsupportedMeter }
@@ -64,10 +66,11 @@ public enum MIDIExerciseLoader {
         let totalSteps = max(grid, Int(ceil(Double(max(endTick, hits.map(\.tick).max() ?? 0)) / ticksPerStep / Double(grid))) * grid)
         let bpm = max(1, Int((60_000_000 / Double(tempo)).rounded()))
         let fileID = url.deletingPathExtension().lastPathComponent
+        let metadata = MIDIExerciseMetadataParser.parse(textEvents: textEvents)
         let exercise = Exercise(
-            format: 1, id: fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
+            format: 1, id: metadata?.id ?? fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
             family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / grid,
-            grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes
+            grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes, metadata: metadata
         )
         try exercise.validate(availableSounds: Set(kit.sounds.map(\.id)))
         return exercise
@@ -82,9 +85,9 @@ public enum MIDIExerciseLoader {
         }
     }
 
-    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempo: Int?, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)]) {
+    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempo: Int?, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)], textEvents: [String]) {
         var reader = MIDIReader(bytes: bytes)
-        var tick = 0; var runningStatus: UInt8?; var tempo: Int?; var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []
+        var tick = 0; var runningStatus: UInt8?; var tempo: Int?; var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []; var textEvents = [String]()
         while !reader.isAtEnd {
             tick += try reader.readVariableLength()
             let first = try reader.readByte()
@@ -96,6 +99,7 @@ public enum MIDIExerciseLoader {
             if status == 0xFF {
                 let type = try reader.readByte(); let length = try reader.readVariableLength(); let data = try reader.readBytes(count: length)
                 if type == 0x03 { title = String(bytes: data, encoding: .utf8) }
+                if type == 0x01, let text = String(bytes: data, encoding: .utf8) { textEvents.append(text) }
                 if type == 0x51, data.count == 3 { tempo = Int(data[0]) << 16 | Int(data[1]) << 8 | Int(data[2]) }
                 if type == 0x58, data.count >= 2 { meter = [Int(data[0]), 1 << Int(data[1])] }
                 continue
@@ -106,7 +110,7 @@ public enum MIDIExerciseLoader {
             let data2: UInt8? = (command == 0xC0 || command == 0xD0) ? nil : try reader.readByte()
             if command == 0x90, let data2, data2 > 0 { hits.append((tick, Int(data1), Int(data2))) }
         }
-        return (tempo, meter, title, tick, hits)
+        return (tempo, meter, title, tick, hits, textEvents)
     }
 }
 

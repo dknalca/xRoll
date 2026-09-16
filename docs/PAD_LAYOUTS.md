@@ -8,14 +8,14 @@ elegir un layout.
 
 ### xRoll Core
 
-Es el punto de partida para iniciación: un pad por voz y huecos que reducen la
-carga visual.
+Es el punto de partida para iniciación. Conserva las posiciones principales y
+repite bombo, caja y charles para que los 16 pads tengan una función.
 
 ```text
-Tom agudo | Crash    | —                | Ride
-—         | —        | Charles abierto  | —
-—         | Tom grave| Charles cerrado  | —
-Bombo     | Aro      | Caja             | Palmada
+Tom agudo       | Crash            | Crash            | Ride
+Charles cerrado | Charles cerrado  | Charles abierto  | Charles abierto
+Bombo           | Tom grave        | Charles cerrado  | Caja
+Bombo           | Aro              | Caja             | Palmada
 ```
 
 ### Drum Kit
@@ -39,11 +39,6 @@ Charles abierto | Charles cerrado | Charles cerrado | Charles abierto
 Palmada         | Caja            | Caja            | Palmada
 Crash           | Bombo           | Bombo           | Ride
 ```
-
-## Orientación
-
-La orientación zurda refleja horizontalmente el layout; no crea un mapa MIDI
-nuevo. La entrada MIDI de cada posición se conserva.
 
 ## Objetivos de ejercicio
 

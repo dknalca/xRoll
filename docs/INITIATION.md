@@ -20,7 +20,6 @@ Al terminar, el usuario puede identificar tres voces, seguir cuatro pulsos, toca
 | I-01 | Bombo y caja | Bombo + caja | Esqueleto del groove | 68 |
 | I-02 | Añade charles | Tres voces | Charles a negras | 68 |
 | I-03 | Ritmo completo · vía rápida | Tres voces | Charles a corcheas | 72 |
-| I-04 | Consolidar el groove | Tres voces | Transferencia | 72 |
 
 I-03 está disponible desde el inicio para quien ya tiene base; superarlo abre
 el siguiente bloque sin exigir recorrer el despiece.
@@ -64,16 +63,10 @@ Caja      X   X
 
 Construcción por capas: usuario toca bombo con caja automática; después caja con bombo automático; finalmente ambos. Cierra la primera sesión con reproducción de eventos capturados.
 
-### I-04 — Consolidar el groove
+### Consolidar el groove
 
-```text
-Cuenta   1 2 3 4
-Charles  X X X X
-```
-
-Introduce una voz regular. Observa aceleración, fatiga y dobles accidentales. La mano indicada es recomendación didáctica; MIDI no permite inferir qué mano física golpeó un único pad.
-
-Mismo patrón; cambian las ayudas y se comprueba transferencia:
+Tras I-03, el mismo patrón se practica como transferencia desde la preparación,
+sin crear una tarjeta MIDI duplicada. Cambian las ayudas y se comprueba:
 1. notación completa;
 2. charles atenuado;
 3. solo bombo y caja;
@@ -102,7 +95,10 @@ Se comparan resultado asistido y reducido.
 Durante iniciación no se muestran score en vivo, rankings ni paneles densos. Se muestra dirección temporal, progreso de vueltas, una fortaleza y una prioridad.
 
 Estados:
-- completado: 50 %;
-- sólido: 75 %;
-- dominado: 85 % con sesgo y dispersión controlados;
-- transferido: sólido con ayudas reducidas.
+- completado: ritmo completo al 70 %;
+- dominado: ritmo completo al 85 % a BPM nominal, con sesgo y dispersión
+  controlados;
+- transferido: ejercicio dominado con ayudas reducidas.
+
+Los intentos por capas sirven para aprender, pero no sustituyen un intento de
+ritmo completo al decidir el avance.

@@ -2,17 +2,18 @@
 
 ## Completado en código
 
-- Catálogo activo MIDI con 64 ejercicios sin variantes duplicadas;
+- Catálogo activo MIDI con 77 ejercicios sin patrones duplicados;
   la versión archivada se conserva fuera del catálogo activo.
 - Curso por bloques: iniciación, fundamentos, subdivisión, coordinación,
-  grooves, Hip-hop, Rock, Funk, Blues/Shuffle y Jazz.
+  grooves, Hip-hop, Rock, Funk, Blues/Shuffle, Jazz, Disco, Reggae, Dembow y
+  Clave/Bossa.
 - Preparación, ayudas completa/normal/reducida, capas, transferencia y ruta
   rápida de ritmo completo.
 - Escena SpriteKit, score no punitivo, reinicio rápido, duración 1/2/4/8/16 y
   cajones plegables de navegación/sesión.
 - Entrada MIDI seleccionable y refrescable; salida de audio seleccionable;
   metrónomo, loop, compensación y calibración guiada.
-- `.padmap` v2, Core, Drum Kit, Mirror, orientación, importación/exportación y
+- `.padmap` v2, Core, Drum Kit, Mirror, importación/exportación y
   objetivos por sonido/rol/pad.
 - Historial SQLite, análisis por sonido, tendencia temporal, ejercicio más
   repetido, Autopilot, práctica correctiva y Ghost Coach básico.
@@ -34,8 +35,13 @@
 
 ## Validación manual obligatoria antes de publicar
 
-- Latencia física con el protocolo documentado, controlador y salida reales.
-- Reconexión MIDI, Core/Drum Kit/Mirror y selección de interfaz en hardware.
-- Diez minutos de práctica densa sin cortes y comprobación de 60 FPS.
-- VoiceOver, Reduce Motion, contraste y teclado en macOS.
-- Licencias de cada WAV y loop distribuido.
+- Medir 60 FPS con la escena de máxima densidad durante diez minutos.
+- Confirmar la licencia de cada loop distribuido antes de empaquetar o publicar.
+
+## Validación manual completada
+
+- Reconexión MIDI, Core, Drum Kit y Mirror comprobados en hardware.
+- Diez minutos de práctica densa sin cortes ni tirones perceptibles.
+- VoiceOver, Reduce Motion, contraste y teclado comprobados en macOS.
+- Licencias de los WAV distribuidos confirmadas como propias.
+- Calibración guiada comprobada para la ruta de uso actual.
