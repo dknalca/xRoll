@@ -17,11 +17,22 @@ procedencia para poder mantener el catálogo de audio.
 | `Resources/Kits/hiphop_basic/hihat_closed.wav` | alkbit | Grabado por el autor | MIT |
 | `Resources/Kits/hiphop_basic/hihat_open.wav` | alkbit | Grabado por el autor | MIT |
 | `Resources/Kits/hiphop_basic/crash.wav` | alkbit | Grabado por el autor | MIT |
-| `Resources/Kits/hiphop_basic/rim.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
-| `Resources/Kits/hiphop_basic/tom_lo.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
-| `Resources/Kits/hiphop_basic/tom_hi.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
-| `Resources/Kits/hiphop_basic/ride.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
+| `Resources/Kits/hiphop_basic/rim.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Kits/hiphop_basic/tom_lo.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Kits/hiphop_basic/tom_hi.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Kits/hiphop_basic/ride.wav` | alkbit | Grabado por el autor | MIT |
 
-Seis samples del kit `hiphop_basic` están documentados como grabaciones
-originales del autor y pueden distribuirse bajo MIT. La procedencia de los
-cuatro restantes debe completarse antes de publicar el kit o la aplicación.
+Los diez samples del kit `hiphop_basic` son grabaciones originales del autor y
+pueden distribuirse con la aplicación bajo MIT.
+
+## Loops de acompañamiento
+
+| Fichero | Autor | Origen | Licencia |
+|---|---|---|---|
+| `Resources/Loops/bass 90bpm.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_bass_airhead_01_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_synth_airhead_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_guitar_airhead_01_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
+
+Los cuatro loops incluidos son material propio del autor y pueden distribuirse
+con la aplicación bajo MIT.

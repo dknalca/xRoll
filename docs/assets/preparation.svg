@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">xRoll - pantalla de preparacion</title>
+  <desc id="desc">Vista oscura de preparacion con objetivo, tempo, ayuda y accion principal.</desc>
+  <rect width="1200" height="720" fill="#0b0d10"/>
+  <rect x="28" y="28" width="1144" height="664" rx="18" fill="#12151a" stroke="#2a313a"/>
+  <rect x="28" y="28" width="210" height="664" rx="18" fill="#0f1216"/>
+  <text x="58" y="76" fill="#f1f3f5" font-family="Arial,sans-serif" font-size="25" font-weight="700">xRoll</text>
+  <text x="58" y="98" fill="#63e6be" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="2">FINGER DRUMMING</text>
+  <g fill="#9aa3ad" font-family="Arial,sans-serif" font-size="14">
+    <text x="58" y="155" fill="#63e6be" font-weight="700">PRACTICA</text><text x="72" y="190">Inicio</text><text x="72" y="224" fill="#f1f3f5">Curso</text><text x="72" y="258">Redobles</text>
+    <text x="58" y="316" fill="#63e6be" font-weight="700">ANALISIS</text><text x="72" y="351">Progreso</text>
+    <text x="58" y="409" fill="#63e6be" font-weight="700">EQUIPO</text><text x="72" y="444">Pads y layout</text><text x="72" y="478">Audio y latencia</text>
+  </g>
+  <text x="276" y="82" fill="#6d7580" font-family="Arial,sans-serif" font-size="12" letter-spacing="1.5">PREPARACION</text>
+  <text x="276" y="126" fill="#f1f3f5" font-family="Arial,sans-serif" font-size="32" font-weight="700">Bombo y caja</text>
+  <text x="276" y="157" fill="#a3abb5" font-family="Arial,sans-serif" font-size="15">Escucha, coloca las manos y empieza cuando estes listo.</text>
+  <rect x="276" y="196" width="548" height="168" rx="14" fill="#191d23"/>
+  <text x="302" y="232" fill="#63e6be" font-family="Arial,sans-serif" font-size="12" font-weight="700" letter-spacing="1">OBJETIVO</text>
+  <text x="302" y="270" fill="#f1f3f5" font-family="Arial,sans-serif" font-size="23" font-weight="700">Mantener el pulso</text>
+  <text x="302" y="301" fill="#a3abb5" font-family="Arial,sans-serif" font-size="14">Bombo y caja sobre cuatro pulsos.</text>
+  <rect x="302" y="325" width="106" height="22" rx="11" fill="#20352f"/><text x="355" y="340" text-anchor="middle" fill="#63e6be" font-family="Arial,sans-serif" font-size="11">INICIACION</text>
+  <g font-family="Arial,sans-serif">
+    <rect x="852" y="196" width="286" height="168" rx="14" fill="#191d23"/><text x="878" y="232" fill="#63e6be" font-size="12" font-weight="700" letter-spacing="1">SESION</text><text x="878" y="274" fill="#f1f3f5" font-size="29" font-weight="700">68 BPM</text><text x="878" y="307" fill="#a3abb5" font-size="15">4 vueltas</text>
+    <rect x="276" y="394" width="862" height="116" rx="14" fill="#191d23"/><text x="302" y="431" fill="#63e6be" font-size="12" font-weight="700" letter-spacing="1">AYUDA</text><text x="302" y="468" fill="#f1f3f5" font-size="17" font-weight="700">Completa</text><text x="478" y="468" fill="#a3abb5" font-size="14">Normal</text><text x="610" y="468" fill="#a3abb5" font-size="14">Reducida</text><rect x="288" y="446" width="113" height="38" rx="8" fill="#245344" stroke="#63e6be"/><text x="344" y="470" text-anchor="middle" fill="#f1f3f5" font-size="14" font-weight="700">Completa</text>
+    <rect x="276" y="542" width="862" height="62" rx="10" fill="#63e6be"/><text x="707" y="581" text-anchor="middle" fill="#0b0d10" font-size="17" font-weight="700">ESCUCHAR Y COLOCAR</text>
+  </g>
+  <text x="276" y="650" fill="#6d7580" font-family="Arial,sans-serif" font-size="12">El ejercicio original permanece intacto; BPM y vueltas solo ajustan esta sesion.</text>
+</svg>

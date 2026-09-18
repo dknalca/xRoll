@@ -20,6 +20,7 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 - [UI.md](UI.md): comportamiento general de interfaz.
 - [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md): lenguaje visual «Estudio musical moderno».
 - [USER_GUIDE.md](USER_GUIDE.md): guía de uso.
+- [assets/](assets/): láminas SVG versionadas de las pantallas principales.
 
 ### Currículo
 - [PEDAGOGY_AND_TRAINING.md](PEDAGOGY_AND_TRAINING.md): marco didáctico y

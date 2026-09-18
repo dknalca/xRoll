@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">xRoll - pantalla de practica</title>
+  <desc id="desc">Vista de practica con dieciseis carriles, notas descendentes y linea de golpe.</desc>
+  <rect width="1200" height="720" fill="#0b0d10"/>
+  <text x="52" y="52" fill="#f1f3f5" font-family="Arial,sans-serif" font-size="22" font-weight="700">Bombo y caja</text>
+  <text x="52" y="79" fill="#a3abb5" font-family="Arial,sans-serif" font-size="14">68 BPM  ·  VUELTA 2  ·  C 1/1</text>
+  <text x="1148" y="60" text-anchor="end" fill="#63e6be" font-family="Arial,sans-serif" font-size="13" font-weight="700">PAUSAR</text>
+  <rect x="52" y="110" width="1096" height="540" rx="16" fill="#101419" stroke="#29313a"/>
+  <line x1="52" y1="550" x2="1148" y2="550" stroke="#63e6be" stroke-width="3"/>
+  <line x1="52" y1="550" x2="1148" y2="550" stroke="#63e6be" stroke-width="15" opacity=".08"/>
+  <g stroke="#28323b" stroke-width="1">
+    <path d="M120 110V650M188 110V650M256 110V650M324 110V650M392 110V650M460 110V650M528 110V650M596 110V650M664 110V650M732 110V650M800 110V650M868 110V650M936 110V650M1004 110V650M1072 110V650"/>
+    <path d="M52 245H1148M52 380H1148" opacity=".5"/>
+  </g>
+  <g fill="#0072b2" stroke="#d9efff" stroke-width="2">
+    <circle cx="188" cy="472" r="20"/><circle cx="460" cy="352" r="20"/><circle cx="800" cy="255" r="20"/>
+  </g>
+  <g fill="#e69f00" stroke="#fff1cf" stroke-width="2">
+    <rect x="302" y="430" width="40" height="40" rx="8"/><rect x="574" y="292" width="40" height="40" rx="8"/><rect x="914" y="180" width="40" height="40" rx="8"/>
+  </g>
+  <g fill="#0072b2" opacity=".35"><circle cx="120" cy="300" r="18"/><circle cx="732" cy="174" r="18"/></g>
+  <g fill="#e69f00" opacity=".35"><rect x="392" y="215" width="36" height="36" rx="7"/><rect x="1004" y="330" width="36" height="36" rx="7"/></g>
+  <text x="80" y="690" fill="#6d7580" font-family="Arial,sans-serif" font-size="12">AZUL = mano izquierda   NARANJA = mano derecha   La linea verde es el instante de golpe.</text>
+</svg>

@@ -14,19 +14,14 @@
 - Teclado, vista previa y práctica comprobados en hardware.
 - Diez minutos de práctica densa sin cortes ni tirones perceptibles.
 - VoiceOver, Reduce Motion, contraste y teclado comprobados en macOS.
-- Autoría y licencia MIT documentadas para seis WAV del kit.
+- Licencias de los WAV distribuidos confirmadas como propias.
+- Licencias de los loops distribuidos confirmadas como propias.
 - Calibración guiada comprobada para la ruta de uso actual.
 
 ## Pendiente en hardware
 
 - Calibrar de nuevo si cambia la ruta de uso: entrada, salida, frecuencia o
   buffer.
-
-## Diferido para distribución
-
-- Completar la autoría y licencia de `rim.wav`, `tom_lo.wav`, `tom_hi.wav` y
-  `ride.wav` en `Resources/Loops/ATTRIBUTION.md` antes de empaquetar o publicar.
-- Confirmar la licencia de cada loop distribuido antes de empaquetar o publicar.
 
 ## Validación pendiente de producto
 

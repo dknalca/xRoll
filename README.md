@@ -7,12 +7,25 @@ xRoll te dice con cuanta precision lo hiciste y si vas adelantado o atrasado.
 
 Pensado para quien empieza de cero.
 
+## Vista rápida
+
+Las siguientes láminas muestran el flujo principal sin depender de una captura
+de una máquina concreta:
+
+| Preparación | Práctica |
+|---|---|
+| ![Pantalla de preparación](docs/assets/preparation.svg) | ![Pantalla de práctica](docs/assets/practice.svg) |
+
+| Resultado | Pads y layout |
+|---|---|
+| ![Pantalla de resultado](docs/assets/result.svg) | ![Configuración de pads y layout](docs/assets/pads-layout.svg) |
+
 ## Estado
 
 La versión actual incluye práctica, calibración, progreso local, importación MIDI
 y tres layouts: **xRoll Core**, **Drum Kit** y **Mirror**. La publicación sigue
-pendiente de una medición reproducible de FPS y de completar la procedencia de
-cuatro WAV; consulta [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+pendiente de una medición reproducible de FPS; consulta
+[docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Desarrollo
 

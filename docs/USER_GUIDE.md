@@ -1,5 +1,19 @@
 # Guía de uso
 
+## Pantallas principales
+
+Estas ilustraciones versionadas resumen las pantallas del flujo. Los textos y
+colores siguen la interfaz actual; no contienen datos de usuario ni estado de
+un dispositivo concreto.
+
+![Preparación](assets/preparation.svg)
+
+![Práctica](assets/practice.svg)
+
+![Resultado](assets/result.svg)
+
+![Pads y layout](assets/pads-layout.svg)
+
 ## Primera sesión
 
 1. Abre `dist/xRoll.app` o ejecuta `swift run xroll-pads` desde la raíz.

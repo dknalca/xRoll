@@ -38,13 +38,12 @@
 ## Validación manual obligatoria antes de publicar
 
 - Medir 60 FPS con la escena de máxima densidad durante diez minutos.
-- Confirmar la licencia de cada loop distribuido antes de empaquetar o publicar.
 
 ## Validación manual completada
 
 - Reconexión MIDI, Core, Drum Kit y Mirror comprobados en hardware.
 - Diez minutos de práctica densa sin cortes ni tirones perceptibles.
 - VoiceOver, Reduce Motion, contraste y teclado comprobados en macOS.
-- Seis WAV del kit tienen autoría y licencia MIT documentadas; cuatro requieren
-  completar su procedencia antes de distribución.
+- Licencias de los WAV distribuidos confirmadas como propias.
+- Licencias de los loops distribuidos confirmadas como propias.
 - Calibración guiada comprobada para la ruta de uso actual.
