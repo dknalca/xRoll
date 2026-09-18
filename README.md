@@ -9,16 +9,27 @@ Pensado para quien empieza de cero.
 
 ## Vista rápida
 
-Las siguientes láminas muestran el flujo principal sin depender de una captura
-de una máquina concreta:
+La pantalla central es una práctica de ritmo: las notas descienden por carriles
+hacia una línea de golpe y el resultado explica qué repetir. Las imágenes están
+versionadas en SVG para que GitHub las muestre nítidas en cualquier tamaño.
 
-| Preparación | Práctica |
-|---|---|
-| ![Pantalla de preparación](docs/assets/preparation.svg) | ![Pantalla de práctica](docs/assets/practice.svg) |
+<p align="center">
+  <img src="docs/assets/practice.svg" alt="Pantalla de práctica de xRoll" width="900">
+</p>
 
-| Resultado | Pads y layout |
-|---|---|
-| ![Pantalla de resultado](docs/assets/result.svg) | ![Configuración de pads y layout](docs/assets/pads-layout.svg) |
+<p align="center">
+  <strong>Práctica</strong> · carriles, manos y línea de golpe gobernados por el reloj de audio.
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/assets/preparation.svg" alt="Pantalla de preparación de xRoll" width="560"><br><strong>Preparación</strong><br><sub>Objetivo, BPM, vueltas y nivel de ayuda.</sub></td>
+    <td align="center" width="50%"><img src="docs/assets/result.svg" alt="Pantalla de resultado de xRoll" width="560"><br><strong>Resultado</strong><br><sub>Precisión, tendencia, consistencia y siguiente acción.</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/assets/pads-layout.svg" alt="Pantalla de pads y layout de xRoll" width="760"><br><strong>Pads y layout</strong><br><sub>Aprendizaje de los 16 pads físicos sin mover sus notas MIDI.</sub></td>
+  </tr>
+</table>
 
 ## Estado
 
