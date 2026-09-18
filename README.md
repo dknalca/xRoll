@@ -9,9 +9,20 @@ Pensado para quien empieza de cero.
 
 ## Vista rápida
 
+La aplicación reúne preparación, práctica, diagnóstico y configuración del
+controlador en una única ventana. Esta captura muestra el Inicio real de xRoll;
+las imágenes siguientes completan el flujo con estados de práctica y resultado.
+
+<p align="center">
+  <img src="docs/assets/xroll-home.png" alt="Pantalla de inicio real de xRoll" width="1100">
+</p>
+
+<p align="center"><sub>Captura real de la aplicación en macOS. Sin MIDI conectado, xRoll ofrece teclado de respaldo y solicita calibración antes de puntuar.</sub></p>
+
 La pantalla central es una práctica de ritmo: las notas descienden por carriles
-hacia una línea de golpe y el resultado explica qué repetir. Las imágenes están
-versionadas en SVG para que GitHub las muestre nítidas en cualquier tamaño.
+hacia una línea de golpe y el resultado explica qué repetir. Las vistas
+complementarias están versionadas en SVG para que GitHub las muestre nítidas en
+cualquier tamaño.
 
 <p align="center">
   <img src="docs/assets/practice.svg" alt="Pantalla de práctica de xRoll" width="900">

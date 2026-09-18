@@ -6,6 +6,8 @@ Estas ilustraciones versionadas resumen las pantallas del flujo. Los textos y
 colores siguen la interfaz actual; no contienen datos de usuario ni estado de
 un dispositivo concreto.
 
+![Pantalla de inicio real de xRoll](assets/xroll-home.png)
+
 ![Preparación](assets/preparation.svg)
 
 ![Práctica](assets/practice.svg)
