@@ -46,6 +46,8 @@ final class PracticeScene: SKScene {
     private let soundLabels: [String: String]
     private let showsSoundLabels: Bool
     private let showsNotes: Bool
+    /// Notas que la ayuda reducida oculta sin retirarlas de la sesión puntuable.
+    private let hiddenGuideNoteIndices: Set<Int>
     private let emphasizesPlayerNotes: Bool
     private var gridGuide: GridGuideSubdivision
     private var viewZoom: PracticeViewZoom
@@ -78,7 +80,7 @@ final class PracticeScene: SKScene {
     private var extraWaves = [SKShapeNode]()
     private var grooveFlash: SKSpriteNode?
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
@@ -87,6 +89,7 @@ final class PracticeScene: SKScene {
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
         self.showsNotes = showsNotes
+        self.hiddenGuideNoteIndices = hiddenGuideNoteIndices
         self.emphasizesPlayerNotes = emphasizesPlayerNotes
         self.playerSounds = playerSounds
         self.gridGuide = gridGuide
@@ -295,7 +298,7 @@ final class PracticeScene: SKScene {
             // La animación de impacto reutiliza el nodo de la nota, incluso en
             // transferencia donde las notas normales permanecen ocultas.
             if feedbackNoteIndices.contains(note.index) { continue }
-            guard showsNotes else { node.isHidden = true; continue }
+            guard showsNotes, !hiddenGuideNoteIndices.contains(note.index) else { node.isHidden = true; continue }
             let remaining = note.timeMilliseconds - now
             guard let slot = slotBySound[note.sound] else {
                 node.isHidden = true
@@ -335,7 +338,7 @@ final class PracticeScene: SKScene {
         for index in obsoleteIndices { recycleNoteNode(at: index) }
         for position in visibleRange {
             let note = timeline.notes[position]
-            guard !consumedNoteIndices.contains(note.index) else { continue }
+            guard !consumedNoteIndices.contains(note.index), !hiddenGuideNoteIndices.contains(note.index) else { continue }
             _ = activateNoteNode(for: note)
         }
     }

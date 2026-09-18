@@ -30,6 +30,10 @@ bien    = min(65, regular)
 perfecto= min(35, bien)
 ```
 
+Este cálculo se aplica en cada sesión a partir del BPM y la rejilla del
+ejercicio. Los ajustes de depuración solo pueden estrechar estas ventanas, nunca
+ampliarlas por encima de este límite seguro.
+
 ## Toques de mas
 
 Cada golpe que no corresponde a ninguna nota de la rejilla resta 0,25 puntos.
@@ -163,11 +167,16 @@ para diagnóstico de la sesión.
 
 ## Matching
 
-La asociación greedy sigue permitida en patrones no ambiguos. En notas consecutivas del mismo sonido con ventanas solapadas se usa una ventana global que minimiza offset, fallos y extras de forma determinista.
+La asociación es greedy y determinista: cada golpe se compara con la nota
+pendiente más cercana del mismo sonido dentro de la ventana Regular. En un
+empate exacto se consume la nota anterior. Las ventanas recortadas evitan que
+notas consecutivas de la misma voz compartan una zona ambigua.
 
 ## Simultaneidad
 
-Para objetivos simultáneos se registra la separación entre impactos, además del juicio individual. Iniciación usa umbrales tolerantes; cursos posteriores pueden endurecerlos.
+Los objetivos simultáneos de sonidos distintos se puntúan de forma individual.
+La separación entre impactos no forma parte todavía de la puntuación ni del
+historial.
 
 ## Layouts duplicados
 

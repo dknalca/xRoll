@@ -726,6 +726,48 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(try PracticeTuningStore.load(from: url), tuning)
     }
 
+    func testScoringWindowsAlwaysRespectTheExerciseSubdivision() {
+        let tuning = PracticeTuning()
+        let windows = tuning.scoringWindows(bpm: 160, grid: 16)
+
+        XCTAssertEqual(windows.regularMilliseconds, 42.1875, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(windows.goodMilliseconds, windows.regularMilliseconds)
+        XCTAssertLessThanOrEqual(windows.perfectMilliseconds, windows.goodMilliseconds)
+    }
+
+    func testScoresKeepsTheMostRecentAttemptsInChronologicalOrder() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-progress-history-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = try ProgressStore(url: url)
+        let start = Date(timeIntervalSince1970: 1_000)
+        for score in 0...24 {
+            try store.record(PracticeAttempt(exerciseID: "test", timestamp: start.addingTimeInterval(Double(score)), bpm: 100, score: Double(score), stars: 0, perfect: 0, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: nil))
+        }
+
+        XCTAssertEqual(try store.scores(for: "test"), (5...24).map(Double.init))
+    }
+
+    func testCommunityMIDIRejectsTempoChanges() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-tempo-change-\(UUID().uuidString).mid")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let track: [UInt8] = [
+            0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20,
+            0x60, 0xFF, 0x51, 0x03, 0x06, 0x1A, 0x80,
+            0x00, 0x99, 0x24, 0x64,
+            0x00, 0xFF, 0x2F, 0x00
+        ]
+        let header: [UInt8] = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0, 96]
+        let trackHeader: [UInt8] = [0x4D, 0x54, 0x72, 0x6B, 0, 0, 0, UInt8(track.count)]
+        try Data(header + trackHeader + track).write(to: url)
+        let kit = KitManifest(format: 1, id: "test", name: "Test", sounds: [.init(id: "kick", label: "Bombo", file: "kick.wav", gmNote: 36, chokeGroup: nil)])
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: kit, level: 1)) { error in
+            guard case .unsupportedTempoChanges = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba rechazar el cambio de tempo, se obtuvo: \(error)")
+            }
+        }
+    }
+
     func testCalibrationOffsetChangesTheJudgement() {
         let timeline = ExerciseTimeline(
             exercise: Exercise(

@@ -44,9 +44,9 @@ Resources/Kits/hiphop_basic/
 
 Minusculas, guion bajo, sin acentos ni espacios.
 
-El kit inicial incluye bombo, caja, palmada, charles cerrado y abierto, dos
-toms, crash y ride. Los demas identificadores se anadiran cuando existan sus
-WAV y ejercicios que los necesiten.
+El kit inicial distribuye diez voces: `kick`, `rim`, `snare`, `clap`, `tom_low`,
+`hihat_closed`, `hihat_open`, `tom_high`, `crash` y `ride`. El identificador
+canónico `tom_mid` no forma parte todavía de este kit.
 
 **Ningun nombre de fichero aparece en el codigo.** El codigo lee kit.json. Anadir
 un kit debe consistir en soltar una carpeta.
@@ -108,9 +108,9 @@ Requisitos:
 - **Bucle sin clic**, empalmando en cruce por cero.
 - 4/4.
 
-Los compases no se declaran en el nombre: la app los calcula con la duracion y
-el BPM y **avisa al cargar si el resultado no da un numero entero de compases**.
-El nombre queda simple y los errores se cazan solos.
+Los compases no se declaran en el nombre. Antes de distribuir un loop, verifica
+manualmente que su duración y BPM corresponden a un número entero de compases;
+la app detecta el BPM por el nombre, pero todavía no valida esa duración.
 
 ## Esquema de kit.json
 

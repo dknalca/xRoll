@@ -293,8 +293,7 @@ final class Model: ObservableObject {
             default: notes = exercise.notes
             }
         }
-        let helpedNotes = practiceHelp == .reduced ? notes.filter { $0.sound != "hihat_closed" || !$0.step.isMultiple(of: 4) } : notes
-        return Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family, level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars, grid: exercise.grid, repeats: exercise.repeats, kit: exercise.kit, loop: exercise.loop, offset: exercise.offset, notes: helpedNotes)
+        return Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family, level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars, grid: exercise.grid, repeats: exercise.repeats, kit: exercise.kit, loop: exercise.loop, offset: exercise.offset, notes: notes)
     }
     var lessonGoal: String {
         guard let chosen else { return "Elige un nivel para ver el objetivo." }
@@ -826,7 +825,7 @@ final class Model: ObservableObject {
         savePreferences()
         calibrating = calibration
         isPracticePaused = false
-        let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset + tuning.manualTimingOffsetMilliseconds, scoringWindows: calibration ? nil : tuning.scoringWindows)
+        let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: calibration ? 0 : calibrationOffset + tuning.manualTimingOffsetMilliseconds, scoringWindows: calibration ? nil : tuning.scoringWindows(bpm: exercise.bpm, grid: exercise.grid))
         // «Anticipación» son compases, no frases enteras. Una frase de
         // redoble puede tener tres compases y no debe convertirse en una
         // espera de seis compases antes de tocar.
@@ -835,7 +834,10 @@ final class Model: ObservableObject {
         let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
         practiceVisualID = UUID()
         practice = session; practiceStartHostTime = start; result = ""
-        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: practiceHelp == .full, showsNotes: trainingPhase != .transfer, emphasizesPlayerNotes: practiceStepRange != nil || !isFullRhythmSelection, playerSounds: isFullRhythmSelection ? nil : playerSelection, gridGuide: gridGuide, viewZoom: practiceViewZoom)
+        let hiddenGuideNoteIndices = practiceHelp == .reduced
+            ? Set(session.timeline.notes.lazy.filter { $0.sound == "hihat_closed" && $0.step.isMultiple(of: 4) }.map(\.index))
+            : []
+        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: practiceHelp == .full, showsNotes: trainingPhase != .transfer, hiddenGuideNoteIndices: hiddenGuideNoteIndices, emphasizesPlayerNotes: practiceStepRange != nil || !isFullRhythmSelection, playerSounds: isFullRhythmSelection ? nil : playerSelection, gridGuide: gridGuide, viewZoom: practiceViewZoom)
         let isPartialPractice = !isFullRhythmSelection || transferCheck || practiceStepRange != nil
         if !calibration, isPartialPractice {
             let sourceExercise = chosen.map { PracticeConfiguration(exercise: $0, bpm: selectedBPM, repeats: selectedRepeats).applying(to: $0) } ?? fullExercise
@@ -1452,8 +1454,7 @@ final class Model: ObservableObject {
     func saveTuning() { try? PracticeTuningStore.save(tuning, to: applicationSupportURL("tuning.json")) }
     func resetTuning() { tuning = PracticeTuning(); resetSoundMix(); saveTuning() }
     private func loadTuning() {
-        var loaded = (try? PracticeTuningStore.load(from: applicationSupportURL("tuning.json"))) ?? PracticeTuning()
-        if !loaded.debugEnabled && loaded.regularWindowMilliseconds < 120 { loaded.regularWindowMilliseconds = 120 }
+        let loaded = (try? PracticeTuningStore.load(from: applicationSupportURL("tuning.json"))) ?? PracticeTuning()
         tuning = loaded
     }
     func refreshRecentAttempts() {

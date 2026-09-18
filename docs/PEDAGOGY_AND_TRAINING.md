@@ -172,11 +172,11 @@ Un ejercicio no se considera dominado únicamente por alcanzar un porcentaje. Re
 ## 7. Metadatos didácticos
 
 MIDI es el único archivo de ejercicio. xRoll deriva los datos necesarios del
-tempo, compás, notas, sonidos y velocidad del MIDI. Las ideas pedagógicas que
-deben acompañar a un ritmo —objetivo, prerrequisitos, dificultad nueva y
-criterios de dominio— se documentan en el currículo, no en un JSON paralelo.
-Una futura extensión deberá conservar MIDI como fuente única y ser compatible
-con los ejercicios comunitarios existentes.
+tempo, compás, notas, sonidos y velocidad del MIDI. Los ejercicios integrados
+pueden incluir metadatos curriculares `xroll/1` en metaeventos de texto para
+objetivo, prerrequisitos y dificultad nueva; no existe un JSON paralelo. Los
+MIDI comunitarios siguen siendo válidos sin esos metadatos, aunque no se
+incorporan al recorrido oficial.
 
 ---
 

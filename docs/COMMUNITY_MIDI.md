@@ -12,6 +12,7 @@ base.
 
 - Compás 4/4.
 - Pulsos por negra (PPQ), no timecode.
+- BPM fijo. Los archivos con más de un valor de tempo se rechazan.
 - Una pista con nombre: ese nombre se muestra como título del ejercicio.
 - Metaevento de tempo. Si falta, xRoll usa 80 BPM.
 - Notas de percusión General MIDI; se aceptan las del kit activo:
@@ -19,6 +20,7 @@ base.
 | Sonido | Nota GM |
 | --- | ---: |
 | Bombo | 36 |
+| Aro | 37 |
 | Caja | 38 |
 | Palmada | 39 |
 | Charles cerrado | 42 |

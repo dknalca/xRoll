@@ -110,9 +110,9 @@ aparece en un documento, tiene que venir de una ejecucion real cuya salida se
 pueda ensenar. Un dato plausible pero inventado es peor que ninguno, porque se
 construyen decisiones encima.
 
-**Consulta PLAN.md antes de empezar** y respeta la fase en curso. Las fases estan
-ordenadas para que cada una valide un riesgo antes de que la siguiente construya
-sobre el.
+**Consulta `docs/IMPLEMENTATION_ROADMAP.md` y `docs/RELEASE_CHECKLIST.md` antes
+de empezar**. `PLAN.md` conserva el razonamiento histórico; el estado vigente y
+las validaciones pendientes están en los dos documentos anteriores.
 
 **Si una decision de docs/DECISIONS.md te estorba, dilo** en vez de rodearla.
 Estan escritas con su motivo justamente para poder revisarlas cuando el motivo

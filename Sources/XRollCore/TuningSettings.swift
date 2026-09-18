@@ -16,7 +16,7 @@ public struct PracticeTuning: Codable, Equatable {
     /// Ganancia posterior a la normalización, por id de sonido del kit.
     public var soundVolumes: [String: Double]
 
-    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 120, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, loopVolume: Double = 0.72, metronomePitchSemitones: Double = 0, padFlashMilliseconds: Int = 120, soundVolumes: [String: Double] = [:]) {
+    public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 95, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, loopVolume: Double = 0.72, metronomePitchSemitones: Double = 0, padFlashMilliseconds: Int = 120, soundVolumes: [String: Double] = [:]) {
         self.debugEnabled = debugEnabled
         self.anticipationBars = min(4, max(1, anticipationBars))
         self.perfectWindowMilliseconds = min(100, max(5, perfectWindowMilliseconds))
@@ -41,7 +41,7 @@ public struct PracticeTuning: Codable, Equatable {
             anticipationBars: try values.decodeIfPresent(Int.self, forKey: .anticipationBars) ?? 2,
             perfectWindowMilliseconds: try values.decodeIfPresent(Double.self, forKey: .perfectWindowMilliseconds) ?? 35,
             goodWindowMilliseconds: try values.decodeIfPresent(Double.self, forKey: .goodWindowMilliseconds) ?? 65,
-            regularWindowMilliseconds: try values.decodeIfPresent(Double.self, forKey: .regularWindowMilliseconds) ?? 120,
+            regularWindowMilliseconds: try values.decodeIfPresent(Double.self, forKey: .regularWindowMilliseconds) ?? 95,
             manualTimingOffsetMilliseconds: try values.decodeIfPresent(Double.self, forKey: .manualTimingOffsetMilliseconds) ?? 0,
             countInVolume: try values.decodeIfPresent(Double.self, forKey: .countInVolume) ?? 0.85,
             loopVolume: try values.decodeIfPresent(Double.self, forKey: .loopVolume) ?? 0.72,
@@ -51,8 +51,14 @@ public struct PracticeTuning: Codable, Equatable {
         )
     }
 
-    public var scoringWindows: ScoringWindows {
-        ScoringWindows(perfectMilliseconds: perfectWindowMilliseconds, goodMilliseconds: goodWindowMilliseconds, regularMilliseconds: regularWindowMilliseconds)
+    public func scoringWindows(bpm: Int, grid: Int) -> ScoringWindows {
+        let automatic = ScoringWindows(bpm: bpm, grid: grid)
+        guard debugEnabled else { return automatic }
+        return ScoringWindows(
+            perfectMilliseconds: min(perfectWindowMilliseconds, automatic.perfectMilliseconds),
+            goodMilliseconds: min(goodWindowMilliseconds, automatic.goodMilliseconds),
+            regularMilliseconds: min(regularWindowMilliseconds, automatic.regularMilliseconds)
+        )
     }
 }
 

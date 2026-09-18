@@ -16,7 +16,6 @@ Al terminar, el usuario puede identificar tres voces, seguir cuatro pulsos, toca
 
 | ID | Nombre | Sonidos | Habilidad | BPM |
 |---|---|---|---|---:|
-| I-00 | Conoce tu instrumento | Kit | Orientación y mapeo | libre |
 | I-01 | Bombo y caja | Bombo + caja | Esqueleto del groove | 68 |
 | I-02 | Añade charles | Tres voces | Charles a negras | 68 |
 | I-03 | Ritmo completo · vía rápida | Tres voces | Charles a corcheas | 72 |
@@ -28,9 +27,9 @@ el siguiente bloque sin exigir recorrer el despiece.
 
 Objetivo → escuchar → aislar → acompañar → practicar → diagnosticar → siguiente paso.
 
-### I-00 — Conoce tu instrumento
-
-No puntúa. La rejilla 4×4 responde en vivo, muestra sonido, nota, canal y posición. El usuario localiza bombo, caja y charles, toca libremente y confirma MIDI, audio y calibración. Termina con un resumen del layout.
+Antes de I-01, el onboarding de **Pads y layout** permite localizar sonidos,
+probar la rejilla y confirmar MIDI, audio y calibración. No es un ejercicio MIDI
+ni una estación puntuable del catálogo.
 
 ### I-01 — Bombo y caja
 
@@ -61,7 +60,9 @@ Bombo   X   X
 Caja      X   X
 ```
 
-Construcción por capas: usuario toca bombo con caja automática; después caja con bombo automático; finalmente ambos. Cierra la primera sesión con reproducción de eventos capturados.
+Construcción por capas: usuario toca bombo con caja automática; después caja con
+bombo automático; finalmente ambos. El resultado conserva los eventos para el
+diagnóstico y propone una siguiente práctica.
 
 ### Consolidar el groove
 
@@ -80,7 +81,8 @@ Se comparan resultado asistido y reducido.
 
 - **Completa:** nombres, forma/color, pad iluminado, cuenta, rejilla y dos compases.
 - **Normal:** notas, forma/color y rejilla.
-- **Reducida:** notas esenciales, menos anticipación y desaparición gradual.
+- **Reducida:** retira de la guía los golpes fuertes de charles, pero los
+  conserva como objetivos puntuables.
 
 ## Intervenciones adaptativas
 

@@ -243,7 +243,7 @@ son herramientas de aprendizaje, no atajos de progreso.
 **Por qué:** una célula aislada o una sola voz puede salir perfecta sin demostrar
 que el usuario controla el groove completo.
 
-## D-030 - El curso usa una escalera fija de cinco tempos
+## D-030 - El curso usa una escalera fija de seis tempos
 
 Todos los ritmos se practican en Aprender (70 BPM, una estrella), Base (85 BPM,
 dos estrellas), Consolidar (100 BPM, tres estrellas), Difícil (120 BPM, un

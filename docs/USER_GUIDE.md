@@ -22,7 +22,8 @@ corcheas, bajada de toms, caja en semicorcheas y redoble lineal con bombo.
 En Preparación elige la fase que necesitas:
 
 - **Descubrir:** escucha y localiza sin puntuación.
-- **Aislar:** reduce el tempo 20 %, usa dos vueltas y trabaja una voz.
+- **Aislar:** al iniciar la práctica reduce el tempo 20 %, usa dos vueltas y
+  trabaja una voz.
 - **Integrar:** devuelve el patrón completo a su contexto.
 - **Transferir:** acompaña el charles sin verlo ni puntuarlo.
 
@@ -35,7 +36,13 @@ El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
 Al terminar, xRoll guarda el porcentaje, estrellas, juicios, desfase medio y
 estadísticas por sonido. **Corregir sonido** abre una práctica corta de la voz
 con menor acierto; Ghost Coach explica la prioridad.
-El gráfico representa los intentos del ejercicio elegido.
+El gráfico representa, en orden cronológico, los 20 intentos más recientes del
+ejercicio elegido.
+
+Las ayudas cambian solo la guía visual: incluso con ayuda **Reducida**, todas
+las notas del ritmo completo siguen siendo objetivos puntuables. Los intentos
+por voces, fragmento o transferencia se guardan como práctica parcial y no
+desbloquean el curso.
 
 Para conservar una copia legible de los datos:
 

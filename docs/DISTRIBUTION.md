@@ -1,8 +1,8 @@
 # Distribución de xRoll
 
-El código se publica con etiquetas `v*`. GitHub ejecuta las pruebas en macOS y
-crea un borrador de release. Las notas se redactan para cada etiqueta: no se
-mantiene una plantilla de una versión anterior en el repositorio.
+La publicación actual es manual. Las etiquetas `v*` identifican versiones, pero
+este repositorio no contiene un flujo de GitHub que ejecute pruebas ni cree un
+borrador de release. Las notas se redactan para cada etiqueta.
 
 ## Publicación de una versión
 
@@ -11,7 +11,8 @@ mantiene una plantilla de una versión anterior en el repositorio.
    `Resources/Loops/ATTRIBUTION.md` y que su licencia permite la distribución.
 3. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
    y `git push origin v0.1.0`.
-4. Revisa el borrador creado por GitHub y publícalo cuando corresponda.
+4. Crea el release y adjunta `dist/xRoll.app` o su archivo comprimido cuando
+   corresponda.
 
 ## Firma y notarización
 
@@ -29,5 +30,5 @@ xcrun stapler staple dist/xRoll.app
 ```
 
 La cuenta de Apple y el perfil `xroll-notary` solo se configuran en el Mac que
-publica la versión. El flujo de GitHub no firma ni notariza, porque esas
-credenciales no se almacenan en el repositorio.
+publica la versión. No se almacenan credenciales de firma o notarización en el
+repositorio.

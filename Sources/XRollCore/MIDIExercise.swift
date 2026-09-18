@@ -4,6 +4,7 @@ public enum MIDIExerciseError: LocalizedError {
     case invalidFile(String)
     case unsupportedTiming
     case unsupportedMeter
+    case unsupportedTempoChanges
     case noPlayableNotes
 
     public var errorDescription: String? {
@@ -11,6 +12,7 @@ public enum MIDIExerciseError: LocalizedError {
         case .invalidFile(let message): return "MIDI no válido: \(message)."
         case .unsupportedTiming: return "El MIDI debe usar pulsos por negra, no timecode."
         case .unsupportedMeter: return "El MIDI debe estar en compás 4/4."
+        case .unsupportedTempoChanges: return "El MIDI debe mantener un BPM fijo."
         case .noPlayableNotes: return "El MIDI no contiene notas de percusión del kit activo."
         }
     }
@@ -36,13 +38,14 @@ public enum MIDIExerciseLoader {
         var endTick = 0
         var hits: [(tick: Int, note: Int, velocity: Int)] = []
         var textEvents = [String]()
+        var tempos = Set<Int>()
 
         for _ in 0..<tracks {
             guard reader.readASCII(count: 4) == "MTrk" else { throw MIDIExerciseError.invalidFile("falta MTrk") }
             let length = Int(try reader.readUInt32())
             let track = try reader.readBytes(count: length)
             let parsed = try parseTrack(track)
-            if let parsedTempo = parsed.tempo { tempo = parsedTempo }
+            tempos.formUnion(parsed.tempos)
             if let parsedMeter = parsed.meter { meter = parsedMeter }
             title = title ?? parsed.title
             endTick = max(endTick, parsed.endTick)
@@ -51,6 +54,8 @@ public enum MIDIExerciseLoader {
         }
 
         guard meter == [4, 4] else { throw MIDIExerciseError.unsupportedMeter }
+        guard tempos.count <= 1 else { throw MIDIExerciseError.unsupportedTempoChanges }
+        if let parsedTempo = tempos.first { tempo = parsedTempo }
         let noteToSound = Dictionary(uniqueKeysWithValues: kit.sounds.map { ($0.gmNote, $0.id) })
         let sixteenthTicks = Double(division) / 4
         let tripletTicks = Double(division) / 3
@@ -85,9 +90,9 @@ public enum MIDIExerciseLoader {
         }
     }
 
-    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempo: Int?, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)], textEvents: [String]) {
+    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempos: Set<Int>, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)], textEvents: [String]) {
         var reader = MIDIReader(bytes: bytes)
-        var tick = 0; var runningStatus: UInt8?; var tempo: Int?; var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []; var textEvents = [String]()
+        var tick = 0; var runningStatus: UInt8?; var tempos = Set<Int>(); var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []; var textEvents = [String]()
         while !reader.isAtEnd {
             tick += try reader.readVariableLength()
             let first = try reader.readByte()
@@ -100,7 +105,7 @@ public enum MIDIExerciseLoader {
                 let type = try reader.readByte(); let length = try reader.readVariableLength(); let data = try reader.readBytes(count: length)
                 if type == 0x03 { title = String(bytes: data, encoding: .utf8) }
                 if type == 0x01, let text = String(bytes: data, encoding: .utf8) { textEvents.append(text) }
-                if type == 0x51, data.count == 3 { tempo = Int(data[0]) << 16 | Int(data[1]) << 8 | Int(data[2]) }
+                if type == 0x51, data.count == 3 { tempos.insert(Int(data[0]) << 16 | Int(data[1]) << 8 | Int(data[2])) }
                 if type == 0x58, data.count >= 2 { meter = [Int(data[0]), 1 << Int(data[1])] }
                 continue
             }
@@ -110,7 +115,7 @@ public enum MIDIExerciseLoader {
             let data2: UInt8? = (command == 0xC0 || command == 0xD0) ? nil : try reader.readByte()
             if command == 0x90, let data2, data2 > 0 { hits.append((tick, Int(data1), Int(data2))) }
         }
-        return (tempo, meter, title, tick, hits, textEvents)
+        return (tempos, meter, title, tick, hits, textEvents)
     }
 }
 

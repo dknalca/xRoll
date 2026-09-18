@@ -11,8 +11,8 @@ Pensado para quien empieza de cero.
 
 La versión actual incluye práctica, calibración, progreso local, importación MIDI
 y tres layouts: **xRoll Core**, **Drum Kit** y **Mirror**. La publicación sigue
-pendiente de validación en hardware y licencias de audio; consulta
-[docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+pendiente de una medición reproducible de FPS y de completar la procedencia de
+cuatro WAV; consulta [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Desarrollo
 
@@ -38,9 +38,9 @@ El diagnostico enumera las fuentes MIDI, informa de la salida de audio y valida
 el kit y los ejercicios. `xroll-latency` conecta todas las fuentes MIDI al sonido
 indicado y sirve para diagnóstico interno de la ruta MIDI-audio.
 
-`xroll-play-kit` usa el mapa GM del `kit.json`: bombo 36, caja 38, palmada 39,
-tom grave 41, charles cerrado 42, charles abierto 46, tom agudo 48, crash 49 y
-ride 51. Para descubrir las notas de
+`xroll-play-kit` usa el mapa GM del `kit.json`: bombo 36, aro 37, caja 38,
+palmada 39, tom grave 41, charles cerrado 42, charles abierto 46, tom agudo
+48, crash 49 y ride 51. Para descubrir las notas de
 un controlador que se haya reconfigurado, se inicia una vez con `--log-events`.
 Un `.padmap` valida que cada sonido, posicion y nota/canal solo aparezcan una vez.
 `xroll-map-pads` crea ese archivo guiando los sonidos del kit; se pueden omitir
@@ -51,9 +51,11 @@ sonidos del kit, guarda el mapa por controlador en Application Support y ofrece
 Core, Drum Kit y Mirror sin cambiar las notas MIDI físicas. El teclado replica
 la rejilla documentada en `docs/MIDI_MAPPING.md`.
 
-La puntuacion y la calibracion viven en el nucleo. La calibracion descarta los
-cuatro primeros golpes, usa la mediana del resto y se guarda por perfil completo:
-entrada, salida, frecuencia y tamano de buffer.
+La puntuacion y la calibracion viven en el nucleo. Las ventanas se ajustan
+automáticamente a la subdivisión del ejercicio para no asociar un golpe a una
+casilla ambigua. La calibracion descarta los cuatro primeros golpes, usa la
+mediana del resto y se guarda por perfil completo: entrada, salida, frecuencia
+y tamano de buffer.
 
 `xroll-preview` reproduce todas las vueltas de un ejercicio sin puntuar. Sus
 notas se programan contra el reloj de audio, con medio segundo de margen antes
@@ -89,7 +91,7 @@ quiera revisar. Los datos permanecen locales en
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 65 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 77 ejercicios MIDI progresivos
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad

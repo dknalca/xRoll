@@ -103,7 +103,7 @@ public final class ProgressStore {
     }
 
     public func scores(for exerciseID: String, limit: Int = 20) throws -> [Double] {
-        let statement = try prepare("SELECT score FROM attempts WHERE exercise_id = ? ORDER BY timestamp ASC, id ASC LIMIT ?")
+        let statement = try prepare("SELECT score FROM (SELECT score, timestamp, id FROM attempts WHERE exercise_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?) ORDER BY timestamp ASC, id ASC")
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
         sqlite3_bind_int(statement, 2, Int32(max(1, limit)))

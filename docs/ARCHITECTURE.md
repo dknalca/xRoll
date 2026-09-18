@@ -25,16 +25,17 @@ anota licencia y autor. Para añadir un ejercicio, genera un MIDI consecutivo en
 `data/exercises/`: una dificultad nueva por nivel y solo sonidos declarados por
 el kit. Ejecuta `swift run xroll-preflight` antes de usarlo.
 
-## Módulos objetivo
+## Componentes implementados
 
-- `XRollCore`: recursos, reloj, scoring, calibración, sesiones, currículo y compatibilidad.
-- `XRollUI`: tokens y componentes SwiftUI.
-- `XRollPads`: aplicación y navegación.
+- `XRollCore`: recursos, reloj, scoring, calibración, sesiones, currículo,
+  layouts, persistencia SQLite, diagnóstico y recomendaciones.
+- `XRollPads`: aplicación SwiftUI, navegación y coordinación del ciclo de vida.
 - `PracticeScene`: render SpriteKit sin lógica de scoring.
-- `LayoutEngine`: presets, `.padmap` v2, roles y resolución de entradas.
-- `DiagnosticEngine`: métricas por voz y sesgo temporal persistidas por intento;
-  el desglose por rol, subdivisión, vuelta y transición es la siguiente capa.
-- `RecommendationEngine`: reglas de siguiente microtarea.
+- `XRollRealtimeQueue`: cola MPSC usada por la entrada MIDI en tiempo real.
+
+El diagnóstico histórico ya agrupa resultados por voz, mano, rol, pad,
+subdivisión, vuelta y transición. No existen targets SwiftPM separados llamados
+`XRollUI`, `LayoutEngine`, `DiagnosticEngine` o `RecommendationEngine`.
 
 ## Estado de práctica
 

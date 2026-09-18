@@ -42,7 +42,9 @@ Reglas iniciales:
 - dominio repetido: aumentar tempo o retirar ayudas.
 
 ### Ghost Coach
-Reproducir patrón objetivo, ejecución real y una versión exagerada del error usando los eventos MIDI capturados.
+Hoy combina el sonido más débil y el sesgo temporal en una indicación textual.
+La reproducción comparada de patrón objetivo, ejecución real y error exagerado
+con los eventos MIDI capturados es una mejora futura.
 
 ### Microscopio de groove
 Vista temporal por voz, mano, vuelta y subdivisión, con creación de práctica correctiva desde un grupo de errores.

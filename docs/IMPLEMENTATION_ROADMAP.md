@@ -8,7 +8,7 @@
   grooves, Hip-hop, Rock, Funk, Blues/Shuffle, Jazz, Disco, Reggae, Dembow y
   Clave/Bossa.
 - Preparación, ayudas completa/normal/reducida, capas, transferencia y ruta
-  rápida de ritmo completo.
+  rápida de ritmo completo; las ayudas no alteran los objetivos puntuables.
 - Escena SpriteKit, score no punitivo, reinicio rápido, duración 1/2/4/8/16 y
   cajones plegables de navegación/sesión.
 - Entrada MIDI seleccionable y refrescable; salida de audio seleccionable;
@@ -16,8 +16,10 @@
 - `.padmap` v2, Core, Drum Kit, Mirror, importación/exportación y
   objetivos por sonido/rol/pad.
 - Historial SQLite, análisis por sonido, tendencia temporal, ejercicio más
-  repetido, Autopilot, práctica correctiva y Ghost Coach básico.
-- Importación MIDI comunitaria con validación técnica y avisos pedagógicos.
+  repetido, Autopilot, práctica correctiva y Ghost Coach básico; la gráfica usa
+  los 20 intentos más recientes.
+- Importación MIDI comunitaria con validación técnica, BPM fijo y avisos
+  pedagógicos.
 - Lectura de velocity y detección de rejilla ternaria de 12 pasos en MIDI.
 - Rejilla ternaria nativa en las miniaturas y el generador curricular.
 - Diagnóstico histórico derivado de `HitRecord` por mano, rol, pad,
@@ -43,5 +45,6 @@
 - Reconexión MIDI, Core, Drum Kit y Mirror comprobados en hardware.
 - Diez minutos de práctica densa sin cortes ni tirones perceptibles.
 - VoiceOver, Reduce Motion, contraste y teclado comprobados en macOS.
-- Licencias de los WAV distribuidos confirmadas como propias.
+- Seis WAV del kit tienen autoría y licencia MIT documentadas; cuatro requieren
+  completar su procedencia antes de distribución.
 - Calibración guiada comprobada para la ruta de uso actual.

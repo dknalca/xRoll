@@ -3,10 +3,11 @@
 ## Formato activo
 
 Cada ejercicio activo es un Standard MIDI File (`.mid`). El nombre de pista es
-el título, el metaevento de tempo fija BPM y las notas GM se convierten a
-sonidos del kit. Se admiten rejilla de 16 y, al importar MIDI de tresillos,
-rejilla ternaria de 12. La velocity se conserva como metadato para la futura
-etapa de articulación; por ahora la puntuación evalúa timing.
+el título, un único metaevento de tempo fija BPM y las notas GM se convierten a
+sonidos del kit. Los MIDI con cambios de tempo no son compatibles con la línea
+temporal de BPM fijo y se rechazan. Se admiten rejilla de 16 y, al importar MIDI
+de tresillos, rejilla ternaria de 12. La velocity se conserva como metadato para
+la futura etapa de articulación; por ahora la puntuación evalúa timing.
 
 No hay formato JSON de ejercicios ni un catálogo alternativo: MIDI es la única
 fuente de autoría y distribución. Para crear o compartir un ejercicio consulta
@@ -59,7 +60,7 @@ pensar, que es lo que necesita un principiante.
 
 ## Metadatos pedagógicos MIDI
 
-Los ejercicios integrados incorporarán metadatos curriculares como metaeventos
+Los ejercicios integrados incorporan metadatos curriculares como metaeventos
 de texto estándar al inicio del MIDI. El espacio de nombres versionado será
 `xroll/1`; por ejemplo:
 
@@ -76,7 +77,10 @@ xroll/1 recommended-help=full
 No hay sidecar JSON. Un MIDI comunitario sin estos metadatos sigue siendo válido
 y practicable, pero no se incorpora al recorrido oficial.
 
-Una nota puede añadir `target` por sonido, rol o pad según [PADMAP_V2.md](PADMAP_V2.md).
+El modelo interno admite objetivos por sonido, rol o pad según
+[PADMAP_V2.md](PADMAP_V2.md). La sintaxis para transportar objetivos de rol o
+pad dentro de un MIDI todavía no está definida; los MIDI activos se resuelven
+por sonido.
 
 ## Redobles y transiciones
 

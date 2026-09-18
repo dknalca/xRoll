@@ -17,6 +17,11 @@ procedencia para poder mantener el catálogo de audio.
 | `Resources/Kits/hiphop_basic/hihat_closed.wav` | alkbit | Grabado por el autor | MIT |
 | `Resources/Kits/hiphop_basic/hihat_open.wav` | alkbit | Grabado por el autor | MIT |
 | `Resources/Kits/hiphop_basic/crash.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Kits/hiphop_basic/rim.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
+| `Resources/Kits/hiphop_basic/tom_lo.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
+| `Resources/Kits/hiphop_basic/tom_hi.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
+| `Resources/Kits/hiphop_basic/ride.wav` | Pendiente de documentar | Pendiente de documentar | No distribuir hasta confirmar |
 
-Los seis samples del kit `hiphop_basic` son grabaciones originales del autor del
-proyecto y pueden publicarse y distribuirse con la aplicación bajo MIT.
+Seis samples del kit `hiphop_basic` están documentados como grabaciones
+originales del autor y pueden distribuirse bajo MIT. La procedencia de los
+cuatro restantes debe completarse antes de publicar el kit o la aplicación.
