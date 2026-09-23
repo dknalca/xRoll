@@ -8,6 +8,8 @@ public enum PadMapValidationError: LocalizedError, Equatable {
     case invalidPosition(row: Int, column: Int)
     case unknownSound(String)
     case duplicateSound(String)
+    case duplicatePadID(String)
+    case duplicateRole(String)
     case duplicatePosition(row: Int, column: Int)
     case duplicateMessage(note: Int, channel: Int)
 
@@ -20,6 +22,8 @@ public enum PadMapValidationError: LocalizedError, Equatable {
         case .invalidPosition(let row, let column): return "La posicion \(row),\(column) queda fuera de la rejilla."
         case .unknownSound(let sound): return "El sonido \(sound) no existe en el kit."
         case .duplicateSound(let sound): return "El sonido \(sound) aparece mas de una vez."
+        case .duplicatePadID(let id): return "El pad \(id) aparece mas de una vez."
+        case .duplicateRole(let role): return "El rol \(role) aparece mas de una vez."
         case .duplicatePosition(let row, let column): return "La posicion \(row),\(column) aparece mas de una vez."
         case .duplicateMessage(let note, let channel): return "La nota \(note) del canal \(channel) aparece mas de una vez."
         }

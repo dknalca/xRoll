@@ -1,28 +1,23 @@
-# xRoll Agent Guide
+# xRoll: guía rápida para agentes
 
-## Antes de cambiar
+## Fuentes de verdad
 
-- Lee `CLAUDE.md`: es el contrato de producto. Consulta `docs/IMPLEMENTATION_ROADMAP.md` y `docs/RELEASE_CHECKLIST.md` para el estado vigente; `PLAN.md` es histórico.
-- xRoll es un entrenador de timing para principiantes, no un DAW ni un secuenciador. No añadas dependencias de ejecución, edición/exportación de audio ni funciones de velocity.
-- La calibración guiada no es opcional: conserva el audio como reloj de referencia y no documentes métricas de latencia, FPS o precisión sin una medición reproducible.
+- Lee `CLAUDE.md` antes de cambiar código. El estado actual y las comprobaciones pendientes están en `docs/IMPLEMENTATION_ROADMAP.md` y `docs/RELEASE_CHECKLIST.md`; `PLAN.md` es histórico.
+- Si `docs/DECISIONS.md` bloquea un cambio, señala la decisión y su motivo en vez de sortearla.
+- Documentación y comentarios en castellano; identificadores de código en inglés. Reglas de producto, audio y contenido: consulta `CLAUDE.md` y los documentos enlazados allí.
 
-## Desarrollo y validación
+## Build y pruebas (raíz del repo)
 
-- Es un único paquete SwiftPM, sin dependencias externas, con mínimo macOS 12: `swift build` y `swift test` son las comprobaciones generales.
-- Para el núcleo o los recursos, usa `swift test --filter XRollCoreTests`; los tests cargan el kit y el catálogo incluidos desde la raíz del repositorio.
-- Tras cambiar `Resources/` o `data/exercises/`, ejecuta `swift run xroll-preflight`; valida `kit.json`, WAV y ejercicios antes de probar la app.
-- Ejecuta la aplicación SwiftUI/SpriteKit con `swift run xroll-pads`. Crea el bundle distribuible con `scripts/build-app.sh`; empaqueta `Resources/` y `data/` en `dist/xRoll.app`.
-- Las pruebas de MIDI/audio requieren hardware. Usa `swift run xroll-preflight` para obtener los UID de entrada y limita los diagnósticos internos con `--source <uid>`; no uses `--log-events` durante ellos.
+- Es un único paquete SwiftPM, sin dependencias externas, con objetivo macOS 12. CI ejecuta `swift build` y después `swift test`.
+- Para cambios del núcleo/recursos: `swift test --filter XRollCoreTests`.
+- Tras cambiar `Resources/` o `data/exercises/`, ejecuta `swift run xroll-preflight` antes de probar la app.
+- App: `swift run xroll-pads`. Bundle local: `scripts/build-app.sh` (reconstruye `dist/xRoll.app`; no reutilices una copia antigua). Las demás CLI y sus opciones están en `README.md`.
 
-## Arquitectura y contenido
+## Límites de arquitectura que afectan cambios
 
-- `Sources/XRollCore` posee recursos, CoreMIDI, AVAudioEngine, reloj, puntuación, calibración y SQLite. `Sources/XRollPads` es la app; `PracticeScene` solo renderiza y no debe asumir lógica de tiempo o scoring.
-- Los ejercicios integrados son MIDI en `data/exercises/`. Deben ser 4/4, BPM fijo, usar el kit declarado y sonidos válidos; un nivel introduce una sola dificultad nueva.
-- `kit.json` es la fuente de verdad para archivos de audio y notas GM: nunca nombres WAV en código. Los IDs de sonido son los canónicos de `docs/AUDIO.md` y usan minúsculas con guion bajo.
-- La disposición visual procede del `.padmap` v2 y conserva las coordenadas físicas. No impongas un orden de pads en la interfaz ni alteres números/canales MIDI al aplicar layouts.
-- Si añades audio, registra su autoría y licencia en `Resources/Loops/ATTRIBUTION.md` en el mismo cambio. Código, audio, gráficos y documentación: MIT.
-
-## Convenciones
-
-- Documentación y comentarios en castellano; identificadores de código en inglés.
-- Si una decisión de `docs/DECISIONS.md` bloquea el cambio, señálalo explícitamente en lugar de sortearla.
+- `Sources/XRollCore` contiene el motor y los servicios compartidos; `Sources/XRollPads` contiene la app. `PracticeScene` renderiza estado y emite eventos: no es dueña del reloj ni del scoring.
+- En la ruta CoreMIDI, el callback solo encola paquetes en `XRollRealtimeQueue`; el worker los decodifica y distribuye. No añadas logging ni trabajo pesado al callback.
+- `MIDINoteOn.hostTime` es el instante de entrada canónico para puntuar. Los golpes vivos se reproducen inmediatamente; solo preview, loop y metrónomo se programan a host time futuro.
+- No reconfigures audio mientras el worker MIDI esté activo. Mantén cada `SampleAudioEngine` en un único contexto de control.
+- Las pruebas automatizadas no tienen hardware. Para diagnósticos, identifica el UID con `xroll-preflight`, limita la entrada con `--source <uid>` y usa `--check` cuando no deban esperarse golpes. No uses `--log-events` en diagnósticos de latencia; consulta `docs/LATENCY_PROTOCOL.md`.
+- No afirmes latencia, FPS o precisión sin una medición reproducible. La validación manual pendiente está en `docs/RELEASE_CHECKLIST.md`.

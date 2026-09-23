@@ -570,8 +570,8 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(CourseProgress.states(exercises: exercises, progress: ["level_1": first]).map(\.status), [.mastered, .available, .locked])
     }
 
-    func testParsesVersionedCurriculumMetadataFromMIDITextEvents() {
-        let metadata = MIDIExerciseMetadataParser.parse(textEvents: [
+    func testParsesVersionedCurriculumMetadataFromMIDITextEvents() throws {
+        let metadata = try MIDIExerciseMetadataParser.parse(textEvents: [
             "unrelated text",
             "xroll/1 id=02_sub_04_bombo_y",
             "xroll/1 chapter=subdivision",
@@ -591,13 +591,19 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(metadata?.flags, ["checkpoint"])
     }
 
-    func testRejectsMalformedCurriculumMetadataWithoutRejectingPlainMIDI() {
-        XCTAssertNil(MIDIExerciseMetadataParser.parse(textEvents: ["unrelated text"]))
-        XCTAssertNil(MIDIExerciseMetadataParser.parse(textEvents: [
+    func testRejectsMalformedCurriculumMetadataWithoutRejectingPlainMIDI() throws {
+        XCTAssertNil(try MIDIExerciseMetadataParser.parse(textEvents: ["unrelated text"]))
+        XCTAssertThrowsError(try MIDIExerciseMetadataParser.parse(textEvents: [
             "xroll/1 id=duplicate",
             "xroll/1 id=duplicate-again",
             "xroll/1 chapter=test",
             "xroll/1 position=1"
+        ]))
+        XCTAssertThrowsError(try MIDIExerciseMetadataParser.parse(textEvents: [
+            "xroll/1 id=test",
+            "xroll/1 chapter=test",
+            "xroll/1 position=1",
+            "xroll/1 recommended-help=turbo"
         ]))
     }
 
@@ -858,5 +864,191 @@ final class ResourceModelsTests: XCTestCase {
         let detected = LoopTempoDetector.detect(url: url)
         XCTAssertEqual(detected?.bpm, 90)
         XCTAssertEqual(detected?.source, "nombre del archivo")
+    }
+
+    // MARK: - Endurecimiento del loader MIDI y validación de recursos
+
+    private func writeCommunityMIDI(track: [UInt8], division: UInt16 = 480) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-loader-\(UUID().uuidString).mid")
+        let header: [UInt8] = [
+            0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1,
+            UInt8(division >> 8), UInt8(division & 0xFF)
+        ]
+        let count = UInt32(track.count)
+        let trackHeader: [UInt8] = [
+            0x4D, 0x54, 0x72, 0x6B,
+            UInt8((count >> 24) & 0xFF), UInt8((count >> 16) & 0xFF),
+            UInt8((count >> 8) & 0xFF), UInt8(count & 0xFF)
+        ]
+        try Data(header + trackHeader + track).write(to: url)
+        return url
+    }
+
+    private func communityKit() -> KitManifest {
+        KitManifest(format: 1, id: "test", name: "Test", sounds: [
+            .init(id: "kick", label: "Bombo", file: "kick.wav", gmNote: 36, chokeGroup: nil),
+            .init(id: "snare", label: "Caja", file: "snare.wav", gmNote: 38, chokeGroup: nil)
+        ])
+    }
+
+    private func vlq(_ value: Int) -> [UInt8] {
+        var bytes: [UInt8] = [UInt8(value & 0x7F)]
+        var remaining = value >> 7
+        while remaining > 0 {
+            bytes.insert(UInt8(remaining & 0x7F) | 0x80, at: 0)
+            remaining >>= 7
+        }
+        return bytes
+    }
+
+    private func tempoTrack(notes: [(delta: Int, note: UInt8)], tempo: [UInt8]? = [0x07, 0xA1, 0x20]) -> [UInt8] {
+        var track: [UInt8] = [0x00, 0xFF, 0x03, 0x04] + Array("Test".utf8)
+        track += [0x00, 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]
+        if let tempo { track += [0x00, 0xFF, 0x51, 0x03] + tempo }
+        for note in notes { track += vlq(note.delta) + [0x99, note.note, 0x64] }
+        track += [0x00, 0xFF, 0x2F, 0x00]
+        return track
+    }
+
+    func testCommunityMIDIRejectsNoteOutsideTheKit() throws {
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36), (120, 45)]))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .unsupportedSound(let note) = error as? MIDIExerciseError, note == 45 else {
+                return XCTFail("Se esperaba rechazar la nota 45, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsMissingTempo() throws {
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36)], tempo: nil))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .missingTempo = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba exigir metaevento de tempo, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsZeroTempo() throws {
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36)], tempo: [0x00, 0x00, 0x00]))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .invalidTempo = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba rechazar tempo cero, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsOffGridSubdivision() throws {
+        // División 480: semicorchea = 120 ticks. El tick 60 no cae en rejilla de 16 ni de 12.
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36), (60, 38)]))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .unsupportedSubdivision(let tick) = error as? MIDIExerciseError, tick == 60 else {
+                return XCTFail("Se esperaba rechazar el tick 60, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testKitRejectsDuplicateGMNote() {
+        let kit = KitManifest(format: 1, id: "test", name: "Test", sounds: [
+            .init(id: "kick", label: "Bombo", file: "kick.wav", gmNote: 36, chokeGroup: nil),
+            .init(id: "snare", label: "Caja", file: "snare.wav", gmNote: 36, chokeGroup: nil)
+        ])
+
+        XCTAssertThrowsError(try kit.validate()) { error in
+            guard case .duplicateNoteNumber(let note) = error as? ResourceValidationError, note == 36 else {
+                return XCTFail("Se esperaba nota GM duplicada, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testKitRejectsUnknownSoundID() {
+        let kit = KitManifest(format: 1, id: "test", name: "Test", sounds: [
+            .init(id: "bombo", label: "Bombo", file: "bombo.wav", gmNote: 36, chokeGroup: nil)
+        ])
+
+        XCTAssertThrowsError(try kit.validate()) { error in
+            guard case .unknownSound(let id) = error as? ResourceValidationError, id == "bombo" else {
+                return XCTFail("Se esperaba sonido fuera del catalogo, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testPadMapV2DuplicatePadIDReportsID() {
+        let map = PadMapV2(id: "test", name: "Test", preset: .custom, device: .init(name: "Pad", uid: 1), created: "2026-09-20", pads: [
+            .init(id: "r0c0", row: 0, column: 0, sound: "kick", input: .init(number: 36, channel: 10)),
+            .init(id: "r0c0", row: 0, column: 1, sound: "snare", input: .init(number: 38, channel: 10))
+        ])
+
+        XCTAssertThrowsError(try map.validate(availableSounds: ["kick", "snare"])) { error in
+            guard case .duplicatePadID(let id) = error as? PadMapValidationError, id == "r0c0" else {
+                return XCTFail("Se esperaba id de pad duplicado, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testPadMapV2DuplicateRoleReportsRole() {
+        let map = PadMapV2(id: "test", name: "Test", preset: .custom, device: .init(name: "Pad", uid: 1), created: "2026-09-20", pads: [
+            .init(id: "r0c0", row: 0, column: 0, sound: "kick", role: "kick_left", input: .init(number: 36, channel: 10)),
+            .init(id: "r0c1", row: 0, column: 1, sound: "kick", role: "kick_left", input: .init(number: 37, channel: 10))
+        ])
+
+        XCTAssertThrowsError(try map.validate(availableSounds: ["kick"])) { error in
+            guard case .duplicateRole(let role) = error as? PadMapValidationError, role == "kick_left" else {
+                return XCTFail("Se esperaba rol duplicado, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testExerciseRejectsInvalidVelocity() {
+        let exercise = Exercise(
+            format: 1, id: "test", title: "Test", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick", velocity: 200)]
+        )
+
+        XCTAssertThrowsError(try exercise.validate(availableSounds: ["kick"])) { error in
+            guard case .invalidVelocity(let velocity) = error as? ResourceValidationError, velocity == 200 else {
+                return XCTFail("Se esperaba velocity invalida, se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testHihatTakesTheFreeHandOnSimultaneousHits() throws {
+        // División 480: paso = 120 ticks. Caja+charles en el paso 0, bombo+charles en el paso 4.
+        // El kit de prueba no trae charles: se usa el real con hihat_closed (42).
+        let kit = try ResourceCatalog().loadKit(at: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/Kits/hiphop_basic/kit.json"))
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 38), (0, 42), (480, 36), (0, 42)]))
+        defer { try? FileManager.default.removeItem(at: url) }
+        let exercise = try MIDIExerciseLoader.load(url: url, kit: kit, level: 1)
+
+        let hands = Dictionary(uniqueKeysWithValues: exercise.notes.map { ("\($0.step):\($0.sound)", $0.hand) })
+        XCTAssertEqual(hands["0:snare"], "R")
+        XCTAssertEqual(hands["0:hihat_closed"], "L", "Con caja simultanea el charles va con la izquierda")
+        XCTAssertEqual(hands["4:kick"], "L")
+        XCTAssertEqual(hands["4:hihat_closed"], "R", "Con bombo simultaneo el charles va con la derecha")
+    }
+
+    func testExerciseRejectsGridOutsideTwelveOrSixteen() {
+        let exercise = Exercise(
+            format: 1, id: "test", title: "Test", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 8, repeats: 1,
+            kit: "kit", loop: nil, offset: 0, notes: []
+        )
+
+        XCTAssertThrowsError(try exercise.validate(availableSounds: [])) { error in
+            guard case .invalidGrid(let grid) = error as? ResourceValidationError, grid == 8 else {
+                return XCTFail("Se esperaba rejilla invalida, se obtuvo: \(error)")
+            }
+        }
     }
 }

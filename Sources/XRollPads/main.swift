@@ -470,10 +470,12 @@ final class Model: ObservableObject {
                 return
             }
             do {
-                audio?.stopScheduledSounds()
-                audio?.stopLoop()
-                try audio?.setOutputDevice(fallback.deviceID)
-                try restoreSavedAudioBuffer(for: fallback)
+                try withSuspendedMIDIInput {
+                    audio?.stopScheduledSounds()
+                    audio?.stopLoop()
+                    try audio?.setOutputDevice(fallback.deviceID)
+                    try restoreSavedAudioBuffer(for: fallback)
+                }
                 UserDefaults.standard.set(fallback.uid, forKey: "xRoll.audioOutputUID")
                 interruptPracticeForRouteChange("La salida cambió a \(fallback.name). El intento no se guardó.")
                 loadCalibration()
@@ -487,6 +489,18 @@ final class Model: ObservableObject {
             return
         }
         status = "Salidas actualizadas: \(selected.name)"
+    }
+
+    /// Suspende la entrega MIDI durante una reconfiguración de audio, como exige
+    /// docs/ARCHITECTURE.md: el worker de entrada no debe seguir activo mientras
+    /// se cambia de salida o de buffer. Al terminar reconecta con `connect()`,
+    /// que ya recarga mapa y calibración. El `status` propio lo fija el llamador
+    /// después, porque `connect()` escribe el suyo.
+    private func withSuspendedMIDIInput(_ body: () throws -> Void) rethrows {
+        let wasConnected = input != nil
+        input = nil
+        defer { if wasConnected { connect() } }
+        try body()
     }
 
     private func interruptPracticeForRouteChange(_ message: String) {
@@ -506,10 +520,12 @@ final class Model: ObservableObject {
     func selectAudioOutput() {
         guard let selected = audioOutputs.first(where: { $0.uid == selectedAudioOutputUID }) else { return }
         do {
-            audio?.stopScheduledSounds()
-            audio?.stopLoop()
-            try audio?.setOutputDevice(selected.deviceID)
-            try restoreSavedAudioBuffer(for: selected)
+            try withSuspendedMIDIInput {
+                audio?.stopScheduledSounds()
+                audio?.stopLoop()
+                try audio?.setOutputDevice(selected.deviceID)
+                try restoreSavedAudioBuffer(for: selected)
+            }
             UserDefaults.standard.set(selected.uid, forKey: "xRoll.audioOutputUID")
             loadCalibration()
             status = "Salida de audio: \(selected.name)"
@@ -533,11 +549,13 @@ final class Model: ObservableObject {
     func setAudioBufferFrames(_ frames: UInt32) {
         guard let output = selectedAudioOutput else { return }
         do {
-            audio?.stopScheduledSounds()
-            audio?.stopLoop()
-            audio?.stop()
-            try AudioInspector.setBufferFrameSize(frames, for: output.deviceID)
-            try audio?.start()
+            try withSuspendedMIDIInput {
+                audio?.stopScheduledSounds()
+                audio?.stopLoop()
+                audio?.stop()
+                try AudioInspector.setBufferFrameSize(frames, for: output.deviceID)
+                try audio?.start()
+            }
             UserDefaults.standard.set(Int(frames), forKey: audioBufferPreferenceKey(for: output.uid))
             loadCalibration()
             status = "Buffer de audio: \(frames). Calibra de nuevo este perfil."

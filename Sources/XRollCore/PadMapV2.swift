@@ -61,14 +61,14 @@ public struct PadMapV2: Codable, Equatable {
         guard format == 2, !id.isEmpty, !name.isEmpty, !device.name.isEmpty else { throw PadMapValidationError.emptyDevice }
         var ids = Set<String>(), positions = Set<String>(), messages = Set<String>(), roles = Set<String>()
         for pad in pads {
-            guard ids.insert(pad.id).inserted else { throw PadMapValidationError.duplicatePosition(row: pad.row, column: pad.column) }
+            guard ids.insert(pad.id).inserted else { throw PadMapValidationError.duplicatePadID(pad.id) }
             guard (0...3).contains(pad.row), (0...3).contains(pad.column) else { throw PadMapValidationError.invalidPosition(row: pad.row, column: pad.column) }
             guard availableSounds.contains(pad.sound) else { throw PadMapValidationError.unknownSound(pad.sound) }
             guard positions.insert("\(pad.row):\(pad.column)").inserted else { throw PadMapValidationError.duplicatePosition(row: pad.row, column: pad.column) }
             guard pad.input.message == "note", (0...127).contains(pad.input.number) else { throw PadMapValidationError.invalidNote(pad.input.number) }
             guard (1...16).contains(pad.input.channel) else { throw PadMapValidationError.invalidChannel(pad.input.channel) }
-            guard messages.insert("\(pad.input.number):\(pad.input.channel)").inserted else { throw PadMapValidationError.duplicateMessage(note: pad.input.number, channel: pad.input.channel) }
-            if let role = pad.role { guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateSound(role) } }
+            guard messages.insert("\(pad.input.message):\(pad.input.number):\(pad.input.channel)").inserted else { throw PadMapValidationError.duplicateMessage(note: pad.input.number, channel: pad.input.channel) }
+            if let role = pad.role { guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateRole(role) } }
         }
     }
 

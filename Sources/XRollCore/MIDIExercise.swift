@@ -5,6 +5,10 @@ public enum MIDIExerciseError: LocalizedError {
     case unsupportedTiming
     case unsupportedMeter
     case unsupportedTempoChanges
+    case missingTempo
+    case invalidTempo
+    case unsupportedSound(note: Int)
+    case unsupportedSubdivision(tick: Int)
     case noPlayableNotes
 
     public var errorDescription: String? {
@@ -13,6 +17,10 @@ public enum MIDIExerciseError: LocalizedError {
         case .unsupportedTiming: return "El MIDI debe usar pulsos por negra, no timecode."
         case .unsupportedMeter: return "El MIDI debe estar en compás 4/4."
         case .unsupportedTempoChanges: return "El MIDI debe mantener un BPM fijo."
+        case .missingTempo: return "El MIDI debe declarar un BPM con un metaevento de tempo."
+        case .invalidTempo: return "El tempo del MIDI debe ser mayor que cero."
+        case .unsupportedSound(let note): return "La nota MIDI \(note) no pertenece al kit activo."
+        case .unsupportedSubdivision(let tick): return "El MIDI usa una subdivision fuera de la rejilla (tick \(tick))."
         case .noPlayableNotes: return "El MIDI no contiene notas de percusión del kit activo."
         }
     }
@@ -32,7 +40,7 @@ public enum MIDIExerciseLoader {
         guard division & 0x8000 == 0, division > 0 else { throw MIDIExerciseError.unsupportedTiming }
         if headerLength > 6 { try reader.skip(Int(headerLength - 6)) }
 
-        var tempo = 750_000 // 80 BPM: a friendly fallback for community files
+        var tempo = 0 // Lo fija el unico metaevento de tempo; sin el se rechaza abajo.
         var meter = [4, 4]
         var title: String?
         var endTick = 0
@@ -55,23 +63,36 @@ public enum MIDIExerciseLoader {
 
         guard meter == [4, 4] else { throw MIDIExerciseError.unsupportedMeter }
         guard tempos.count <= 1 else { throw MIDIExerciseError.unsupportedTempoChanges }
-        if let parsedTempo = tempos.first { tempo = parsedTempo }
+        guard let parsedTempo = tempos.first else { throw MIDIExerciseError.missingTempo }
+        guard parsedTempo > 0 else { throw MIDIExerciseError.invalidTempo }
+        tempo = parsedTempo
         let noteToSound = Dictionary(uniqueKeysWithValues: kit.sounds.map { ($0.gmNote, $0.id) })
         let sixteenthTicks = Double(division) / 4
         let tripletTicks = Double(division) / 3
         let usesTriplets = hits.contains { abs(Double($0.tick).truncatingRemainder(dividingBy: sixteenthTicks)) > 0.01 } && hits.allSatisfy { abs(Double($0.tick).truncatingRemainder(dividingBy: tripletTicks)) < 0.01 }
         let grid = usesTriplets ? 12 : 16
         let ticksPerStep = Double(division) * 4 / Double(grid)
-        let notes = hits.compactMap { hit -> Exercise.Note? in
-            guard let sound = noteToSound[hit.note] else { return nil }
-            let step = Int((Double(hit.tick) / ticksPerStep).rounded())
-            return Exercise.Note(step: step, sound: sound, hand: suggestedHand(for: sound, step: step), velocity: hit.velocity)
+        let resolved = try hits.map { hit -> (tick: Int, step: Int, sound: String, velocity: Int) in
+            guard let sound = noteToSound[hit.note] else { throw MIDIExerciseError.unsupportedSound(note: hit.note) }
+            let position = Double(hit.tick) / ticksPerStep
+            let step = Int(position.rounded())
+            guard abs(position - Double(step)) < 0.01 else { throw MIDIExerciseError.unsupportedSubdivision(tick: hit.tick) }
+            return (hit.tick, step, sound, hit.velocity)
+        }
+        let soundsByTick = Dictionary(grouping: resolved, by: \.tick).mapValues { Set($0.map(\.sound)) }
+        let notes = resolved.map { hit in
+            Exercise.Note(
+                step: hit.step,
+                sound: hit.sound,
+                hand: suggestedHand(for: hit.sound, step: hit.step, simultaneousSounds: soundsByTick[hit.tick] ?? []),
+                velocity: hit.velocity
+            )
         }
         guard !notes.isEmpty else { throw MIDIExerciseError.noPlayableNotes }
         let totalSteps = max(grid, Int(ceil(Double(max(endTick, hits.map(\.tick).max() ?? 0)) / ticksPerStep / Double(grid))) * grid)
         let bpm = max(1, Int((60_000_000 / Double(tempo)).rounded()))
         let fileID = url.deletingPathExtension().lastPathComponent
-        let metadata = MIDIExerciseMetadataParser.parse(textEvents: textEvents)
+        let metadata = try MIDIExerciseMetadataParser.parse(textEvents: textEvents)
         let exercise = Exercise(
             format: 1, id: metadata?.id ?? fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
             family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / grid,
@@ -81,11 +102,16 @@ public enum MIDIExerciseLoader {
         return exercise
     }
 
-    private static func suggestedHand(for sound: String, step: Int) -> String {
+    /// Bombo mano izquierda, caja mano derecha y el charles con la mano que
+    /// quede libre: con caja simultanea va la izquierda, con bombo la derecha.
+    private static func suggestedHand(for sound: String, step: Int, simultaneousSounds: Set<String>) -> String {
         switch sound {
         case "kick", "clap": return "L"
         case "rim": return "R"
-        case "hihat_closed", "hihat_open": return step.isMultiple(of: 4) ? "R" : "L"
+        case "hihat_closed", "hihat_open":
+            if simultaneousSounds.contains("snare") { return "L" }
+            if simultaneousSounds.contains("kick") { return "R" }
+            return step.isMultiple(of: 4) ? "R" : "L"
         default: return "R"
         }
     }

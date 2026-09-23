@@ -7,10 +7,13 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case unknownSound(String)
     case invalidMeter([Int])
     case invalidGrid(Int)
+    case invalidLength(String)
     case invalidOffset(Int)
     case invalidStep(Int)
+    case invalidVelocity(Int)
     case duplicateNote(step: Int, sound: String)
     case invalidHand(String)
+    case duplicateNoteNumber(Int)
 
     public var errorDescription: String? {
         switch self {
@@ -26,14 +29,20 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "El compas \(meter) no es 4/4."
         case .invalidGrid(let grid):
             return "La rejilla \(grid) no es valida."
+        case .invalidLength(let field):
+            return "El campo \(field) debe ser mayor que cero."
         case .invalidOffset(let offset):
             return "El desplazamiento \(offset) queda fuera del ejercicio."
         case .invalidStep(let step):
             return "El paso \(step) queda fuera del ejercicio."
+        case .invalidVelocity(let velocity):
+            return "La velocity \(velocity) queda fuera de 1...127."
         case .duplicateNote(let step, let sound):
             return "La nota \(sound) se repite en el paso \(step)."
         case .invalidHand(let hand):
             return "La mano \(hand) no es valida."
+        case .duplicateNoteNumber(let note):
+            return "La nota MIDI \(note) esta asignada a mas de un sonido."
         }
     }
 }
@@ -58,15 +67,29 @@ public struct KitManifest: Codable, Equatable {
     public let name: String
     public let sounds: [Sound]
 
+    /// Identificadores canónicos de `docs/AUDIO.md`. No se inventan otros sin
+    /// actualizar ese documento.
+    public static let canonicalSoundIDs: Set<String> = [
+        "kick", "rim", "snare", "clap", "tom_low", "hihat_closed", "tom_mid",
+        "hihat_open", "tom_high", "crash", "ride"
+    ]
+
     public func validate() throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
         guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del kit") }
 
         var identifiers = Set<String>()
+        var noteNumbers = Set<Int>()
         for sound in sounds {
             guard !sound.id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id de sonido") }
+            guard Self.canonicalSoundIDs.contains(sound.id) else {
+                throw ResourceValidationError.unknownSound(sound.id)
+            }
             guard identifiers.insert(sound.id).inserted else {
                 throw ResourceValidationError.duplicateSound(sound.id)
+            }
+            guard noteNumbers.insert(sound.gmNote).inserted else {
+                throw ResourceValidationError.duplicateNoteNumber(sound.gmNote)
             }
         }
     }
@@ -115,9 +138,10 @@ public struct Exercise: Codable, Equatable {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
         guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
         guard meter == [4, 4] else { throw ResourceValidationError.invalidMeter(meter) }
-        guard bars > 0, grid > 0, repeats > 0, bpm > 0 else {
-            throw ResourceValidationError.invalidGrid(grid)
-        }
+        guard grid == 12 || grid == 16 else { throw ResourceValidationError.invalidGrid(grid) }
+        guard bars > 0 else { throw ResourceValidationError.invalidLength("bars") }
+        guard repeats > 0 else { throw ResourceValidationError.invalidLength("repeats") }
+        guard bpm > 0 else { throw ResourceValidationError.invalidLength("bpm") }
 
         let totalSteps = bars * grid
         guard (0..<totalSteps).contains(offset) else { throw ResourceValidationError.invalidOffset(offset) }
@@ -132,7 +156,7 @@ public struct Exercise: Codable, Equatable {
             if let hand = note.hand, hand != "L" && hand != "R" {
                 throw ResourceValidationError.invalidHand(hand)
             }
-            if let velocity = note.velocity, !(1...127).contains(velocity) { throw ResourceValidationError.invalidStep(velocity) }
+            if let velocity = note.velocity, !(1...127).contains(velocity) { throw ResourceValidationError.invalidVelocity(velocity) }
             if let target = note.target, target.type != .any, target.value?.isEmpty != false { throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio") }
             let key = "\(note.step):\(note.sound)"
             guard seenNotes.insert(key).inserted else {
