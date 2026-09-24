@@ -43,6 +43,11 @@ los pads no puede salir rentable.
 Un golpe dentro de la ventana de una nota que **ya fue golpeada** cuenta como
 toque de mas, no como segundo intento.
 
+Durante los compases de entrada se pueden probar los pads: esos golpes se
+reproducen y dan feedback visual, pero no se guardan ni penalizan. La excepción
+es un golpe suficientemente anticipado para quedar dentro de la ventana Regular
+del primer pulso; así se conserva el scoring normal de una entrada adelantada.
+
 ## Asociacion entre golpes y notas
 
 - Un golpe se asocia a la nota pendiente del mismo sonido mas cercana en el

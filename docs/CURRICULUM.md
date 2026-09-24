@@ -17,9 +17,13 @@
 13. Jazz.
 14. Clave/Bossa.
 
-El tronco común prepara las habilidades. Las rutas de género siguen una
-secuencia fija: la siguiente ruta se abre al completar el cierre de la anterior.
-Redobles es una ruta técnica transversal y no bloquea esta secuencia.
+El tronco común prepara las habilidades. La ruta guiada recomienda una secuencia
+fija; todos los ejercicios pueden practicarse libremente. Cada capítulo declara
+un checkpoint MIDI final que integra sus habilidades y permite acreditar la
+estación sin completar individualmente todos sus ejercicios básicos. La ruta
+alternativa sigue respetando el orden entre capítulos; un checkpoint futuro
+superado se conserva y se acredita al completar la ruta anterior. Redobles es
+una ruta técnica transversal y no bloquea el curso principal.
 
 ## Regla didáctica
 
@@ -36,16 +40,19 @@ Cada habilidad recorre: descubrir, aislar, integrar y transferir.
 
 ## Estados de progreso
 
-- **Practicado:** existe al menos un intento puntuado.
-- **Completado:** ritmo completo con 70 % o más; abre la siguiente estación.
+- **Practicado:** existe un intento guardado, aunque sea parcial.
+- **Superado a un tempo:** ritmo completo con 70 % o más a ese tempo; solo
+  concede el premio del BPM tocado.
+- **Capítulo acreditado:** todos sus ritmos se superaron a 100 BPM/70 % o se
+  aprobó el checkpoint MIDI final; permite avanzar por la ruta guiada.
 - **Dominado:** ritmo completo con 85 % o más al BPM nominal, sin sesgo o
   dispersión graves según la política de evaluación vigente.
 - **Transferido:** ejercicio ya dominado y superado con ayudas reducidas o en
   fase de transferencia.
 
 Las prácticas de voces, fragmentos y corrección cuentan como práctica, pero no
-como completado, dominado ni transferido. El usuario puede avanzar al completar;
-xRoll recomienda refuerzo hasta dominar y transferir.
+acreditan el curso. El usuario puede abrirlas para aprender; xRoll recomienda el
+siguiente paso guiado y muestra los requisitos que faltan para acreditar.
 
 ## Tronco común
 
@@ -64,8 +71,12 @@ Definida en [INITIATION.md](INITIATION.md).
 | 1.6 | Bombo doble | Variación de bombo | mismos | 70 |
 | Escalera común | Aprender, Base, Consolidar, Difícil, Jefe y Nivel dios | El mismo ritmo a 70, 85, 100, 120, 140 y 160 BPM | mismos | 70 / 85 / 100 / 120 / 140 / 160 |
 
-Todos los ritmos deben completarse a 100 BPM (Consolidar) antes de abrir la
-siguiente estación. Nivel dios dura al menos 16 compases.
+La recomendación propone el siguiente ejercicio de la escalera. Se puede elegir
+cualquier ritmo y tempo; las estrellas/trofeos solo se conceden por resultados
+al tempo correspondiente. La siguiente estación se acredita al superar todos
+sus ejercicios o el checkpoint del capítulo con ritmo completo a 100 BPM y 70 %.
+Los intentos parciales no acreditan el curso. Nivel dios dura al menos 16
+compases.
 
 ### Subdivisión y lectura
 

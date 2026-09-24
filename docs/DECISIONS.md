@@ -249,8 +249,38 @@ Todos los ritmos se practican en Aprender (70 BPM, una estrella), Base (85 BPM,
 dos estrellas), Consolidar (100 BPM, tres estrellas), Difícil (120 BPM, un
 trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios (160 BPM, tres trofeos durante
 al menos 16 compases). Un ritmo solo completa su estación al alcanzar
-Consolidar con al menos 70 %; la siguiente estación permanece bloqueada hasta
-que todos los ritmos de la actual estén consolidados.
+Consolidar con al menos 70 %. Los requisitos para acreditar la estación y avanzar
+se detallan en D-031.
 
 **Por qué:** una escala fija hace comprensible el nivel técnico alcanzado en
 cualquier estilo y evita que el curso avance por un resultado lento aislado.
+
+## D-031 - Ruta guiada con exploración libre y checkpoints de capítulo
+
+El orden principal del curso sigue siendo la recomendación predeterminada, pero
+ningún ejercicio integrado queda bloqueado para practicar. El usuario puede
+seleccionar directamente cualquier tempo de la escalera. Sus premios se ganan
+solo con evidencia a ese tempo; practicar a 100 BPM no inventa estrellas a 70 ni
+a 85 BPM.
+
+Un capítulo se acredita cuando se superan todos sus ejercicios con ritmo
+completo a Consolidar (100 BPM, 70 %) o cuando se supera su ejercicio MIDI
+marcado `checkpoint` con esos mismos requisitos. El checkpoint debe representar
+las habilidades del capítulo y ocupar la última posición del capítulo. Si se
+supera por adelantado, la evidencia se conserva, pero la acreditación se activa
+cuando se completa la ruta anterior. Los intentos parciales no acreditan ni el
+ejercicio ni el capítulo. Los ejercicios de Redobles continúan siendo una ruta
+técnica separada.
+
+**Por qué:** un principiante conserva una siguiente acción clara; una persona con
+experiencia puede demostrar lo que ya sabe sin tocar cada ejercicio básico. El
+progreso acredita ejecución observable y no una autoevaluación subjetiva.
+
+Esta decisión revisa la condición anterior de D-030 que exigía completar cada
+ritmo de la estación. Se mantienen la secuencia, los seis tempos, el umbral de
+Consolidar y el requisito de 16 compases para Nivel dios.
+
+El MIDI debe declarar un único checkpoint en la última posición de cada
+capítulo. Antes de usarlo para acreditar, su patrón se audita para incluir las
+habilidades introducidas por el bloque. El validador rechaza checkpoints
+ausentes, duplicados o que no estén al final.

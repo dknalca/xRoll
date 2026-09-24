@@ -67,6 +67,7 @@ public final class SampleAudioEngine {
     private var soundGains: [String: Float] = [:]
     private var loopBuffer: AVAudioPCMBuffer?
     private var metronomeBuffer: AVAudioPCMBuffer?
+    private var metronomeAccentBuffer: AVAudioPCMBuffer?
     private var latencyClickBuffer: AVAudioPCMBuffer?
     public private(set) var loopTempo: LoopTempo?
     public private(set) var metronomeSourceName: String?
@@ -143,6 +144,15 @@ public final class SampleAudioEngine {
                 scheduledVoices: scheduledVoices
             )
         }
+
+        guard let metronomeFormat = sounds["hihat_closed"]?.buffer.format ?? sounds.values.first?.buffer.format,
+              let regularClick = makeMetronomeClick(format: metronomeFormat, frequency: 1_450),
+              let accentedClick = makeMetronomeClick(format: metronomeFormat, frequency: 2_050) else {
+            throw SampleAudioEngineError.unableToReadSample("claqueta sintetizada")
+        }
+        metronomeBuffer = regularClick
+        metronomeAccentBuffer = accentedClick
+        metronomeSourceName = "claqueta sintetizada"
     }
 
     public func start() throws {
@@ -152,6 +162,7 @@ public final class SampleAudioEngine {
         try engine.start()
     }
 
+    #if os(macOS)
     public func setOutputDevice(_ deviceID: AudioDeviceID) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
@@ -177,6 +188,7 @@ public final class SampleAudioEngine {
             throw error
         }
     }
+    #endif
 
     public func stop() {
         controlLock.lock()
@@ -208,8 +220,7 @@ public final class SampleAudioEngine {
         loopTempo = LoopTempoDetector.detect(url: url)
     }
 
-    /// Loads a dedicated click. If absent, scheduleMetronome keeps the kit
-    /// fallback so an old project remains usable.
+    /// Replaces the synthesized click with an optional custom click sample.
     public func loadMetronome(url: URL) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
@@ -219,17 +230,18 @@ public final class SampleAudioEngine {
         }
         try file.read(into: buffer)
         metronomeBuffer = buffer
+        metronomeAccentBuffer = buffer
         metronomeSourceName = url.lastPathComponent
     }
 
     public func previewMetronome(volume: Float = 1, pitchCents: Float = 0) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
-        guard let buffer = metronomeBuffer ?? sounds["clap"]?.buffer else {
+        guard let buffer = metronomeBuffer else {
             throw SampleAudioEngineError.soundNotLoaded("metrónomo")
         }
         metronomePlayer.stop()
-        metronomeTimePitch.pitch = min(1_200, max(-1_200, pitchCents))
+        metronomeTimePitch.pitch = min(2_400, max(-2_400, pitchCents))
         metronomePlayer.volume = min(1, max(0, volume))
         metronomePlayer.scheduleBuffer(buffer, at: nil, options: [.interrupts])
         metronomePlayer.play()
@@ -340,16 +352,39 @@ public final class SampleAudioEngine {
 
     /// Schedules the click through its own pitch unit so the metronome can be
     /// tuned without transposing drum pads or the accompaniment.
-    public func scheduleMetronome(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
+    public func scheduleMetronome(accented: Bool = false, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
-        guard let buffer = metronomeBuffer ?? sounds[soundID]?.buffer else {
-            throw SampleAudioEngineError.soundNotLoaded(soundID)
+        guard let regularBuffer = metronomeBuffer else {
+            throw SampleAudioEngineError.soundNotLoaded("metrónomo")
         }
-        metronomeTimePitch.pitch = min(1_200, max(-1_200, pitchCents))
+        let buffer = accented ? (metronomeAccentBuffer ?? regularBuffer) : regularBuffer
+        metronomeTimePitch.pitch = min(2_400, max(-2_400, pitchCents))
         metronomePlayer.volume = min(1, max(0, volume))
         metronomePlayer.scheduleBuffer(buffer, at: AVAudioTime(hostTime: hostTime), options: [])
         if !metronomePlayer.isPlaying { metronomePlayer.play() }
+    }
+
+    private func makeMetronomeClick(format: AVAudioFormat, frequency: Double) -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
+        guard sampleRate > 0,
+              format.channelCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleRate * 0.018)),
+              let channels = buffer.floatChannelData else { return nil }
+
+        buffer.frameLength = buffer.frameCapacity
+        let frameCount = Int(buffer.frameLength)
+        for frame in 0..<frameCount {
+            let time = Double(frame) / sampleRate
+            let envelope = exp(-time * 210)
+            let fundamental = sin(2 * Double.pi * frequency * time)
+            let overtone = 0.28 * sin(2 * Double.pi * frequency * 2.73 * time)
+            let sample = Float((fundamental + overtone) * envelope * 0.42)
+            for channel in 0..<Int(format.channelCount) {
+                channels[channel][frame] = sample
+            }
+        }
+        return buffer
     }
 
     private func effectiveVolume(for soundID: String, requested: Float) -> Float {

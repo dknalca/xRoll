@@ -49,6 +49,11 @@ y tres layouts: **xRoll Core**, **Drum Kit** y **Mirror**. La publicación sigue
 pendiente de una medición reproducible de FPS; consulta
 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
+El repositorio también incluye un port de desarrollo universal para iPhone y
+iPad. La compilación, instalación y validación pendiente en hardware están en
+[docs/IOS_BUILD.md](docs/IOS_BUILD.md) y
+[docs/IOS_HARDWARE_TESTS.md](docs/IOS_HARDWARE_TESTS.md).
+
 ## Desarrollo
 
 El nucleo actual es un paquete Swift sin dependencias externas. Desde la raiz del
@@ -97,9 +102,12 @@ notas se programan contra el reloj de audio, con medio segundo de margen antes
 del primer golpe.
 
 Desde **Practicar**, `Empezar practica` abre la rejilla de dieciseis carriles.
-Las notas llegan a la linea de golpe tras dos compases de anticipacion. Cada
-golpe muestra Perfecto, Bien, Regular o Toque extra, junto con su desviacion y
-si llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
+Las notas llegan a la linea de golpe tras dos compases de anticipacion. Durante
+esa entrada puedes probar los pads: los golpes fuera de la ventana del primer
+pulso suenan y se iluminan sin entrar en la puntuacion; los golpes que anticipan
+ese pulso dentro de su ventana se evalúan normalmente. Cada golpe puntuable
+muestra Perfecto, Bien, Regular o Toque extra, junto con su desviacion y si
+llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
 
 Antes de empezar se pueden ajustar los BPM y las vueltas sin modificar el
 ejercicio original. **Calentamiento recomendado** escoge primero un nivel que
@@ -127,6 +135,7 @@ quiera revisar. Los datos permanecen locales en
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
 - Selector de tempo y duración, calentamiento y 77 ejercicios MIDI progresivos
+- Curso libre con ruta recomendada y checkpoints por capítulo
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad

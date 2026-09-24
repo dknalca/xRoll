@@ -37,12 +37,22 @@ enum PracticeViewZoom: String, CaseIterable, Identifiable {
     }
 }
 
+struct SceneVisualClockSnapshot {
+    let renderHostTime: UInt64
+    let estimatedPresentationHostTime: UInt64
+    let frameIntervalMilliseconds: Double
+    let predictedLeadMilliseconds: Double
+}
+
 final class PracticeScene: SKScene {
     private let timeline: ExerciseTimeline
     private let startHostTime: UInt64
     private let anticipationMilliseconds: Double
     private let noteByIndex: [Int: ScheduledExerciseNote]
     private let slotBySound: [String: Int]
+    private let slotByNoteIndex: [Int: Int]
+    private let targetSlotsBySound: [String: [Int]]
+    private let padSlotByID: [String: Int]
     private let soundLabels: [String: String]
     private let showsSoundLabels: Bool
     private let showsNotes: Bool
@@ -53,6 +63,11 @@ final class PracticeScene: SKScene {
     private var viewZoom: PracticeViewZoom
     private var reducesMotion: Bool
     private var usesLowPowerVisuals: Bool
+    private var predictsPresentationFrame: Bool
+    private var previousUpdateTime: TimeInterval?
+    private var smoothedFrameMilliseconds: Double = 0
+    private let visualClockLock = NSLock()
+    private var latestVisualClockSnapshot: SceneVisualClockSnapshot?
     /// Nil = todas las voces son del jugador. Un conjunto permite atenuar en
     /// pantalla las voces que xRoll toca como acompañamiento.
     private let playerSounds: Set<String>?
@@ -68,7 +83,7 @@ final class PracticeScene: SKScene {
     private let progressFill = SKSpriteNode(color: .systemCyan, size: .zero)
     private var hitGlow: SKSpriteNode?
     private var hitLine: SKSpriteNode?
-    private var targetBySound: [String: SKShapeNode] = [:]
+    private var targetBySound: [String: [SKShapeNode]] = [:]
     private var consumedNoteIndices = Set<Int>()
     private var feedbackNoteIndices = Set<Int>()
     private var lastPulseBeat = -1
@@ -80,12 +95,15 @@ final class PracticeScene: SKScene {
     private var extraWaves = [SKShapeNode]()
     private var grooveFlash: SKSpriteNode?
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], slotByNoteIndex: [Int: Int] = [:], targetSlotsBySound: [String: [Int]] = [:], padSlotByID: [String: Int] = [:], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false, predictsPresentationFrame: Bool = false) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.noteByIndex = Dictionary(uniqueKeysWithValues: timeline.notes.map { ($0.index, $0) })
         self.slotBySound = slotBySound
+        self.slotByNoteIndex = slotByNoteIndex
+        self.targetSlotsBySound = targetSlotsBySound.isEmpty ? slotBySound.mapValues { [$0] } : targetSlotsBySound
+        self.padSlotByID = padSlotByID
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
         self.showsNotes = showsNotes
@@ -96,12 +114,32 @@ final class PracticeScene: SKScene {
         self.viewZoom = viewZoom
         self.reducesMotion = reducesMotion
         self.usesLowPowerVisuals = usesLowPowerVisuals
+        self.predictsPresentationFrame = predictsPresentationFrame
         super.init(size: CGSize(width: 960, height: 520))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 0.018, green: 0.035, blue: 0.085, alpha: 1)
     }
 
     required init?(coder: NSCoder) { nil }
+
+    var visualClockSnapshot: SceneVisualClockSnapshot? {
+        visualClockLock.lock()
+        defer { visualClockLock.unlock() }
+        return latestVisualClockSnapshot
+    }
+
+    func setPredictsPresentationFrame(_ enabled: Bool) {
+        visualClockLock.lock()
+        guard predictsPresentationFrame != enabled else {
+            visualClockLock.unlock()
+            return
+        }
+        predictsPresentationFrame = enabled
+        previousUpdateTime = nil
+        smoothedFrameMilliseconds = 0
+        latestVisualClockSnapshot = nil
+        visualClockLock.unlock()
+    }
 
     override func didMove(to view: SKView) {
         view.preferredFramesPerSecond = 60
@@ -122,7 +160,7 @@ final class PracticeScene: SKScene {
     private func rebuildStaticLayer() {
         staticLayer.removeAllChildren()
         targetBySound.removeAll()
-        let activeSlots = Set(slotBySound.values)
+        let activeSlots = Set(slotBySound.values).union(targetSlotsBySound.values.flatMap { $0 })
         let laneWidth = size.width / 16
         let background = SKSpriteNode(color: SKColor(red: 0.025, green: 0.055, blue: 0.13, alpha: 1), size: size)
         background.position = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -200,28 +238,31 @@ final class PracticeScene: SKScene {
         progressFill.position = progressTrack.position
         progressFill.zPosition = 12
         staticLayer.addChild(progressFill)
-        for (sound, slot) in slotBySound {
+        for (sound, slots) in targetSlotsBySound {
             let isPlayerSound = playerSounds?.contains(sound) ?? true
-            let x = (CGFloat(slot) + 0.5) * laneWidth
-            let target = SKShapeNode(rectOf: CGSize(width: laneWidth - 12, height: 42), cornerRadius: 9)
-            target.fillColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? 0.23 : 0.13)
-            target.strokeColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? 0.85 : 0.38)
-            target.lineWidth = 1.5
-            target.position = CGPoint(x: x, y: 36)
-            target.zPosition = 5
-            staticLayer.addChild(target)
-            targetBySound[sound] = target
+            for slot in slots {
+                let x = (CGFloat(slot) + 0.5) * laneWidth
+                let isRecommended = slotBySound[sound] == slot
+                let target = SKShapeNode(rectOf: CGSize(width: laneWidth - 12, height: 42), cornerRadius: 9)
+                target.fillColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? (isRecommended ? 0.23 : 0.12) : 0.08)
+                target.strokeColor = (isPlayerSound ? color(forSlot: slot) : .systemGray).withAlphaComponent(isPlayerSound ? (isRecommended ? 0.85 : 0.42) : 0.26)
+                target.lineWidth = isRecommended ? 1.5 : 1
+                target.position = CGPoint(x: x, y: 36)
+                target.zPosition = 5
+                staticLayer.addChild(target)
+                targetBySound[sound, default: []].append(target)
 
-            if showsSoundLabels {
-                let label = SKLabelNode(text: compactSoundLabel(for: sound))
-                label.fontName = "Avenir Next Demi Bold"
-                label.fontSize = 12
-                label.fontColor = SKColor.white.withAlphaComponent(isPlayerSound ? 1 : 0.42)
-                label.verticalAlignmentMode = .center
-                label.horizontalAlignmentMode = .center
-                label.position = CGPoint(x: x, y: 36)
-                label.zPosition = 6
-                staticLayer.addChild(label)
+                if showsSoundLabels {
+                    let label = SKLabelNode(text: compactSoundLabel(for: sound))
+                    label.fontName = "Avenir Next Demi Bold"
+                    label.fontSize = 12
+                    label.fontColor = SKColor.white.withAlphaComponent(isPlayerSound ? (isRecommended ? 1 : 0.7) : 0.42)
+                    label.verticalAlignmentMode = .center
+                    label.horizontalAlignmentMode = .center
+                    label.position = CGPoint(x: x, y: 36)
+                    label.zPosition = 6
+                    staticLayer.addChild(label)
+                }
             }
         }
     }
@@ -263,7 +304,18 @@ final class PracticeScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        let now = AudioClock.milliseconds(from: startHostTime, to: AudioGetCurrentHostTime())
+        let presentationLead = estimatedPresentationLeadMilliseconds(at: currentTime)
+        let renderHostTime = AudioClock.currentHostTime()
+        let presentationHostTime = AudioClock.hostTime(afterMilliseconds: presentationLead, from: renderHostTime)
+        visualClockLock.lock()
+        latestVisualClockSnapshot = SceneVisualClockSnapshot(
+            renderHostTime: renderHostTime,
+            estimatedPresentationHostTime: presentationHostTime,
+            frameIntervalMilliseconds: smoothedFrameMilliseconds,
+            predictedLeadMilliseconds: presentationLead
+        )
+        visualClockLock.unlock()
+        let now = AudioClock.milliseconds(from: startHostTime, to: presentationHostTime)
         let availableHeight = max(1, size.height - hitY - 18)
         let displayLeadMilliseconds = min(anticipationMilliseconds, timeline.barDurationMilliseconds * viewZoom.bars)
         let elapsed = max(0, now)
@@ -300,7 +352,7 @@ final class PracticeScene: SKScene {
             if feedbackNoteIndices.contains(note.index) { continue }
             guard showsNotes, !hiddenGuideNoteIndices.contains(note.index) else { node.isHidden = true; continue }
             let remaining = note.timeMilliseconds - now
-            guard let slot = slotBySound[note.sound] else {
+            guard let slot = slotByNoteIndex[note.index] ?? slotBySound[note.sound] else {
                 node.isHidden = true
                 if remaining < -120 { notesToRecycle.append(index) }
                 continue
@@ -326,6 +378,23 @@ final class PracticeScene: SKScene {
             node.setScale(0.78 + 0.38 * proximity)
         }
         for index in notesToRecycle { recycleNoteNode(at: index) }
+    }
+
+    /// SpriteKit prepara el siguiente frame antes de que el panel lo muestre.
+    /// En iOS avanzamos solo la imagen por el intervalo de frame observado; el
+    /// score y los eventos MIDI/táctiles conservan su hostTime original.
+    private func estimatedPresentationLeadMilliseconds(at currentTime: TimeInterval) -> Double {
+        visualClockLock.lock()
+        defer { visualClockLock.unlock() }
+        guard predictsPresentationFrame else { return 0 }
+        defer { previousUpdateTime = currentTime }
+        guard let previousUpdateTime else { return smoothedFrameMilliseconds }
+        let interval = (currentTime - previousUpdateTime) * 1_000
+        guard (4...50).contains(interval) else { return smoothedFrameMilliseconds }
+        smoothedFrameMilliseconds = smoothedFrameMilliseconds == 0
+            ? interval
+            : smoothedFrameMilliseconds * 0.8 + interval * 0.2
+        return smoothedFrameMilliseconds
     }
 
     private func prepareVisibleNotes(from startTime: Double, through finalTime: Double) {
@@ -434,7 +503,8 @@ final class PracticeScene: SKScene {
     }
 
     private func color(forSlot slot: Int) -> SKColor {
-        guard let sound = slotBySound.first(where: { $0.value == slot })?.key else { return .systemCyan }
+        guard let sound = targetSlotsBySound.first(where: { $0.value.contains(slot) })?.key
+                ?? slotBySound.first(where: { $0.value == slot })?.key else { return .systemCyan }
         return color(forSound: sound)
     }
 
@@ -453,11 +523,22 @@ final class PracticeScene: SKScene {
     }
 
     /// El score ya es final cuando llega aquí; estas acciones solo lo representan.
-    func showFeedback(sound: String, judgement: RhythmJudgement, noteIndex: Int? = nil, offsetMilliseconds: Double? = nil) {
-        guard let slot = slotBySound[sound] else { return }
+    func showWarmupHit(sound: String, padID: String? = nil) {
+        guard let slot = padID.flatMap({ padSlotByID[$0] }) ?? slotBySound[sound] else { return }
+        pulseTarget(for: sound, color: color(forSound: sound), strength: 0.45, targetSlot: padID.flatMap { padSlotByID[$0] })
+        showHitWord("SIN PUNTUAR", at: (CGFloat(slot) + 0.5) * size.width / 16, color: color(forSound: sound))
+    }
+
+    func showFeedback(sound: String, judgement: RhythmJudgement, noteIndex: Int? = nil, offsetMilliseconds: Double? = nil, occurredAtHostTime: UInt64? = nil, padID: String? = nil) {
+        guard let slot = padID.flatMap({ padSlotByID[$0] }) ?? slotBySound[sound] else { return }
+        let callbackNow = AudioClock.currentHostTime()
+        let eventAgeMilliseconds = occurredAtHostTime.map { AudioClock.milliseconds(from: $0, to: callbackNow) } ?? 0
+        let frameInterval = visualClockSnapshot?.frameIntervalMilliseconds ?? 0
+        let feedbackArrivedAfterItsFrame = occurredAtHostTime != nil && eventAgeMilliseconds > max(1, frameInterval)
+        let minimizesFeedback = usesMinimalFeedback || feedbackArrivedAfterItsFrame
         if judgement == .extra || judgement == .miss {
             successfulStreak = 0
-            if !usesMinimalFeedback { showExtraWave(at: slot) }
+            if !minimizesFeedback { showExtraWave(at: slot) }
             showHitWord(judgement == .extra ? "EXTRA" : "FALLO", at: (CGFloat(slot) + 0.5) * size.width / 16, color: .systemRed)
             return
         }
@@ -472,8 +553,9 @@ final class PracticeScene: SKScene {
         impact.zPosition = 14
         impact.alpha = 1
         let x = (CGFloat(slot) + 0.5) * size.width / 16
-        if !wasVisible { impact.position = CGPoint(x: x, y: hitY + 5) }
-        let snap = usesMinimalFeedback
+        if padID.flatMap({ padSlotByID[$0] }) != nil { impact.position.x = x }
+        if feedbackArrivedAfterItsFrame || !wasVisible { impact.position = CGPoint(x: x, y: hitY + 5) }
+        let snap = minimizesFeedback
             ? SKAction.move(to: CGPoint(x: x, y: hitY + 5), duration: 0)
             : SKAction.group([
                 .move(to: CGPoint(x: x, y: hitY + 5), duration: 0.055),
@@ -485,26 +567,26 @@ final class PracticeScene: SKScene {
             if abs(offsetMilliseconds) < 0.5 { timingSuffix = " · A TIEMPO" }
             else { timingSuffix = String(format: " · %.0f ms %@", abs(offsetMilliseconds), offsetMilliseconds < 0 ? "ANTES" : "DESPUÉS") }
         } else { timingSuffix = "" }
-        pulseTarget(for: sound, color: color, strength: judgement == .perfect ? 1 : 0.7)
+        pulseTarget(for: sound, color: color, strength: judgement == .perfect ? 1 : 0.7, targetSlot: padID.flatMap { padSlotByID[$0] })
         switch judgement {
         case .perfect:
             successfulStreak += 1
-            if !usesMinimalFeedback { emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 7) }
+            if !minimizesFeedback { emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 7) }
             showHitWord("¡CLAVADO!\(timingSuffix)", at: x, color: color)
-            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: usesMinimalFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.42, duration: 0.13), .fadeAlpha(to: 0.95, duration: 0.13)]), exit: usesMinimalFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 54, duration: 0.34), .fadeOut(withDuration: 0.34)])))
+            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: minimizesFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.42, duration: 0.13), .fadeAlpha(to: 0.95, duration: 0.13)]), exit: minimizesFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 54, duration: 0.34), .fadeOut(withDuration: 0.34)])))
         case .good:
             successfulStreak += 1
-            if !usesMinimalFeedback { emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 4) }
+            if !minimizesFeedback { emitTrail(from: CGPoint(x: x, y: hitY + 5), color: color, count: 4) }
             showHitWord("BIEN\(timingSuffix)", at: x, color: color)
-            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: usesMinimalFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.18, duration: 0.13), .fadeAlpha(to: 0.82, duration: 0.13)]), exit: usesMinimalFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 38, duration: 0.30), .fadeOut(withDuration: 0.30)])))
+            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: minimizesFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.18, duration: 0.13), .fadeAlpha(to: 0.82, duration: 0.13)]), exit: minimizesFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 38, duration: 0.30), .fadeOut(withDuration: 0.30)])))
         case .regular:
             successfulStreak = 0
             let direction: CGFloat = (offsetMilliseconds ?? 0) < 0 ? -1 : 1
             showHitWord("CASI\(timingSuffix)", at: x, color: .systemYellow)
-            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: .wait(forDuration: 0), exit: usesMinimalFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: direction * 35, y: 18, duration: 0.32), .fadeOut(withDuration: 0.32)])))
+            impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: .wait(forDuration: 0), exit: minimizesFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: direction * 35, y: 18, duration: 0.32), .fadeOut(withDuration: 0.32)])))
         case .miss, .extra: break
         }
-        if successfulStreak >= 4 { successfulStreak = 0; if !usesMinimalFeedback { showGrooveFlash() } }
+        if successfulStreak >= 4 { successfulStreak = 0; if !minimizesFeedback { showGrooveFlash() } }
     }
 
     private func pulseHitLine(isBar: Bool) {
@@ -529,20 +611,24 @@ final class PracticeScene: SKScene {
         }
     }
 
-    private func pulseTarget(for sound: String, color: SKColor, strength: CGFloat) {
-        guard let target = targetBySound[sound] else { return }
-        target.removeAction(forKey: "impact")
-        let originalFill = target.fillColor
-        target.fillColor = color.withAlphaComponent(0.88)
-        if usesMinimalFeedback {
-            target.run(.sequence([.fadeAlpha(to: 1, duration: 0.05), .fadeAlpha(to: 0.95, duration: 0.20), .run { target.fillColor = originalFill }]), withKey: "impact")
-            return
+    private func pulseTarget(for sound: String, color: SKColor, strength: CGFloat, targetSlot: Int?) {
+        guard let targets = targetBySound[sound], !targets.isEmpty else { return }
+        let slots = targetSlotsBySound[sound] ?? []
+        for (index, target) in targets.enumerated() {
+            if let targetSlot, slots.indices.contains(index), slots[index] != targetSlot { continue }
+            target.removeAction(forKey: "impact")
+            let originalFill = target.fillColor
+            target.fillColor = color.withAlphaComponent(0.88)
+            if usesMinimalFeedback {
+                target.run(.sequence([.fadeAlpha(to: 1, duration: 0.05), .fadeAlpha(to: 0.95, duration: 0.20), .run { target.fillColor = originalFill }]), withKey: "impact")
+                continue
+            }
+            target.run(.sequence([
+                .group([.scale(to: 1 + 0.22 * strength, duration: 0.08), .fadeAlpha(to: 1, duration: 0.08)]),
+                .group([.scale(to: 1, duration: 0.34), .fadeAlpha(to: 0.95, duration: 0.34)]),
+                .run { target.fillColor = originalFill }
+            ]), withKey: "impact")
         }
-        target.run(.sequence([
-            .group([.scale(to: 1 + 0.22 * strength, duration: 0.08), .fadeAlpha(to: 1, duration: 0.08)]),
-            .group([.scale(to: 1, duration: 0.34), .fadeAlpha(to: 0.95, duration: 0.34)]),
-            .run { target.fillColor = originalFill }
-        ]), withKey: "impact")
     }
 
     private func showHitWord(_ text: String, at x: CGFloat, color: SKColor) {

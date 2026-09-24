@@ -104,6 +104,17 @@ public enum PadLayoutFactory {
     /// controller. MIDI note and channel remain attached to their physical
     /// row/column; only the sound assigned to that pad changes.
     public static func applying(_ preset: PadLayoutPreset, to physicalMap: PadMapV2) -> PadMapV2 {
+        if preset == .custom {
+            return PadMapV2(
+                id: physicalMap.id,
+                name: physicalMap.name,
+                preset: .custom,
+                orientation: physicalMap.orientation,
+                device: physicalMap.device,
+                created: physicalMap.created,
+                pads: physicalMap.pads
+            )
+        }
         let template = make(preset, device: physicalMap.device)
         let physicalByPosition = Dictionary(uniqueKeysWithValues: physicalMap.pads.map { ("\($0.row):\($0.column)", $0) })
         let pads = template.pads.compactMap { desired -> PadMapV2.Pad? in

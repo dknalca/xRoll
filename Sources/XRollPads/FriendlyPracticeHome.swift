@@ -427,7 +427,7 @@ struct PreparationHome: View {
     private var tempoLadderPanel: some View {
         StagePanel {
             Text("Ritmo completo · escalera de tempo").font(.headline)
-            Text("Cada paso parte del BPM propio del ritmo. Base desbloquea el curso; Consolidar exige dos resultados sólidos.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            Text("Puedes probar cualquier tempo. Los premios se ganan en el tempo elegido; Consolidar a 100 BPM y 70 % acredita la estación.").font(.caption).foregroundColor(StudioDesign.textSecondary)
             HStack(spacing: 8) {
                 ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
                     tempoStepButton(index: index, step: step)
@@ -736,7 +736,7 @@ private struct BlockProgressHeader: View {
             }
             ProgressView(value: Double(mastered), total: Double(max(1, exercises.count))).tint(StudioDesign.accent)
             if let next {
-                Text(isOpen ? "Siguiente: \(next.title)" : "Bloque pendiente: completa el escalón anterior para abrirlo.")
+                Text(isOpen ? "Siguiente guiada: \(next.title)" : "Puedes explorar el bloque; acredita su checkpoint o supera todos sus ejercicios.")
                     .font(.caption2).foregroundColor(isOpen ? StudioDesign.textSecondary : StudioDesign.textMuted).lineLimit(1)
             } else {
                 Text("Bloque consolidado · sube el tempo o repasa el ritmo completo.").font(.caption2).foregroundColor(StudioDesign.accent)

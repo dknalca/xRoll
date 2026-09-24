@@ -80,7 +80,11 @@ public enum TempoLadder {
     }
 
     public static func passedAttempts(for step: TempoPracticeStep, exerciseID: String, attempts: [PracticeAttempt]) -> Int {
-        attempts.filter {
+        passedAttempts(for: step, exerciseID: exerciseID, evidence: attempts.map(CourseAttemptEvidence.init))
+    }
+
+    public static func passedAttempts(for step: TempoPracticeStep, exerciseID: String, evidence: [CourseAttemptEvidence]) -> Int {
+        evidence.filter {
             $0.exerciseID == exerciseID
                 && $0.bpm == step.bpm
                 && $0.score >= step.requiredScore
@@ -93,21 +97,50 @@ public enum TempoLadder {
         passedAttempts(for: step, exerciseID: exerciseID, attempts: attempts) >= step.requiredPasses
     }
 
+    public static func isPassed(_ step: TempoPracticeStep, exerciseID: String, evidence: [CourseAttemptEvidence]) -> Bool {
+        passedAttempts(for: step, exerciseID: exerciseID, evidence: evidence) >= step.requiredPasses
+    }
+
     public static func nextStep(for exercise: Exercise, attempts: [PracticeAttempt]) -> TempoPracticeStep? {
-        steps(for: exercise).first { !isPassed($0, exerciseID: exercise.id, attempts: attempts) }
+        nextStep(for: exercise, evidence: attempts.map(CourseAttemptEvidence.init))
+    }
+
+    public static func nextStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
+        steps(for: exercise).first { !isPassed($0, exerciseID: exercise.id, evidence: evidence) }
     }
 
     public static func highestPassedStep(for exercise: Exercise, attempts: [PracticeAttempt]) -> TempoPracticeStep? {
-        steps(for: exercise).reversed().first { isPassed($0, exerciseID: exercise.id, attempts: attempts) }
+        highestPassedStep(for: exercise, evidence: attempts.map(CourseAttemptEvidence.init))
+    }
+
+    public static func highestPassedStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
+        steps(for: exercise).reversed().first { isPassed($0, exerciseID: exercise.id, evidence: evidence) }
     }
 
     public static func isConsolidated(_ exercise: Exercise, attempts: [PracticeAttempt], minimumScore: Double = 70) -> Bool {
+        isConsolidated(exercise, evidence: attempts.map(CourseAttemptEvidence.init), minimumScore: minimumScore)
+    }
+
+    public static func isConsolidated(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = 70) -> Bool {
         guard let step = steps(for: exercise).first(where: { $0.label == "Consolidar" }) else { return false }
-        return attempts.contains {
+        return evidence.contains {
             $0.exerciseID == exercise.id
                 && $0.bpm == step.bpm
                 && $0.score >= max(minimumScore, step.requiredScore)
                 && $0.trainingContext.evaluationScope.countsAsCompletePattern
+        }
+    }
+
+    /// A checkpoint concede equivalencias nuevas únicamente con evidencia
+    /// explícita de ritmo completo; el alcance histórico desconocido puede
+    /// mantener progreso previo, pero no crear créditos por checkpoint.
+    public static func isCheckpointPassed(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = 70) -> Bool {
+        guard let step = steps(for: exercise).first(where: { $0.label == "Consolidar" }) else { return false }
+        return evidence.contains {
+            $0.exerciseID == exercise.id
+                && $0.bpm == step.bpm
+                && $0.score >= max(minimumScore, step.requiredScore)
+                && $0.trainingContext.evaluationScope == .fullPattern
         }
     }
 
@@ -175,16 +208,39 @@ public enum WarmupPlanner {
     }
 }
 
+/// Estado de la ruta acreditada. `.locked` indica que aún no se ha acreditado
+/// una estación; no impide seleccionar ni practicar su ejercicio.
 public enum CourseLevelStatus: Equatable {
     case locked
     case available
     case mastered
 }
 
+public enum CourseCreditSource: Equatable {
+    case individualAttempt
+    case checkpoint(exerciseID: String)
+}
+
 public struct CourseLevelState: Equatable {
     public let exerciseID: String
     public let status: CourseLevelStatus
     public let bestScore: Double?
+    public let creditSource: CourseCreditSource?
+    public let chapterAccredited: Bool
+
+    public init(
+        exerciseID: String,
+        status: CourseLevelStatus,
+        bestScore: Double?,
+        creditSource: CourseCreditSource? = nil,
+        chapterAccredited: Bool = false
+    ) {
+        self.exerciseID = exerciseID
+        self.status = status
+        self.bestScore = bestScore
+        self.creditSource = creditSource
+        self.chapterAccredited = chapterAccredited
+    }
 }
 
 /// Mantiene una escalera sencilla para principiantes: superar un nivel al 70 %
@@ -263,14 +319,25 @@ public struct CourseRecommendation: Equatable {
 /// Determina una única tarea actual sin ocultar los ritmos ya desbloqueados.
 public enum CourseRecommendationPlanner {
     public static func recommend(exercises: [Exercise], courseLevels: [CourseLevelState], attempts: [PracticeAttempt]) -> CourseRecommendation? {
-        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0.status) })
-        let ordered = exercises.sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        recommend(exercises: exercises, courseLevels: courseLevels, evidence: attempts.map(CourseAttemptEvidence.init))
+    }
+
+    public static func recommend(exercises: [Exercise], courseLevels: [CourseLevelState], evidence: [CourseAttemptEvidence]) -> CourseRecommendation? {
+        let levelStates = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
+        let states = levelStates.mapValues(\.status)
+        let ordered = exercises
+            .filter { !($0.metadata?.chapter.hasPrefix("fills-") ?? false) }
+            .sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        if !ordered.isEmpty,
+           ordered.allSatisfy({ levelStates[$0.id]?.chapterAccredited == true }) {
+            return nil
+        }
         if let current = ordered.first(where: { states[$0.id] == .available }),
-           let step = TempoLadder.nextStep(for: current, attempts: attempts) {
+           let step = TempoLadder.nextStep(for: current, evidence: evidence) {
             return .init(exerciseID: current.id, courseLevel: current.level, tempoStep: step, isCourseCompletion: step.label == "Consolidar")
         }
-        if let review = ordered.first(where: { states[$0.id] == .mastered && TempoLadder.nextStep(for: $0, attempts: attempts) != nil }),
-           let step = TempoLadder.nextStep(for: review, attempts: attempts) {
+        if let review = ordered.first(where: { states[$0.id] == .mastered && TempoLadder.nextStep(for: $0, evidence: evidence) != nil }),
+           let step = TempoLadder.nextStep(for: review, evidence: evidence) {
             return .init(exerciseID: review.id, courseLevel: review.level, tempoStep: step, isCourseCompletion: false)
         }
         return nil
@@ -281,12 +348,20 @@ public enum CourseRecommendationPlanner {
 /// solo presenta el plan y confirma su configuración antes de iniciar audio.
 public enum NextSessionPlanner {
     public static func plan(exercises: [Exercise], courseLevels: [CourseLevelState], attempts: [PracticeAttempt], eligibleExerciseIDs: Set<String>? = nil) -> NextSessionPlan? {
-        let availableIDs = Set(courseLevels.filter { $0.status != .locked }.map(\.exerciseID))
-        let candidates = exercises
+        let eligible = exercises
             .filter { exercise in
-                (eligibleExerciseIDs?.contains(exercise.id) ?? true) && (availableIDs.isEmpty || availableIDs.contains(exercise.id))
+                (eligibleExerciseIDs?.contains(exercise.id) ?? true)
             }
             .sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0.status) })
+        let levelStates = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
+        let guidedCandidates = courseLevels.isEmpty ? eligible : eligible.filter { states[$0.id] == .available }
+        let reviewCandidates = courseLevels.isEmpty ? eligible : eligible.filter { exercise in
+            guard states[exercise.id] == .mastered else { return false }
+            if case .checkpoint = levelStates[exercise.id]?.creditSource { return false }
+            return true
+        }
+        let candidates = guidedCandidates.isEmpty ? reviewCandidates : guidedCandidates
         guard !candidates.isEmpty else { return nil }
 
         let attemptsByExercise = Dictionary(grouping: attempts, by: \.exerciseID)
@@ -295,7 +370,7 @@ public enum NextSessionPlanner {
         }
 
         if let recent = attempts.first,
-           let current = candidates.first(where: { $0.id == recent.exerciseID }),
+           let current = eligible.first(where: { $0.id == recent.exerciseID }),
            recent.score < 70 {
             if let weak = recent.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weak.accuracy < 70 {
                 return makePlan(for: current, kind: .corrective, reason: "Refuerza \(weak.sound): fue la voz con más margen en el último intento.")

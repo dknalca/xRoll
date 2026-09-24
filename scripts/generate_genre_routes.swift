@@ -58,6 +58,30 @@ let definitions: [Definition] = [
     .init(id: "27_clave_02_dos_tres", title: "Clave 02 · Son 2-3", bpm: 72, bars: 2, hits: [(4,37),(8,37),(16,37),(22,37),(28,37)]),
     .init(id: "27_clave_03_bossa", title: "Clave 03 · Bossa básica", bpm: 72, bars: 2, hits: repeated(e.map { ($0,42) }, bars: 2) + [(0,36),(6,36),(12,36),(20,37),(24,36),(30,36)])
 ]
+let rockCheckpoint: [Hit] = repeated(rockBackbeat, bars: 8) + [(0, 49), (61, 41), (62, 48), (63, 49)]
+let discoOpenBar: [Hit] = disco.filter { !($0.0 == 14 && $0.1 == 42) } + [(14, 46)]
+let discoCheckpoint: [Hit] = repeated(disco, bars: 3) + discoOpenBar.map { ($0.0 + 48, $0.1) } + [(48, 49)]
+let funkBar1: [Hit] = Array(0..<16).map { ($0, 42) } + [(0,36),(4,38),(6,36),(8,36),(12,38)]
+let funkBar2: [Hit] = [0,2,4,6,8,10,14].map { ($0 + 16, 42) } + [(16,36),(20,38),(26,36),(28,38)]
+let funkBar3: [Hit] = Array(0..<16).map { ($0 + 32, 42) } + [(32,36),(35,36),(36,38),(40,36),(43,36),(44,38)]
+let funkBar4: [Hit] = Array(0..<16).map { ($0 + 48, 42) } + [(48,36),(52,38),(52,39),(56,36),(60,38),(60,39)]
+let funkCheckpoint: [Hit] = funkBar1 + funkBar2 + funkBar3 + funkBar4
+let bluesBar: [Hit] = tripletEighths.map { ($0, 51) } + [(0,36),(3,38),(6,36),(9,38)]
+let bluesCycle: [Hit] = repeated(bluesBar, bars: 4, stepsPerBar: 12) + [(44, 36), (47, 41), (46, 48)]
+let bluesCheckpoint: [Hit] = repeated(bluesCycle, bars: 3, stepsPerBar: 48) + [(142, 41), (143, 48), (143, 49)]
+let claveThreeTwo: [Hit] = [(0,37),(6,37),(12,37),(20,37),(24,37)]
+let claveTwoThree: [Hit] = [(4,37),(8,37),(16,37),(22,37),(28,37)]
+let bossaGroove = e.map { ($0, 42) } + [(0,36),(6,36),(12,36),(4,38),(12,38)]
+let claveBossaBar12: [Hit] = claveThreeTwo + claveTwoThree.map { ($0.0 + 32, $0.1) }
+let claveBossaBar34: [Hit] = repeated(bossaGroove, bars: 2).map { ($0.0 + 64, $0.1) }
+let claveBossaCheckpoint: [Hit] = claveBossaBar12 + claveBossaBar34
+let checkpointOverrides: [String: (bars: Int, hits: [Hit])] = [
+    "20_rock_04_resistencia": (8, rockCheckpoint),
+    "21_funk_04_clap": (4, funkCheckpoint),
+    "22_blues_04_cierre": (12, bluesCheckpoint),
+    "24_disco_03_frase": (4, discoCheckpoint),
+    "27_clave_03_bossa": (6, claveBossaCheckpoint)
+]
 func vlq(_ value: Int) -> [UInt8] { var value = value; var bytes = [UInt8(value & 127)]; value >>= 7; while value > 0 { bytes.append(UInt8(value & 127) | 128); value >>= 7 }; return bytes.reversed() }
 func be16(_ value: Int) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 255)] }
 func be32(_ value: Int) -> [UInt8] { [UInt8(value >> 24), UInt8(value >> 16), UInt8(value >> 8), UInt8(value & 255)] }
@@ -79,14 +103,17 @@ for item in definitions {
     let chapter = chapterByPrefix[String(components[0])]!
     let position = Int(components[2])!
     let prerequisite = previousByChapter[chapter] ?? firstPrerequisite[chapter]!
+    let override = checkpointOverrides[item.id]
+    let bars = override?.bars ?? item.bars
+    let hits = override?.hits ?? item.hits
     let title = Array(item.title.utf8); let tempo = 60_000_000 / item.bpm; var events: [(Int, Int, [UInt8])] = [(0,0,[255,3] + vlq(title.count) + title),(0,1,[255,81,3,UInt8((tempo >> 16) & 255),UInt8((tempo >> 8) & 255),UInt8(tempo & 255)]),(0,2,[255,88,4,4,2,24,8])]
     var metadata = ["xroll/1 id=\(item.id)", "xroll/1 chapter=\(chapter)", "xroll/1 position=\(position)", "xroll/1 prerequisite=\(prerequisite)", "xroll/1 objective=\(item.title)", "xroll/1 new-difficulty=\(chapter)-\(position)", "xroll/1 recommended-help=full"]
     let lastPosition = ["rock": 4, "funk": 4, "blues": 4, "jazz": 4, "disco": 3, "reggae": 3, "dembow": 3, "clave-bossa": 3][chapter]!
     if position == lastPosition { metadata.append("xroll/1 flag=checkpoint") }
     for (index, text) in metadata.enumerated() { let bytes = Array(text.utf8); events.append((0, 3 + index, [255, 1] + vlq(bytes.count) + bytes)) }
-    for (step, note) in item.hits { let tick = step * 1_920 / item.grid; events.append((tick,100,[153,UInt8(note),100])); events.append((tick + 60,99,[137,UInt8(note),0])) }
+    for (step, note) in hits { let tick = step * 1_920 / item.grid; events.append((tick,100,[153,UInt8(note),100])); events.append((tick + 60,99,[137,UInt8(note),0])) }
     events.sort { $0.0 == $1.0 ? $0.1 < $1.1 : $0.0 < $1.0 }; var track = [UInt8](); var previous = 0
-    for event in events { track += vlq(event.0 - previous) + event.2; previous = event.0 }; track += vlq(max(0, 1_920 * item.bars - previous)) + [255,47,0]
+    for event in events { track += vlq(event.0 - previous) + event.2; previous = event.0 }; track += vlq(max(0, 1_920 * bars - previous)) + [255,47,0]
     let bytes = Array("MThd".utf8) + be32(6) + be16(0) + be16(1) + be16(480) + Array("MTrk".utf8) + be32(track.count) + track
     try Data(bytes).write(to: directory.appendingPathComponent(item.id + ".mid"), options: .atomic)
     previousByChapter[chapter] = item.id

@@ -1,0 +1,463 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* XRolliOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* XRolliOSApp.swift */; };
+		A10000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift */; };
+		A10000000000000000000003 /* Resources/Kits in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* Resources/Kits */; };
+		A10000000000000000000004 /* data/exercises in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* data/exercises */; };
+		A10000000000000000000005 /* PracticeTimingTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* PracticeTimingTrace.swift */; };
+		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
+		A10000000000000000000007 /* Resources/Loops in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Resources/Loops */; };
+		A10000000000000000000008 /* iOSOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* iOSOptionsView.swift */; };
+		D10000000000000000000001 /* XRollCore/SystemInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* XRollCore/SystemInspection.swift */; };
+		D10000000000000000000002 /* XRollCore/RhythmScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* XRollCore/RhythmScoring.swift */; };
+		D10000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */; };
+		D10000000000000000000004 /* XRollCore/BluetoothMIDI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* XRollCore/BluetoothMIDI.swift */; };
+		D10000000000000000000005 /* XRollCore/Calibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000005 /* XRollCore/Calibration.swift */; };
+		D10000000000000000000006 /* XRollCore/PracticeTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* XRollCore/PracticeTools.swift */; };
+		D10000000000000000000007 /* XRollCore/PedagogicalMIDIValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* XRollCore/PedagogicalMIDIValidator.swift */; };
+		D10000000000000000000008 /* XRollCore/SampleAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* XRollCore/SampleAudioEngine.swift */; };
+		D10000000000000000000009 /* XRollCore/CurriculumValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000009 /* XRollCore/CurriculumValidation.swift */; };
+		D1000000000000000000000A /* XRollCore/KitNoteRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000A /* XRollCore/KitNoteRouter.swift */; };
+		D1000000000000000000000B /* XRollCore/AudioClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000B /* XRollCore/AudioClock.swift */; };
+		D1000000000000000000000C /* XRollCore/LoopPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* XRollCore/LoopPlayback.swift */; };
+		D1000000000000000000000D /* XRollCore/TrainingDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* XRollCore/TrainingDiagnostics.swift */; };
+		D1000000000000000000000E /* XRollCore/PadMapBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* XRollCore/PadMapBuilder.swift */; };
+		D1000000000000000000000F /* XRollCore/PadMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* XRollCore/PadMap.swift */; };
+		D10000000000000000000010 /* XRollCore/MIDIExerciseMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000010 /* XRollCore/MIDIExerciseMetadata.swift */; };
+		D10000000000000000000011 /* XRollCore/ProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000011 /* XRollCore/ProgressStore.swift */; };
+		D10000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift */; };
+		D10000000000000000000013 /* XRollCore/PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000013 /* XRollCore/PracticeSession.swift */; };
+		D10000000000000000000014 /* XRollCore/MIDIExercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000014 /* XRollCore/MIDIExercise.swift */; };
+		D10000000000000000000015 /* XRollCore/ResourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000015 /* XRollCore/ResourceModels.swift */; };
+		D10000000000000000000016 /* XRollCore/CourseGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000016 /* XRollCore/CourseGraph.swift */; };
+		D10000000000000000000017 /* XRollCore/MIDIInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000017 /* XRollCore/MIDIInput.swift */; };
+		D10000000000000000000018 /* XRollCore/TuningSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000018 /* XRollCore/TuningSettings.swift */; };
+		D10000000000000000000019 /* XRollCore/PadMapV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000019 /* XRollCore/PadMapV2.swift */; };
+		D1000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c */; };
+		D1000000000000000000001B /* XRollCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001B /* XRollCore.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D90000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D40000000000000000000001;
+			remoteInfo = XRollCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* XRolliOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRolliOSApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/PracticeScene.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* Resources/Kits */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Kits; sourceTree = "<group>"; };
+		A20000000000000000000004 /* data/exercises */ = {isa = PBXFileReference; lastKnownFileType = folder; path = data/exercises; sourceTree = "<group>"; };
+		A20000000000000000000005 /* xRoll.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xRoll.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000006 /* PracticeTimingTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTimingTrace.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000000000000000000008 /* Resources/Loops */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Loops; sourceTree = "<group>"; };
+		A20000000000000000000009 /* iOSOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSOptionsView.swift; sourceTree = "<group>"; };
+		D20000000000000000000001 /* XRollCore/SystemInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/SystemInspection.swift; sourceTree = "<group>"; };
+		D20000000000000000000002 /* XRollCore/RhythmScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/RhythmScoring.swift; sourceTree = "<group>"; };
+		D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LatencyRecordingAnalysis.swift; sourceTree = "<group>"; };
+		D20000000000000000000004 /* XRollCore/BluetoothMIDI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/BluetoothMIDI.swift; sourceTree = "<group>"; };
+		D20000000000000000000005 /* XRollCore/Calibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/Calibration.swift; sourceTree = "<group>"; };
+		D20000000000000000000006 /* XRollCore/PracticeTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PracticeTools.swift; sourceTree = "<group>"; };
+		D20000000000000000000007 /* XRollCore/PedagogicalMIDIValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PedagogicalMIDIValidator.swift; sourceTree = "<group>"; };
+		D20000000000000000000008 /* XRollCore/SampleAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/SampleAudioEngine.swift; sourceTree = "<group>"; };
+		D20000000000000000000009 /* XRollCore/CurriculumValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/CurriculumValidation.swift; sourceTree = "<group>"; };
+		D2000000000000000000000A /* XRollCore/KitNoteRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/KitNoteRouter.swift; sourceTree = "<group>"; };
+		D2000000000000000000000B /* XRollCore/AudioClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/AudioClock.swift; sourceTree = "<group>"; };
+		D2000000000000000000000C /* XRollCore/LoopPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LoopPlayback.swift; sourceTree = "<group>"; };
+		D2000000000000000000000D /* XRollCore/TrainingDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/TrainingDiagnostics.swift; sourceTree = "<group>"; };
+		D2000000000000000000000E /* XRollCore/PadMapBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PadMapBuilder.swift; sourceTree = "<group>"; };
+		D2000000000000000000000F /* XRollCore/PadMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PadMap.swift; sourceTree = "<group>"; };
+		D20000000000000000000010 /* XRollCore/MIDIExerciseMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/MIDIExerciseMetadata.swift; sourceTree = "<group>"; };
+		D20000000000000000000011 /* XRollCore/ProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/ProgressStore.swift; sourceTree = "<group>"; };
+		D20000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LiveMIDIProcessor.swift; sourceTree = "<group>"; };
+		D20000000000000000000013 /* XRollCore/PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PracticeSession.swift; sourceTree = "<group>"; };
+		D20000000000000000000014 /* XRollCore/MIDIExercise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/MIDIExercise.swift; sourceTree = "<group>"; };
+		D20000000000000000000015 /* XRollCore/ResourceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/ResourceModels.swift; sourceTree = "<group>"; };
+		D20000000000000000000016 /* XRollCore/CourseGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/CourseGraph.swift; sourceTree = "<group>"; };
+		D20000000000000000000017 /* XRollCore/MIDIInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/MIDIInput.swift; sourceTree = "<group>"; };
+		D20000000000000000000018 /* XRollCore/TuningSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/TuningSettings.swift; sourceTree = "<group>"; };
+		D20000000000000000000019 /* XRollCore/PadMapV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PadMapV2.swift; sourceTree = "<group>"; };
+		D2000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = XRollRealtimeQueue/XRollRealtimeQueue.c; sourceTree = "<group>"; };
+		D2000000000000000000001B /* XRollCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = XRollCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1000000000000000000001B /* XRollCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D80000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* iOS */,
+				A40000000000000000000003 /* Project Resources */,
+				A40000000000000000000004 /* Products */,
+				D30000000000000000000001 /* Shared Core Sources */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* XRolliOSApp.swift */,
+				A20000000000000000000009 /* iOSOptionsView.swift */,
+				A20000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift */,
+				A20000000000000000000006 /* PracticeTimingTrace.swift */,
+				A20000000000000000000007 /* Assets.xcassets */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Project Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000003 /* Resources/Kits */,
+				A20000000000000000000004 /* data/exercises */,
+				A20000000000000000000008 /* Resources/Loops */,
+			);
+			name = "Project Resources";
+			sourceTree = "<group>";
+		};
+		A40000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000005 /* xRoll.app */,
+				D2000000000000000000001B /* XRollCore.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000001 /* Shared Core Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D20000000000000000000001 /* XRollCore/SystemInspection.swift */,
+				D20000000000000000000002 /* XRollCore/RhythmScoring.swift */,
+				D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */,
+				D20000000000000000000004 /* XRollCore/BluetoothMIDI.swift */,
+				D20000000000000000000005 /* XRollCore/Calibration.swift */,
+				D20000000000000000000006 /* XRollCore/PracticeTools.swift */,
+				D20000000000000000000007 /* XRollCore/PedagogicalMIDIValidator.swift */,
+				D20000000000000000000008 /* XRollCore/SampleAudioEngine.swift */,
+				D20000000000000000000009 /* XRollCore/CurriculumValidation.swift */,
+				D2000000000000000000000A /* XRollCore/KitNoteRouter.swift */,
+				D2000000000000000000000B /* XRollCore/AudioClock.swift */,
+				D2000000000000000000000C /* XRollCore/LoopPlayback.swift */,
+				D2000000000000000000000D /* XRollCore/TrainingDiagnostics.swift */,
+				D2000000000000000000000E /* XRollCore/PadMapBuilder.swift */,
+				D2000000000000000000000F /* XRollCore/PadMap.swift */,
+				D20000000000000000000010 /* XRollCore/MIDIExerciseMetadata.swift */,
+				D20000000000000000000011 /* XRollCore/ProgressStore.swift */,
+				D20000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift */,
+				D20000000000000000000013 /* XRollCore/PracticeSession.swift */,
+				D20000000000000000000014 /* XRollCore/MIDIExercise.swift */,
+				D20000000000000000000015 /* XRollCore/ResourceModels.swift */,
+				D20000000000000000000016 /* XRollCore/CourseGraph.swift */,
+				D20000000000000000000017 /* XRollCore/MIDIInput.swift */,
+				D20000000000000000000018 /* XRollCore/TuningSettings.swift */,
+				D20000000000000000000019 /* XRollCore/PadMapV2.swift */,
+				D2000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c */,
+			);
+			name = "Shared Core Sources";
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A60000000000000000000001 /* xRoll */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7000000000000000000001 /* Build configuration list for PBXNativeTarget "xRoll" */;
+			buildPhases = (
+				A80000000000000000000001 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A90000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D90000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = xRoll;
+			productName = xRoll;
+			productReference = A20000000000000000000005 /* xRoll.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D40000000000000000000001 /* XRollCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D60000000000000000000001 /* Build configuration list for PBXNativeTarget "XRollCore" */;
+			buildPhases = (
+				D80000000000000000000001 /* Sources */,
+				D80000000000000000000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = XRollCore;
+			productName = XRollCore;
+			productReference = D2000000000000000000001B /* XRollCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1420;
+				TargetAttributes = {
+					A60000000000000000000001 = {
+						CreatedOnToolsVersion = 14.2;
+					};
+				};
+			};
+			buildConfigurationList = A7000000000000000000002 /* Build configuration list for PBXProject "xRoll" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A60000000000000000000001 /* xRoll */,
+				D40000000000000000000001 /* XRollCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A90000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000003 /* Resources/Kits in Resources */,
+				A10000000000000000000004 /* data/exercises in Resources */,
+				A10000000000000000000006 /* Assets.xcassets in Resources */,
+				A10000000000000000000007 /* Resources/Loops in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A80000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* XRolliOSApp.swift in Sources */,
+				A10000000000000000000008 /* iOSOptionsView.swift in Sources */,
+				A10000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift in Sources */,
+				A10000000000000000000005 /* PracticeTimingTrace.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D80000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D10000000000000000000001 /* XRollCore/SystemInspection.swift in Sources */,
+				D10000000000000000000002 /* XRollCore/RhythmScoring.swift in Sources */,
+				D10000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift in Sources */,
+				D10000000000000000000004 /* XRollCore/BluetoothMIDI.swift in Sources */,
+				D10000000000000000000005 /* XRollCore/Calibration.swift in Sources */,
+				D10000000000000000000006 /* XRollCore/PracticeTools.swift in Sources */,
+				D10000000000000000000007 /* XRollCore/PedagogicalMIDIValidator.swift in Sources */,
+				D10000000000000000000008 /* XRollCore/SampleAudioEngine.swift in Sources */,
+				D10000000000000000000009 /* XRollCore/CurriculumValidation.swift in Sources */,
+				D1000000000000000000000A /* XRollCore/KitNoteRouter.swift in Sources */,
+				D1000000000000000000000B /* XRollCore/AudioClock.swift in Sources */,
+				D1000000000000000000000C /* XRollCore/LoopPlayback.swift in Sources */,
+				D1000000000000000000000D /* XRollCore/TrainingDiagnostics.swift in Sources */,
+				D1000000000000000000000E /* XRollCore/PadMapBuilder.swift in Sources */,
+				D1000000000000000000000F /* XRollCore/PadMap.swift in Sources */,
+				D10000000000000000000010 /* XRollCore/MIDIExerciseMetadata.swift in Sources */,
+				D10000000000000000000011 /* XRollCore/ProgressStore.swift in Sources */,
+				D10000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift in Sources */,
+				D10000000000000000000013 /* XRollCore/PracticeSession.swift in Sources */,
+				D10000000000000000000014 /* XRollCore/MIDIExercise.swift in Sources */,
+				D10000000000000000000015 /* XRollCore/ResourceModels.swift in Sources */,
+				D10000000000000000000016 /* XRollCore/CourseGraph.swift in Sources */,
+				D10000000000000000000017 /* XRollCore/MIDIInput.swift in Sources */,
+				D10000000000000000000018 /* XRollCore/TuningSettings.swift in Sources */,
+				D10000000000000000000019 /* XRollCore/PadMapV2.swift in Sources */,
+				D1000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D90000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D40000000000000000000001 /* XRollCore */;
+			targetProxy = D90000000000000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA0000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VDGXRX42BR;
+				GENERATE_INFOPLIST_FILE = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA0000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VDGXRX42BR;
+				GENERATE_INFOPLIST_FILE = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA0000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+			};
+			name = Release;
+		};
+		D50000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CURRENT_PROJECT_VERSION = 1.0.0;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = VDGXRX42BR;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/XRollRealtimeQueue/include";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				MACH_O_TYPE = staticlib;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll.XRollCore;
+				PRODUCT_MODULE_NAME = XRollCore;
+				PRODUCT_NAME = XRollCore;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "iOS/XRollCore-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D50000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CURRENT_PROJECT_VERSION = 1.0.0;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = VDGXRX42BR;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/XRollRealtimeQueue/include";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				MACH_O_TYPE = staticlib;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll.XRollCore;
+				PRODUCT_MODULE_NAME = XRollCore;
+				PRODUCT_NAME = XRollCore;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "iOS/XRollCore-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A7000000000000000000001 /* Build configuration list for PBXNativeTarget "xRoll" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000001 /* Debug */,
+				AA0000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7000000000000000000002 /* Build configuration list for PBXProject "xRoll" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000003 /* Debug */,
+				AA0000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D60000000000000000000001 /* Build configuration list for PBXNativeTarget "XRollCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D50000000000000000000001 /* Debug */,
+				D50000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AB0000000000000000000001 /* Project object */;
+}

@@ -209,4 +209,9 @@ Al implementar o modificar código relacionado con el motor de xRoll:
   estrella), Base (85 BPM, dos estrellas), Consolidar (100 BPM, tres estrellas),
   Difícil (120 BPM, un trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios
   (160 BPM, tres trofeos durante 16 compases). Solo Consolidar al 70 %
-  desbloquea la siguiente estación.
+  acredita un ejercicio. Se puede elegir cualquier escalón: el resultado solo
+  concede el premio del tempo realmente tocado. La estación se acredita al
+  superar todos sus ejercicios o su checkpoint MIDI final (ritmo completo a
+  100 BPM y 70 %); las sesiones parciales no cuentan para el curso. Se permite
+  explorar y practicar capítulos posteriores, pero sus checkpoints adelantados
+  solo acreditan cuando queda completada la ruta anterior.

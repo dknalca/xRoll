@@ -56,9 +56,12 @@ El gráfico representa, en orden cronológico, los 20 intentos más recientes de
 ejercicio elegido.
 
 Las ayudas cambian solo la guía visual: incluso con ayuda **Reducida**, todas
-las notas del ritmo completo siguen siendo objetivos puntuables. Los intentos
-por voces, fragmento o transferencia se guardan como práctica parcial y no
-desbloquean el curso.
+las notas del ritmo completo siguen siendo objetivos puntuables. Puedes
+seleccionar cualquier ejercicio y tempo del curso. Para acreditar una estación,
+completa todos sus ritmos o supera su botón **Demostrar capítulo** a 100 BPM y
+70 %; si ya conoces la estación, no hace falta tocar cada ejercicio básico. Un
+checkpoint adelantado queda guardado y cuenta cuando la ruta previa esté
+acreditada. Los intentos por voces, fragmento o corrección no acreditan el curso.
 
 Para conservar una copia legible de los datos:
 
@@ -78,6 +81,8 @@ La exportación no altera los datos locales.
   a hacer el mapeo del M-Vave.
 - **La puntuación parece adelantada o atrasada:** ejecuta **Calibración guiada**
   con la misma salida de audio que usarás al practicar.
+- La calibración reproduce su claqueta de referencia aunque el metrónomo de
+  práctica esté desactivado en **Opciones**.
 
 ## Accesibilidad
 

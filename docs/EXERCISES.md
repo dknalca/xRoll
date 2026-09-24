@@ -72,7 +72,14 @@ xroll/1 prerequisite=02_sub_03_groove
 xroll/1 objective=Colocar el bombo entre pulsos sin mover la caja
 xroll/1 new-difficulty=first-offbeat-kick
 xroll/1 recommended-help=full
+xroll/1 flag=checkpoint
 ```
+
+Cada capítulo integrado declara exactamente un `flag=checkpoint` en su última
+posición. El patrón de checkpoint representa las habilidades del capítulo; al
+superarlo a 100 BPM, con ritmo completo y al menos 70 %, acredita la estación sin
+inventar puntuaciones para sus ejercicios. El validador rechaza checkpoints
+ausentes, duplicados o que no estén al final.
 
 No hay sidecar JSON. Un MIDI comunitario sin estos metadatos sigue siendo válido
 y practicable, pero no se incorpora al recorrido oficial.

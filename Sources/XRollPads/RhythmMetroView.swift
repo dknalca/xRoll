@@ -65,7 +65,7 @@ struct RhythmMetroView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("METRO DEL RITMO").font(.studioLabel).foregroundColor(StudioDesign.accent)
                         Text("Una estación cada vez").font(.largeTitle.bold())
-                        Text("Aprende una habilidad, compruébala en el groove completo y abre la siguiente estación.")
+                        Text("Sigue la ruta recomendada o explora cualquier ejercicio. Cada estación puede acreditarse con un checkpoint a 100 BPM.")
                             .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
                     }
                     Spacer()
@@ -167,11 +167,11 @@ private struct MetroFastStart: View {
             Image(systemName: "forward.fill").foregroundColor(StudioDesign.regular)
             VStack(alignment: .leading, spacing: 3) {
                 Text("¿Ya tienes base?").font(.subheadline.bold())
-                Text("Prueba \(exercise.title) si ya conoces el patrón. Aun así, la siguiente estación exige Consolidar todos los ritmos previos.")
+                Text("Si ya conoces el ritmo, demuéstralo completo a 100 BPM y 70 %. Superarlo acredita la estación inicial.")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
             }
             Spacer()
-            ActionButton("Probar", prominence: .secondary) { model.openPreparation(exercise) }
+            ActionButton("Demostrar · 100 BPM", prominence: .secondary) { model.openCheckpointAssessment(exercise) }
         }
         .padding(12).background(StudioDesign.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -187,68 +187,114 @@ private struct MetroChapterStation: View {
 
     var body: some View {
         let completed = chapter.exercises.filter { state($0) == .mastered }.count
-        let chapterLocked = chapter.exercises.allSatisfy { state($0) == .locked }
+        let chapterAccredited = model.chapterIsAccredited(chapter.exercises)
+        let checkpoint = chapter.exercises.first { $0.metadata?.flags.contains("checkpoint") == true }
         HStack(alignment: .top, spacing: 12) {
             if isCurrent {
                 Color.clear.frame(width: 48)
             } else {
                 MetroTrainMarker(
                     isCurrent: false,
-                    isCompleted: completed == chapter.exercises.count,
-                    isLocked: chapterLocked,
+                    isCompleted: chapterAccredited,
+                    isLocked: false,
                     isLast: index == totalCount - 1
                 )
             }
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(chapter.title.uppercased()).font(.studioLabel).foregroundColor(chapterLocked ? StudioDesign.textMuted : StudioDesign.accent)
+                        Text(chapter.title.uppercased()).font(.studioLabel).foregroundColor(chapterAccredited ? StudioDesign.accent : StudioDesign.textPrimary)
                         Text(chapter.subtitle).font(.caption).foregroundColor(StudioDesign.textSecondary)
                     }
                     Spacer()
-                    Text("\(completed)/\(chapter.exercises.count)").font(.caption.bold()).foregroundColor(StudioDesign.textSecondary)
+                    Text(chapterAccredited ? "ACREDITADO" : "\(completed)/\(chapter.exercises.count)")
+                        .font(.caption.bold()).foregroundColor(chapterAccredited ? StudioDesign.accent : StudioDesign.textSecondary)
                 }
                 ProgressView(value: Double(completed), total: Double(max(1, chapter.exercises.count))).tint(StudioDesign.accent)
-                Text(chapterLocked ? "Completa la estación anterior para abrir esta ruta." : "Elige cualquier ritmo desbloqueado para repasarlo o seguir avanzando.")
-                    .font(.caption).foregroundColor(chapterLocked ? StudioDesign.textMuted : StudioDesign.textPrimary)
+                Text(chapterAccredited ? "Puedes repasar estos ejercicios o subir el tempo." : "Todos los ritmos se pueden practicar. Acredita la estación con el checkpoint o supera cada ejercicio.")
+                    .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                if let checkpoint, !chapterAccredited {
+                    MetroCheckpointAction(model: model, exercise: checkpoint)
+                }
                 ForEach(Array(chapter.exercises.enumerated()), id: \.element.id) { item in
-                    let exercise = item.element
-                    let exerciseState = state(exercise)
-                    HStack(spacing: 8) {
-                        if isCurrent {
-                            MetroChapterTrainSegment(
-                                state: exerciseState,
-                                isCurrent: exercise.id == model.courseRecommendation?.exerciseID,
-                                hasPrevious: item.offset > 0,
-                                hasNext: item.offset < chapter.exercises.count - 1
-                            )
-                        }
-                        Button { model.openPreparation(exercise) } label: {
-                            HStack(spacing: 9) {
-                                Image(systemName: exerciseState == .mastered ? "checkmark.circle.fill" : "music.note")
-                                    .foregroundColor(exerciseState == .mastered ? StudioDesign.accent : StudioDesign.textSecondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Nivel \(exercise.level) · \(exercise.title)").font(.subheadline.bold()).lineLimit(1)
-                                    Text(exerciseState == .locked ? "Bloqueado" : model.tempoProgressSummary(for: exercise))
-                                        .font(.caption2).foregroundColor(StudioDesign.textSecondary)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption.bold()).foregroundColor(StudioDesign.textMuted)
-                            }
-                            .padding(9)
-                            .background(StudioDesign.surfaceRaised)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(exerciseState == .locked)
-                        .opacity(exerciseState == .locked ? 0.42 : 1)
-                    }
+                    MetroExerciseRow(
+                        model: model,
+                        exercise: item.element,
+                        state: state(item.element),
+                        chapterAccredited: chapterAccredited,
+                        isCurrent: isCurrent,
+                        index: item.offset,
+                        count: chapter.exercises.count
+                    )
                 }
             }
         }
         .padding(13)
-        .background(StudioDesign.surface.opacity(chapterLocked ? 0.55 : 1))
+        .background(StudioDesign.surface)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct MetroCheckpointAction: View {
+    @ObservedObject var model: Model
+    let exercise: Exercise
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ActionButton("Demostrar capítulo · 100 BPM", prominence: .secondary) {
+                model.openCheckpointAssessment(exercise)
+            }
+            Text("Ritmo completo · ≥70 %")
+                .font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
+    }
+}
+
+private struct MetroExerciseRow: View {
+    @ObservedObject var model: Model
+    let exercise: Exercise
+    let state: CourseLevelStatus
+    let chapterAccredited: Bool
+    let isCurrent: Bool
+    let index: Int
+    let count: Int
+
+    private var progressLabel: String {
+        let levelState = model.courseLevels.first(where: { $0.exerciseID == exercise.id })
+        if case .checkpoint(let checkpointID) = levelState?.creditSource {
+            return "Acreditado por checkpoint · \(checkpointID)"
+        }
+        if state == .locked { return "Puedes practicar · pendiente de acreditar" }
+        if state == .mastered && !chapterAccredited { return "Superado individualmente · capítulo pendiente" }
+        if state == .mastered { return "Acreditado" }
+        return model.tempoProgressSummary(for: exercise)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if isCurrent {
+                MetroChapterTrainSegment(
+                    state: state,
+                    isCurrent: exercise.id == model.courseRecommendation?.exerciseID,
+                    hasPrevious: index > 0,
+                    hasNext: index < count - 1
+                )
+            }
+            Button { model.openPreparation(exercise) } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: state == .mastered ? "checkmark.circle.fill" : "music.note")
+                        .foregroundColor(state == .mastered ? StudioDesign.accent : StudioDesign.textSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Nivel \(exercise.level) · \(exercise.title)").font(.subheadline.bold()).lineLimit(1)
+                        Text(progressLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundColor(StudioDesign.textMuted)
+                }
+                .padding(9).background(StudioDesign.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

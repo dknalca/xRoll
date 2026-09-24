@@ -28,6 +28,28 @@ public struct PracticeAttempt: Codable, Equatable {
     }
 }
 
+/// Evidencia compacta que basta para calcular el curso y la escalera sin
+/// cargar todos los registros de golpes del historial.
+public struct CourseAttemptEvidence: Equatable {
+    public let exerciseID: String
+    public let bpm: Int
+    public let score: Double
+    public let stars: Int
+    public let trainingContext: TrainingContext
+
+    public init(exerciseID: String, bpm: Int, score: Double, stars: Int = 0, trainingContext: TrainingContext) {
+        self.exerciseID = exerciseID
+        self.bpm = bpm
+        self.score = score
+        self.stars = stars
+        self.trainingContext = trainingContext
+    }
+
+    public init(attempt: PracticeAttempt) {
+        self.init(exerciseID: attempt.exerciseID, bpm: attempt.bpm, score: attempt.score, stars: attempt.stars, trainingContext: attempt.trainingContext)
+    }
+}
+
 public struct ExerciseProgress: Equatable {
     public let attemptCount: Int
     public let bestScore: Double
@@ -140,10 +162,39 @@ public final class ProgressStore {
             else if let pointer = sqlite3_column_blob(statement, 12) { hitRecords = (try? JSONDecoder().decode([HitRecord].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 12))))) ?? [] }
             else { hitRecords = [] }
             let context: TrainingContext
-            if sqlite3_column_type(statement, 13) == SQLITE_NULL { context = .init() }
-            else if let pointer = sqlite3_column_blob(statement, 13) { context = (try? JSONDecoder().decode(TrainingContext.self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 13))))) ?? .init() }
-            else { context = .init() }
+            if sqlite3_column_type(statement, 13) == SQLITE_NULL { context = .init(evaluationScope: .legacyUnknown) }
+            else if let pointer = sqlite3_column_blob(statement, 13) { context = (try? JSONDecoder().decode(TrainingContext.self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 13))))) ?? .init(evaluationScope: .legacyUnknown) }
+            else { context = .init(evaluationScope: .legacyUnknown) }
             result.append(PracticeAttempt(exerciseID: String(cString: sqlite3_column_text(statement, 0)), timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), bpm: Int(sqlite3_column_int(statement, 2)), score: sqlite3_column_double(statement, 3), stars: Int(sqlite3_column_int(statement, 4)), perfect: Int(sqlite3_column_int(statement, 5)), good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)), miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)), meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10), soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
+        }
+        return result
+    }
+
+    /// Devuelve toda la evidencia ligera necesaria para acreditaciones. No
+    /// aplica el límite de intentos recientes ni carga HitRecord ni estadísticas.
+    public func courseEvidence() throws -> [CourseAttemptEvidence] {
+        let statement = try prepare("SELECT exercise_id, bpm, score, stars, training_context_json FROM attempts ORDER BY timestamp DESC, id DESC")
+        defer { sqlite3_finalize(statement) }
+        var result = [CourseAttemptEvidence]()
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let context: TrainingContext
+            if sqlite3_column_type(statement, 4) == SQLITE_NULL {
+                context = .init(evaluationScope: .legacyUnknown)
+            } else if let pointer = sqlite3_column_blob(statement, 4) {
+                context = (try? JSONDecoder().decode(
+                    TrainingContext.self,
+                    from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 4)))
+                )) ?? .init(evaluationScope: .legacyUnknown)
+            } else {
+                context = .init(evaluationScope: .legacyUnknown)
+            }
+            result.append(CourseAttemptEvidence(
+                exerciseID: String(cString: sqlite3_column_text(statement, 0)),
+                bpm: Int(sqlite3_column_int(statement, 1)),
+                score: sqlite3_column_double(statement, 2),
+                stars: Int(sqlite3_column_int(statement, 3)),
+                trainingContext: context
+            ))
         }
         return result
     }

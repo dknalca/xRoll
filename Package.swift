@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "xRoll",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v12), .iOS(.v16)],
     products: [
         .library(name: "XRollCore", targets: ["XRollCore"]),
         .executable(name: "xroll-preflight", targets: ["XRollPreflight"]),

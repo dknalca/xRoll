@@ -55,15 +55,15 @@ final class Model: ObservableObject {
     /// 0 = guía completa; 1…3 siguen los niveles Gap Metronome del marco D-A-I-T.
     @Published var gapMetronomeLevel = 0
     @Published var practiceHelp: PracticeHelp = .full; @Published var autopilotMessage = ""
-    @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
+    @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published private(set) var unfilteredRecentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
     @Published var historicalDiagnostics: HistoricalDiagnostics?
     @Published var masterySeals = [MasterySeal]()
     @Published var lastHitRecords = [HitRecord](); @Published var whaleMessage = ""; @Published var whaleTargetMessage = ""
-    @Published var courseLevels = [CourseLevelState]()
+    @Published var courseLevels = [CourseLevelState](); @Published private(set) var courseEvidence = [CourseAttemptEvidence]()
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
     @Published var metronomeEnabled = true
-    @Published var metronomeStatus = "Metrónomo del kit"
+    @Published var metronomeStatus = "Claqueta sintetizada (independiente de los sonidos del kit)"
     @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
     @Published var lastTotalHits = 0; @Published var lastWellTimed = 0; @Published var lastRegular = 0; @Published var lastWrong = 0
     @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
@@ -180,13 +180,21 @@ final class Model: ObservableObject {
         return chapters
     }
     var courseRecommendation: CourseRecommendation? {
-        CourseRecommendationPlanner.recommend(exercises: bundledExercises, courseLevels: courseLevels, attempts: recentAttempts)
+        CourseRecommendationPlanner.recommend(exercises: bundledExercises, courseLevels: courseLevels, evidence: courseEvidence)
     }
     func tempoProgressSummary(for exercise: Exercise) -> String {
-        if let step = TempoLadder.highestPassedStep(for: exercise, attempts: recentAttempts) {
+        if let state = courseLevels.first(where: { $0.exerciseID == exercise.id }) {
+            if case .checkpoint(exerciseID: _) = state.creditSource {
+                return "Acreditado por checkpoint"
+            }
+            if state.status == .mastered, !state.chapterAccredited {
+                return "Superado individualmente · capítulo pendiente"
+            }
+        }
+        if let step = TempoLadder.highestPassedStep(for: exercise, evidence: courseEvidence) {
             return "\(step.label) superado · \(step.bpm) BPM · \(step.award.label)"
         }
-        if let step = TempoLadder.nextStep(for: exercise, attempts: recentAttempts) {
+        if let step = TempoLadder.nextStep(for: exercise, evidence: courseEvidence) {
             return "Te toca: \(step.label) · \(step.bpm) BPM"
         }
         return "Escalera completa"
@@ -220,7 +228,7 @@ final class Model: ObservableObject {
     func starsForTempoTier(_ tier: Int, exercise: Exercise? = nil) -> Int? {
         guard tempoPracticeOptions.indices.contains(tier), let id = (exercise ?? chosen)?.id else { return nil }
         let bpm = tempoPracticeOptions[tier].bpm
-        return recentAttempts
+        return courseEvidence
             .filter { $0.exerciseID == id && $0.bpm == bpm }
             .map(\.stars)
             .max()
@@ -236,18 +244,16 @@ final class Model: ObservableObject {
     func tempoTierProgressLabel(_ tier: Int, exercise: Exercise? = nil) -> String {
         guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return "Sin intento" }
         let step = tempoPracticeOptions[tier]
-        let passes = TempoLadder.passedAttempts(for: step, exerciseID: exercise.id, attempts: recentAttempts)
+        let passes = TempoLadder.passedAttempts(for: step, exerciseID: exercise.id, evidence: courseEvidence)
         return "\(min(passes, step.requiredPasses))/\(step.requiredPasses) a \(Int(step.requiredScore)) %"
     }
     func isTempoTierAvailable(_ tier: Int, exercise: Exercise? = nil) -> Bool {
-        guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return false }
-        let next = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
-        guard let next, let nextIndex = tempoPracticeOptions.firstIndex(of: next) else { return true }
-        return tier <= nextIndex
+        let steps = exercise.map(TempoLadder.steps(for:)) ?? tempoPracticeOptions
+        return steps.indices.contains(tier)
     }
     var tempoGuidance: String {
         guard let chosen else { return "Elige un ritmo para ver su escalera de tempo." }
-        guard let step = TempoLadder.nextStep(for: chosen, attempts: recentAttempts) else {
+        guard let step = TempoLadder.nextStep(for: chosen, evidence: courseEvidence) else {
             return "Escalera completada: prueba transferencia o repasa el ritmo con menos ayudas."
         }
         return "Siguiente: \(step.label) a \(step.bpm) BPM (\(step.requiredPasses) resultado\(step.requiredPasses == 1 ? "" : "s") de \(Int(step.requiredScore)) % o más)."
@@ -870,7 +876,8 @@ final class Model: ObservableObject {
         let countInStart = 0.0
         let totalMilliseconds = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
         let metronomeBeats = Int(ceil((totalMilliseconds - countInStart) / beat))
-        if metronomeEnabled {
+        if calibration || metronomeEnabled {
+            let clickVolume = calibration ? max(0.65, tuning.countInVolume) : tuning.countInVolume
             for beatIndex in 0...metronomeBeats {
                 let countInBeats = Int(anticipation / beat)
                 let playedBeat = beatIndex - countInBeats
@@ -886,10 +893,7 @@ final class Model: ObservableObject {
                     }
                 }
                 guard audible else { continue }
-                // A clap on the first beat makes the pulse distinguishable from
-                // the closed hi-hats in the exercise and accompaniment.
-                let sound = beatIndex.isMultiple(of: 4) ? "clap" : "hihat_closed"
-                try? audio?.scheduleMetronome(soundID: sound, atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume), pitchCents: Float(tuning.metronomePitchSemitones * 100))
+                try? audio?.scheduleMetronome(accented: beatIndex.isMultiple(of: 4), atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(clickVolume), pitchCents: Float(tuning.metronomePitchSemitones * 100))
             }
         }
         if loopEnabled && !calibration {
@@ -921,11 +925,7 @@ final class Model: ObservableObject {
         lastWrong = score.misses.count + score.extraCount
         lastPoints = max(0, Double(score.perfectCount) + Double(score.goodCount) * 0.85 + Double(score.regularCount) * 0.7 - Double(score.extraCount) * 0.25)
         lastPossiblePoints = currentPractice.timeline.notes.count
-        let isCompleteRhythm = practiceStepRange == nil && isFullRhythmSelection && !transferCheck
-        let completesCourseStep = score.percentage >= 70
-            && isCompleteRhythm
-            && selectedBPM == 100
-        nextExerciseTitle = completesCourseStep ? exercises.first(where: { $0.level == exercise.level + 1 })?.title : nil
+        nextExerciseTitle = nil
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
@@ -940,7 +940,7 @@ final class Model: ObservableObject {
         let autopilot = PracticeAutopilot.recommend(score: score, insights: practiceInsights, bpm: selectedBPM, repeats: selectedRepeats)
         lastAutopilotRecommendation = autopilot
         autopilotMessage = autopilot.message
-        resultSummary = PracticeResultAnalyzer.summarize(score: score, insights: practiceInsights, hasCorrectivePlan: correctivePlan != nil, canAdvance: nextExerciseTitle != nil)
+        resultSummary = PracticeResultAnalyzer.summarize(score: score, insights: practiceInsights, hasCorrectivePlan: correctivePlan != nil, canAdvance: false)
         // Updating the course can select an exercise. The session must already
         // be closed, otherwise that selection recursively finishes this attempt.
         self.practice = nil; practiceScene = nil; practiceToken = UUID(); isPracticePaused = false
@@ -948,6 +948,17 @@ final class Model: ObservableObject {
             saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
         } else {
             recordAttempt(exercise: exercise, score: score)
+            let canAdvance = isFullRhythmSelection
+                && !transferCheck
+                && practiceStepRange == nil
+                && courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
+                && nextExerciseTitle != nil
+            resultSummary = PracticeResultAnalyzer.summarize(
+                score: score,
+                insights: practiceInsights,
+                hasCorrectivePlan: correctivePlan != nil,
+                canAdvance: canAdvance
+            )
             showingResults = true
         }
         calibrating = false
@@ -1094,7 +1105,7 @@ final class Model: ObservableObject {
         guard let url = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .sorted(by: { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending })
             .first(where: { accepted.contains($0.pathExtension.lowercased()) }) else {
-            metronomeStatus = "Metrónomo del kit (no hay archivo personalizado)"
+            metronomeStatus = "Claqueta sintetizada (independiente de los sonidos del kit)"
             return
         }
         do {
@@ -1290,7 +1301,10 @@ final class Model: ObservableObject {
         guard practice != nil, !isPracticePaused else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isPracticePaused, let current = self.practice else { return }
-            let judged = current.register(.init(sound: sound, hostTime: hostTime, practiceStartHostTime: self.practiceStartHostTime, role: role, padID: padID, velocity: velocity))
+            guard let judged = current.registerIfScorable(.init(sound: sound, hostTime: hostTime, practiceStartHostTime: self.practiceStartHostTime, role: role, padID: padID, velocity: velocity)) else {
+                self.practiceScene?.showWarmupHit(sound: sound, padID: padID)
+                return
+            }
             guard let offset = judged.offsetMilliseconds else {
                 self.practiceScene?.showFeedback(sound: sound, judgement: .extra)
                 return
@@ -1347,17 +1361,19 @@ final class Model: ObservableObject {
             refreshRecentAttempts()
             refreshCourseLevels()
             if scope == .fullPattern, score.percentage >= 70, exercise.bpm == 100,
-               let next = exercises.first(where: { $0.level == exercise.level + 1 }), isAvailable(next) {
-                result += " · Nivel \(next.level) desbloqueado"
+               courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true {
+                result += " · Estación acreditada"
+                nextExerciseTitle = courseRecommendation.flatMap { recommendation in
+                    exercises.first(where: { $0.id == recommendation.exerciseID })?.title
+                }
             }
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
     func chooseExercise(_ exercise: Exercise) {
-        guard isAvailable(exercise) else { return }
         if practice != nil { finishPractice() }
         audio?.stopScheduledSounds(); audio?.stopLoop(); practiceToken = UUID(); previewToken = UUID(); practiceScene = nil; previewScene = nil
         showingResults = false; courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
-        let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
+        let nextStep = TempoLadder.nextStep(for: exercise, evidence: courseEvidence)
         selectedBPM = nextStep?.bpm ?? exercise.bpm
         selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
         if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
@@ -1367,6 +1383,21 @@ final class Model: ObservableObject {
     func openPreparation(_ exercise: Exercise? = nil) {
         if let exercise { chooseExercise(exercise) }
         guard chosen != nil else { return }
+        showingPreparation = true
+    }
+
+    func openCheckpointAssessment(_ exercise: Exercise) {
+        guard exercise.metadata?.flags.contains("checkpoint") == true else { return }
+        chooseExercise(exercise)
+        selectedBPM = 100
+        selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == 100 }) ?? 0
+        selectedRepeats = defaultRepeats(for: exercise)
+        trainingPhase = .integrate
+        practiceStepRange = nil
+        transferCheck = false
+        selectFullRhythm()
+        savePreferences()
+        preview = "Checkpoint de capítulo · ritmo completo a 100 BPM y al menos 70 %."
         showingPreparation = true
     }
     func openNextSession() {
@@ -1380,9 +1411,8 @@ final class Model: ObservableObject {
         showingPreparation = true
     }
     func selectPreparationExercise(_ exercise: Exercise) {
-        guard isAvailable(exercise) else { return }
         courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
-        let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
+        let nextStep = TempoLadder.nextStep(for: exercise, evidence: courseEvidence)
         selectedBPM = nextStep?.bpm ?? exercise.bpm
         selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
         if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
@@ -1391,7 +1421,6 @@ final class Model: ObservableObject {
     /// La portada del curso siempre abre el groove completo del bloque. Sus
     /// capas internas sustituyen a las antiguas tarjetas descompuestas.
     func openCompleteRhythm(_ exercise: Exercise, title: String) {
-        guard isAvailable(exercise) else { return }
         leaveActiveScreen()
         courseTitleOverride = title; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id); showingPreparation = true
@@ -1429,8 +1458,7 @@ final class Model: ObservableObject {
         } catch { progress = "No se pudo leer el progreso: \(error.localizedDescription)" }
     }
     func isAvailable(_ exercise: Exercise) -> Bool {
-        if !bundledExercises.contains(where: { $0.id == exercise.id }) { return true }
-        return courseLevels.first(where: { $0.exerciseID == exercise.id })?.status != .locked
+        exercises.contains(where: { $0.id == exercise.id })
     }
     /// Mantiene una sesión inicial cerca de ocho compases aunque el archivo
     /// sea una frase de dos, tres o cuatro compases. El selector conserva
@@ -1445,9 +1473,19 @@ final class Model: ObservableObject {
         default: return ""
         }
     }
+    func chapterIsAccredited(_ exercises: [Exercise]) -> Bool {
+        !exercises.isEmpty && exercises.allSatisfy { exercise in
+            courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
+        }
+    }
     private func refreshCourseLevels() {
         let attempts = (try? progressStore?.attempts(filter: .init(), limit: 1_000)) ?? []
-        courseLevels = CourseProgress.states(exercises: bundledExercises, attempts: attempts)
+        courseEvidence = (try? progressStore?.courseEvidence()) ?? []
+        if let graph = try? CourseGraph(exercises: bundledExercises) {
+            courseLevels = graph.states(evidence: courseEvidence)
+        } else {
+            courseLevels = CourseProgress.states(exercises: bundledExercises, attempts: attempts)
+        }
         if let chosen = chosen, !isAvailable(chosen), let first = exercises.first(where: isAvailable) {
             chosenID = first.id; selectedBPM = first.bpm; selectedRepeats = first.repeats; preview = ""
             savePreferences(); refreshProgress(for: first.id)
@@ -1455,8 +1493,7 @@ final class Model: ObservableObject {
         refreshNextSessionPlan()
     }
     private func refreshNextSessionPlan() {
-        let attempts = (try? progressStore?.attempts(filter: .init(), limit: 1_000)) ?? []
-        nextSessionPlan = NextSessionPlanner.plan(exercises: exercises, courseLevels: courseLevels, attempts: attempts, eligibleExerciseIDs: Set(bundledExercises.map(\.id)))
+        nextSessionPlan = NextSessionPlanner.plan(exercises: exercises, courseLevels: courseLevels, attempts: unfilteredRecentAttempts, eligibleExerciseIDs: Set(bundledExercises.map(\.id)))
     }
     func savePreferences() {
         let preferences = PracticePreferences(exerciseID: chosenID, bpm: selectedBPM, repeats: selectedRepeats)
@@ -1477,6 +1514,7 @@ final class Model: ObservableObject {
     }
     func refreshRecentAttempts() {
         do {
+            unfilteredRecentAttempts = try progressStore?.attempts(filter: .init(), limit: 100) ?? []
             let filter: ProgressFilter
             switch progressFilter {
             case 1: filter = .init(maximumScore: 74.999)
@@ -1607,7 +1645,7 @@ private struct ExerciseCard: View {
                 Spacer()
             }.padding(10).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor)).clipShape(RoundedRectangle(cornerRadius: 10))
         }.buttonStyle(.plain).disabled(!available)
-            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(available ? "disponible" : "bloqueado")")
+            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(available ? "se puede practicar" : "no disponible en este catálogo")")
     }
 }
 

@@ -28,6 +28,9 @@
   80 % y acompañamiento del resto del compás.
 - Conservación de velocity MIDI para compatibilidad futura y cuatro sellos de
   dominio: precisión, elasticidad, pulso interno y memoria.
+- Curso guiado con exploración libre, checkpoints MIDI por capítulo y evidencia
+  curricular consultada sobre el historial completo; los tempo-awards siguen
+  perteneciendo solo al tempo realmente superado.
 
 ## Próxima capa técnica
 

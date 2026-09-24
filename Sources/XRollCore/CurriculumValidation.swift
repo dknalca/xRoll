@@ -4,6 +4,9 @@ public enum CurriculumValidationError: LocalizedError, Equatable {
     case missingMetadata(String)
     case duplicateID(String)
     case invalidChapterPosition(chapter: String)
+    case missingChapterCheckpoint(chapter: String)
+    case multipleChapterCheckpoints(chapter: String)
+    case checkpointNotLast(chapter: String)
     case unknownPrerequisite(exerciseID: String, prerequisiteID: String)
     case cyclicPrerequisites(String)
     case invalidFastStartCount(Int)
@@ -13,6 +16,9 @@ public enum CurriculumValidationError: LocalizedError, Equatable {
         case .missingMetadata(let id): return "Faltan metadatos curriculares en \(id)."
         case .duplicateID(let id): return "El identificador curricular \(id) está repetido."
         case .invalidChapterPosition(let chapter): return "Las posiciones del capítulo \(chapter) no son consecutivas."
+        case .missingChapterCheckpoint(let chapter): return "El capítulo \(chapter) debe declarar un checkpoint MIDI."
+        case .multipleChapterCheckpoints(let chapter): return "El capítulo \(chapter) declara más de un checkpoint."
+        case .checkpointNotLast(let chapter): return "El checkpoint del capítulo \(chapter) debe ser su última posición."
         case .unknownPrerequisite(let exerciseID, let prerequisiteID): return "\(exerciseID) requiere un ejercicio inexistente: \(prerequisiteID)."
         case .cyclicPrerequisites(let id): return "Los prerrequisitos curriculares contienen un ciclo en \(id)."
         case .invalidFastStartCount(let count): return "El curso debe declarar una sola vía rápida; encontró \(count)."
@@ -34,6 +40,14 @@ public enum CurriculumValidator {
             let positions = chapter.map(\.position).sorted()
             guard positions == Array(1...chapter.count) else {
                 throw CurriculumValidationError.invalidChapterPosition(chapter: chapter[0].chapter)
+            }
+            let checkpoints = chapter.filter { $0.flags.contains("checkpoint") }
+            guard checkpoints.count == 1 else {
+                if checkpoints.isEmpty { throw CurriculumValidationError.missingChapterCheckpoint(chapter: chapter[0].chapter) }
+                throw CurriculumValidationError.multipleChapterCheckpoints(chapter: chapter[0].chapter)
+            }
+            if checkpoints[0].position != chapter.count {
+                throw CurriculumValidationError.checkpointNotLast(chapter: chapter[0].chapter)
             }
         }
         let knownIDs = Set(metadata.map(\.id))

@@ -22,6 +22,17 @@ public final class PracticeSession {
         return score.hits.last ?? ScoredPadHit(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
     }
 
+    /// Descarta los golpes de la cuenta de entrada que quedan fuera de la
+    /// ventana anticipada del primer pulso. Se siguen reproduciendo en vivo;
+    /// sencillamente no forman parte del intento puntuable.
+    @discardableResult
+    public func registerIfScorable(_ hit: TimedPadHit) -> ScoredPadHit? {
+        let regularWindow = scoringWindows?.regularMilliseconds
+            ?? ScoringWindows(bpm: bpm, grid: grid).regularMilliseconds
+        guard hit.timeMilliseconds - calibrationOffsetMilliseconds >= -regularWindow else { return nil }
+        return register(hit)
+    }
+
     public var score: ExerciseScore {
         RhythmScorer.score(
             timeline: timeline,
