@@ -6,20 +6,29 @@ public final class PracticeSession {
     public let grid: Int
     public let calibrationOffsetMilliseconds: Double
     public let scoringWindows: ScoringWindows?
-    public private(set) var hits: [TimedPadHit] = []
+    private let scorer: IncrementalRhythmScorer
+
+    public var hits: [TimedPadHit] { scorer.hits }
 
     public init(exercise: Exercise, calibrationOffsetMilliseconds: Double = 0, scoringWindows: ScoringWindows? = nil) {
-        timeline = ExerciseTimeline(exercise: exercise)
+        let timeline = ExerciseTimeline(exercise: exercise)
+        self.timeline = timeline
         bpm = exercise.bpm
         grid = exercise.grid
         self.calibrationOffsetMilliseconds = calibrationOffsetMilliseconds
         self.scoringWindows = scoringWindows
+        scorer = IncrementalRhythmScorer(
+            timeline: timeline,
+            bpm: exercise.bpm,
+            grid: exercise.grid,
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: scoringWindows
+        )
     }
 
     @discardableResult
     public func register(_ hit: TimedPadHit) -> ScoredPadHit {
-        hits.append(hit)
-        return score.hits.last ?? ScoredPadHit(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+        scorer.register(hit)
     }
 
     /// Descarta los golpes de la cuenta de entrada que quedan fuera de la
@@ -34,13 +43,6 @@ public final class PracticeSession {
     }
 
     public var score: ExerciseScore {
-        RhythmScorer.score(
-            timeline: timeline,
-            bpm: bpm,
-            grid: grid,
-            hits: hits,
-            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
-            scoringWindows: scoringWindows
-        )
+        scorer.score
     }
 }

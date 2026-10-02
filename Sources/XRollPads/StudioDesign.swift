@@ -11,8 +11,6 @@ enum StudioDesign {
     static let textSecondary = Color(red: 0.639, green: 0.671, blue: 0.710)
     static let textMuted = Color(red: 0.427, green: 0.459, blue: 0.502)
     static let accent = Color(red: 0.388, green: 0.902, blue: 0.745)
-    static let leftHand = Color(red: 0, green: 0.447, blue: 0.698)
-    static let rightHand = Color(red: 0.902, green: 0.624, blue: 0)
     static let regular = Color(red: 1, green: 0.831, blue: 0.231)
     static let miss = Color(red: 1, green: 0.420, blue: 0.420)
 }

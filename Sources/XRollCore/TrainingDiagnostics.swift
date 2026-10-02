@@ -138,6 +138,7 @@ public struct WhalePlan: Equatable {
     public let targetSounds: [String]
     public let bpm: Int
     public let message: String
+    public let coachingCue: String
 }
 
 public enum WhaleMethod {
@@ -149,10 +150,26 @@ public enum WhaleMethod {
         let maximum = exercise.bars * exercise.grid - 1
         let range = max(0, problem.1 - 1)...min(maximum, problem.1 + 1)
         let targetSounds = Array(Set(exercise.notes.filter { range.contains($0.step) }.map(\.sound))).sorted()
+        let stepsPerBeat = max(1, exercise.grid / 4)
+        let subdivision = problem.1 % stepsPerBeat
+        let subdivisionName: String
+        if subdivision == 0 {
+            subdivisionName = "el pulso"
+        } else if stepsPerBeat == 4 {
+            subdivisionName = ["", "e", "y", "a"][subdivision]
+        } else if stepsPerBeat == 3 {
+            subdivisionName = ["", "tri", "ple"][subdivision]
+        } else {
+            subdivisionName = "la subdivisión \(subdivision + 1)"
+        }
+        let cue = subdivisionName == "el pulso"
+            ? "Prepara \(problem.0) justo en el pulso; escucha cómo encaja con las voces que siguen sonando."
+            : "Prepara \(problem.0) en «\(subdivisionName)»; escucha cómo encaja con las voces que siguen sonando."
         return WhalePlan(focusSound: problem.0, focusStep: problem.1, stepRange: range,
                          targetSounds: targetSounds,
                          bpm: max(40, Int((Double(exercise.bpm) * 0.8).rounded())),
-                         message: "No es un ejercicio nuevo: detectó un error en \(problem.0) y propone repetir su línea completa; xRoll acompaña el resto.")
+                         message: "Vamos a desbloquear este momento: xRoll aísla una célula breve y acompaña el resto del compás.",
+                         coachingCue: cue)
     }
 }
 

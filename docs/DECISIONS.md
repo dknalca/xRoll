@@ -243,29 +243,32 @@ son herramientas de aprendizaje, no atajos de progreso.
 **Por qué:** una célula aislada o una sola voz puede salir perfecta sin demostrar
 que el usuario controla el groove completo.
 
-## D-030 - El curso usa una escalera fija de seis tempos
+## D-030 - Los retos de tempo no bloquean el aprendizaje básico
 
-Todos los ritmos se practican en Aprender (70 BPM, una estrella), Base (85 BPM,
-dos estrellas), Consolidar (100 BPM, tres estrellas), Difícil (120 BPM, un
-trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios (160 BPM, tres trofeos durante
-al menos 16 compases). Un ritmo solo completa su estación al alcanzar
-Consolidar con al menos 70 %. Los requisitos para acreditar la estación y avanzar
-se detallan en D-031.
+La escalera común (70, 85, 100, 120, 140 y 160 BPM) es una colección de retos
+opcionales, no una serie de pasos obligatorios para aprender. El criterio básico
+de una lección es tocar el patrón completo con al menos 70 % al tempo de
+aprendizaje `min(BPM del MIDI, 100)`. Los premios de reto siguen ligados al tempo
+concreto que se tocó; no se copian a otros tempos. El requisito de 16 compases
+para Nivel dios se mantiene como reto avanzado.
 
-**Por qué:** una escala fija hace comprensible el nivel técnico alcanzado en
-cualquier estilo y evita que el curso avance por un resultado lento aislado.
+**Por qué:** un principiante puede aprender una nueva habilidad sin repetir el
+mismo ritmo a tempos cada vez más altos. Los retos conservan la práctica de
+velocidad para quien la quiera, sin confundir velocidad con progreso curricular.
 
 ## D-031 - Ruta guiada con exploración libre y checkpoints de capítulo
 
 El orden principal del curso sigue siendo la recomendación predeterminada, pero
-ningún ejercicio integrado queda bloqueado para practicar. El usuario puede
-seleccionar directamente cualquier tempo de la escalera. Sus premios se ganan
-solo con evidencia a ese tempo; practicar a 100 BPM no inventa estrellas a 70 ni
-a 85 BPM.
+ningún ejercicio integrado queda bloqueado para practicar. Al elegir una lección,
+la preparación usa su tempo de aprendizaje; tempo, voces y ayudas se pueden
+personalizar. Las estrellas describen el resultado del intento y los premios de
+tempo describen retos opcionales. La recomendación propone una única lección
+siguiente con su objetivo y criterio de aprobación; Inicio, Curso y Resultados
+usan el mismo planificador.
 
 Un capítulo se acredita cuando se superan todos sus ejercicios con ritmo
-completo a Consolidar (100 BPM, 70 %) o cuando se supera su ejercicio MIDI
-marcado `checkpoint` con esos mismos requisitos. El checkpoint debe representar
+completo al tempo de aprendizaje de cada uno (al menos 70 %) o cuando se supera
+su ejercicio MIDI marcado `checkpoint` con esos mismos requisitos. El checkpoint debe representar
 las habilidades del capítulo y ocupar la última posición del capítulo. Si se
 supera por adelantado, la evidencia se conserva, pero la acreditación se activa
 cuando se completa la ruta anterior. Los intentos parciales no acreditan ni el
@@ -276,11 +279,112 @@ técnica separada.
 experiencia puede demostrar lo que ya sabe sin tocar cada ejercicio básico. El
 progreso acredita ejecución observable y no una autoevaluación subjetiva.
 
-Esta decisión revisa la condición anterior de D-030 que exigía completar cada
-ritmo de la estación. Se mantienen la secuencia, los seis tempos, el umbral de
-Consolidar y el requisito de 16 compases para Nivel dios.
+Esta decisión revisa la condición anterior de D-030 que exigía llegar a 100 BPM
+para avanzar. Se mantienen los seis retos opcionales, el umbral de 70 % y el
+requisito de 16 compases para Nivel dios. Los intentos históricos con alcance
+desconocido conservan la regla anterior de 100 BPM; no se acreditan
+retroactivamente por el nuevo criterio.
 
 El MIDI debe declarar un único checkpoint en la última posición de cada
 capítulo. Antes de usarlo para acreditar, su patrón se audita para incluir las
 habilidades introducidas por el bloque. El validador rechaza checkpoints
 ausentes, duplicados o que no estén al final.
+
+## D-032 - Opción de explorar el siguiente ejercicio tras dos estrellas
+
+Al terminar un ritmo completo con al menos dos estrellas, la pantalla de
+resultado ofrece una acción secundaria para practicar el siguiente ejercicio
+del curso, aunque la recomendación guiada todavía proponga otro tempo del ritmo
+actual. Esa elección no acredita el ejercicio ni el capítulo y no altera la
+recomendación oficial; el usuario puede volver a ella desde Curso.
+
+En cada fila del curso se muestra el mayor premio de tempo acreditado para ese
+ejercicio: estrellas hasta Consolidar; al obtener trofeos se muestran solo los
+trofeos y se ocultan las estrellas anteriores. Solo cuentan intentos completos
+que cumplen los requisitos del tempo, incluida la duración de Nivel dios.
+
+**Por qué:** una persona que ya domina el patrón puede continuar voluntariamente
+sin confundir exploración rápida con acreditación curricular. El distintivo
+resume el mayor reto realmente superado sin sumar premios de tempos distintos.
+
+## D-033 - Una pista objetivo por sonido en la práctica
+
+La vista de ejecución dibuja cada nota en una única pista estable por sonido,
+aunque el layout tenga varios pads que produzcan esa voz. El mapa de Equipo
+conserva todas las posiciones físicas y CoreMIDI acepta cada alternativa; los
+objetivos exactos por rol o pad siguen aplicándose al scoring.
+
+**Por qué:** repetir cuadrados idénticos para un bombo duplicado hacía parecer
+que había dos notas que golpear. La práctica enseña el sonido y el tiempo; la
+rejilla de Equipo enseña las posiciones físicas disponibles.
+
+## D-034 - El gameplay identifica sonidos, no manos
+
+En la escena de práctica, cada nota usa el color de su sonido, compartido con el
+carril y el receptor. La silueta de nota es común y no se muestran letras L/R ni
+otra sugerencia visual de mano.
+
+Esta decisión sustituye para el gameplay la codificación de mano descrita en
+D-007 y D-008. Los datos de mano del MIDI se conservan; la escena simplemente no
+los presenta como una instrucción.
+
+**Por qué:** el objetivo visual de la práctica es reconocer qué sonido tocar y
+cuándo. Marcar una mano añadía una instrucción distinta a la identidad del pad y
+competía con el aprendizaje del sonido.
+
+## D-035 - La racha energiza la escena, no altera el score
+
+Cada acierto consecutivo Perfect/Good aumenta gradualmente la respiración de los
+carriles de sonidos activos y la onda de las separaciones. Al recibir un juicio
+Regular, Extra o Miss, el efecto vuelve a su intensidad inicial. Es feedback
+visual solamente: no cambia puntuación, ventanas ni reproducción.
+
+Desde el quinto acierto consecutivo el HUD muestra «Racha xN»; la intensidad
+gráfica se limita aunque el contador continúe. Este contador no acredita
+ejercicios ni altera las recompensas por tempo.
+
+**Por qué:** una cadena de golpes bien colocados debe sentirse más enérgica y
+premiante, pero los efectos no deben convertirse en una regla de juego ni
+competir con la lectura temporal.
+
+## D-037 - Acompañamiento por estilo y BPM con elección manual
+
+La selección automática prefiere loops cuyo nombre indica el estilo del capítulo
+(por ejemplo, `hiphop`) y, entre ellos, la fuente más cercana al BPM de práctica.
+Si no hay coincidencia de estilo, usa el loop genérico más próximo. Preparación y
+Opciones permiten sustituir la recomendación o volver al modo automático. La
+fuente se ajusta al BPM seleccionado sin modificar el tempo ni el scoring del
+ejercicio.
+
+**Por qué:** el acompañamiento debe conservar el carácter del estilo y seguir el
+tempo elegido, sin obligar al usuario a buscar el archivo apropiado.
+
+## D-036 - La preparación propone el primer escalón pendiente
+
+Al entrar en Preparación de un ejercicio, se selecciona el primer escalón de la
+escalera que aún no se ha superado. Superarlo exige al menos dos estrellas,
+ritmo completo y, para Nivel dios, los dieciséis compases. Si todos están
+superados, se conserva como referencia el último escalón. Se puede escoger
+manualmente otro tempo. Esta selección sustituye el tempo inicial de aprendizaje
+de D-031, pero no cambia el criterio de acreditación curricular ni hace
+obligatorios los retos de velocidad. La prueba explícita de un checkpoint sigue
+usando su tempo de aprendizaje, porque esa acción comprueba la acreditación del
+bloque y no un reto de velocidad.
+
+Desde Resultados, «Subir nivel» selecciona el siguiente escalón de BPM pendiente
+por encima del practicado e inicia directamente la práctica guiada; «Siguiente
+ejercicio» continúa abriendo Preparación.
+
+**Por qué:** repetir automáticamente un escalón ya completado oculta el siguiente
+reto al practicar de nuevo el mismo ritmo.
+
+## D-037 - Selección de acompañamiento por estilo y BPM
+
+La selección automática prefiere loops cuyo nombre indica el estilo del capítulo
+(por ejemplo, `hiphop`) y, entre ellos, el BPM fuente más cercano al tempo de
+práctica. Si no hay una coincidencia de estilo, usa el loop genérico más cercano.
+Preparación y Opciones permiten elegir otro loop o volver al modo automático.
+Cambiar de loop nunca cambia el BPM ni el scoring del ejercicio.
+
+**Por qué:** el acompañamiento debe encajar con el carácter del ritmo y evitar
+cambios de velocidad innecesarios, sin quitar al usuario la elección de la banda.

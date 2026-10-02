@@ -10,19 +10,8 @@ Pensado para quien empieza de cero.
 ## Vista rápida
 
 La aplicación reúne preparación, práctica, diagnóstico y configuración del
-controlador en una única ventana. Esta captura muestra el Inicio real de xRoll;
-las imágenes siguientes completan el flujo con estados de práctica y resultado.
-
-<p align="center">
-  <img src="docs/assets/xroll-home.png" alt="Pantalla de inicio real de xRoll" width="1100">
-</p>
-
-<p align="center"><sub>Captura real de la aplicación en macOS. Sin MIDI conectado, xRoll ofrece teclado de respaldo y solicita calibración antes de puntuar.</sub></p>
-
-La pantalla central es una práctica de ritmo: las notas descienden por carriles
-hacia una línea de golpe y el resultado explica qué repetir. Las vistas
-complementarias están versionadas en SVG para que GitHub las muestre nítidas en
-cualquier tamaño.
+controlador en una única ventana. Las láminas SVG siguientes ilustran el flujo;
+la interfaz real puede cambiar entre versiones.
 
 <p align="center">
   <img src="docs/assets/practice.svg" alt="Pantalla de práctica de xRoll" width="900">
@@ -53,6 +42,8 @@ El repositorio también incluye un port de desarrollo universal para iPhone y
 iPad. La compilación, instalación y validación pendiente en hardware están en
 [docs/IOS_BUILD.md](docs/IOS_BUILD.md) y
 [docs/IOS_HARDWARE_TESTS.md](docs/IOS_HARDWARE_TESTS.md).
+Con el iPad conectado, `scripts/deploy-ipad.sh` compila, firma e instala la app;
+si hay varios dispositivos, acepta `--udid <UDID>`.
 
 ## Desarrollo
 
@@ -60,7 +51,9 @@ El nucleo actual es un paquete Swift sin dependencias externas. Desde la raiz de
 repositorio:
 
 ```
+swift build
 swift test --filter XRollCoreTests
+swift test
 swift run xroll-preflight
 swift run xroll-latency kick
 swift run xroll-latency kick --check
@@ -82,7 +75,8 @@ indicado y sirve para diagnóstico interno de la ruta MIDI-audio.
 palmada 39, tom grave 41, charles cerrado 42, charles abierto 46, tom agudo
 48, crash 49 y ride 51. Para descubrir las notas de
 un controlador que se haya reconfigurado, se inicia una vez con `--log-events`.
-Un `.padmap` valida que cada sonido, posicion y nota/canal solo aparezcan una vez.
+Un `.padmap` permite asignar un sonido a varios pads y valida que los ids,
+posiciones, roles y mensajes MIDI no se repitan.
 `xroll-map-pads` crea ese archivo guiando los sonidos del kit; se pueden omitir
 los que no tenga el controlador.
 

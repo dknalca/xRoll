@@ -55,11 +55,43 @@ func vlq(_ x:Int)->[UInt8]{var v=x;var a=[UInt8(v&127)];v >>= 7;while v>0{a.appe
 let dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("data/exercises")
 let firstPrerequisite = [
     "fundamentals": "00_i_03_ritmo_completo",
-    "subdivision": "01_fund_06_control",
-    "coordination": "02_sub_09_frase_integrada",
-    "groove": "03_coord_08_independencia"
+    "coordination": "01_fund_06_control",
+    "subdivision": "03_coord_08_independencia",
+    "groove": "02_sub_09_frase_integrada"
 ]
 let checkpointPosition = ["fundamentals": 6, "subdivision": 9, "coordination": 8, "groove": 7]
+let objectives: [String: String] = [
+    "01_fund_01_pulso": "Mantén el backbeat y añade un segundo golpe de bombo.",
+    "01_fund_02_backbeat": "Toca el charles en negras mientras mantienes bombo y caja.",
+    "01_fund_03_charles_negras": "Añade una corchea de charles entre los pulsos.",
+    "01_fund_04_charles_corcheas": "Mantén el charles en cada corchea del compás.",
+    "01_fund_05_bombo_doble": "Añade un bombo entre pulsos sin mover la caja.",
+    "01_fund_06_control": "Controla dos respuestas de bombo y conserva el pulso.",
+    "02_sub_01_corchea_aislada": "Encuentra las corcheas que caen entre los cuatro pulsos.",
+    "02_sub_02_corcheas": "Toca corcheas regulares sin acelerar.",
+    "02_sub_03_groove": "Mantén el groove mientras el charles marca corcheas.",
+    "02_sub_04_bombo_y": "Coloca el bombo en el «y» sin desplazar la caja.",
+    "02_sub_05_caja_y": "Desplaza una caja al «y» y conserva el resto del patrón.",
+    "02_sub_06_16_aislada": "Localiza una semicorchea entre dos corcheas.",
+    "02_sub_07_una_16": "Añade una semicorchea de bombo al groove conocido.",
+    "02_sub_08_consolidacion": "Mantén el mismo patrón al tempo de referencia de esta lección.",
+    "02_sub_09_frase_integrada": "Une corcheas, semicorcheas y respuestas de bombo en una frase.",
+    "03_coord_01_alternancia": "Alterna bombo y caja sin perder el pulso común.",
+    "03_coord_02_kick_hh": "Golpea bombo y charles juntos en cada pulso.",
+    "03_coord_03_snare_hh": "Coordina caja y charles en los pulsos dos y cuatro.",
+    "03_coord_04_parejas": "Alterna parejas simultáneas y deja espacio entre ellas.",
+    "03_coord_05_abre_cierra": "Abre y cierra el charles sin cambiar el pulso.",
+    "03_coord_06_palmada": "Añade una palmada a los pulsos dos y cuatro.",
+    "03_coord_07_repite": "Repite el patrón y prepara una palmada al final.",
+    "03_coord_08_independencia": "Mantén el charles mientras cambian bombo y caja.",
+    "04_groove_01_silencio": "Sostén el pulso cuando el charles deja de sonar.",
+    "04_groove_02_sincopa": "Coloca los bombos desplazados sin correr hacia el siguiente pulso.",
+    "04_groove_03_respuesta": "Responde al groove con dos palmadas entre pulsos.",
+    "04_groove_04_fill_palmada": "Usa la palmada para preparar el final del compás.",
+    "04_groove_05_toms": "Cierra el compás moviéndote del tom grave al agudo.",
+    "04_groove_06_crash": "Marca el comienzo de la frase con el crash.",
+    "04_groove_07_completo": "Toca la frase completa y vuelve al primer pulso con estabilidad."
+]
 var previousByChapter = [String: String]()
 for x in defs {
     let components = x.f.split(separator: "_")
@@ -82,7 +114,7 @@ for x in defs {
         (0, 1, [255, 81, 3, UInt8((tempo >> 16) & 255), UInt8((tempo >> 8) & 255), UInt8(tempo & 255)]),
         (0, 2, [255, 88, 4, 4, 2, 24, 8])
     ]
-    var metadata = ["xroll/1 id=\(x.f)", "xroll/1 chapter=\(chapter)", "xroll/1 position=\(position)", "xroll/1 prerequisite=\(prerequisite)", "xroll/1 objective=\(x.t)", "xroll/1 new-difficulty=\(chapter)-\(position)", "xroll/1 recommended-help=full"]
+    var metadata = ["xroll/1 id=\(x.f)", "xroll/1 chapter=\(chapter)", "xroll/1 position=\(position)", "xroll/1 prerequisite=\(prerequisite)", "xroll/1 objective=\(objectives[x.f] ?? x.t)", "xroll/1 new-difficulty=\(chapter)-\(position)", "xroll/1 recommended-help=full"]
     if checkpoint { metadata.append("xroll/1 flag=checkpoint") }
     for (index, text) in metadata.enumerated() { let bytes = Array(text.utf8); events.append((0, 3 + index, [255, 1] + vlq(bytes.count) + bytes)) }
     for (step, note) in hits { let tick = step * ppq / 4; events.append((tick, 100, [153, UInt8(note), 100])); events.append((tick + 60, 99, [137, UInt8(note), 0])) }

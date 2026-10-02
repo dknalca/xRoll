@@ -10,12 +10,13 @@
   <rect x="610" y="202" width="468" height="104" rx="14" fill="#191d23"/><text x="638" y="238" fill="#63e6be" font-family="Arial,sans-serif" font-size="12" font-weight="700" letter-spacing="1">LAYOUT ACTIVO</text><text x="638" y="276" fill="#f1f3f5" font-family="Arial,sans-serif" font-size="18" font-weight="700">xRoll Core</text><text x="638" y="298" fill="#a3abb5" font-family="Arial,sans-serif" font-size="12">Core  ·  Drum Kit  ·  Mirror</text>
   <text x="82" y="358" fill="#63e6be" font-family="Arial,sans-serif" font-size="12" font-weight="700" letter-spacing="1">VISTA DEL CONTROLADOR</text>
   <g transform="translate(82 382)">
-    <rect width="286" height="220" rx="14" fill="#191d23"/>
-    <g stroke="#35404a" stroke-width="2">
-      <rect x="24" y="24" width="52" height="40" rx="8" fill="#20252d"/><rect x="88" y="24" width="52" height="40" rx="8" fill="#20252d"/><rect x="152" y="24" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="24" width="52" height="40" rx="8" fill="#20252d"/>
-      <rect x="24" y="76" width="52" height="40" rx="8" fill="#20252d"/><rect x="88" y="76" width="52" height="40" rx="8" fill="#20252d"/><rect x="152" y="76" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="76" width="52" height="40" rx="8" fill="#20252d"/>
-      <rect x="24" y="128" width="52" height="40" rx="8" fill="#0072b2"/><rect x="88" y="128" width="52" height="40" rx="8" fill="#e69f00"/><rect x="152" y="128" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="128" width="52" height="40" rx="8" fill="#20252d"/>
-    </g><text x="24" y="195" fill="#6d7580" font-family="Arial,sans-serif" font-size="11">36 abajo izquierda</text><text x="268" y="195" text-anchor="end" fill="#6d7580" font-family="Arial,sans-serif" font-size="11">51 arriba derecha</text>
+     <rect width="286" height="260" rx="14" fill="#191d23"/>
+     <g stroke="#35404a" stroke-width="2">
+       <rect x="24" y="16" width="52" height="40" rx="8" fill="#20252d"/><rect x="88" y="16" width="52" height="40" rx="8" fill="#20252d"/><rect x="152" y="16" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="16" width="52" height="40" rx="8" fill="#20252d"/>
+       <rect x="24" y="64" width="52" height="40" rx="8" fill="#20252d"/><rect x="88" y="64" width="52" height="40" rx="8" fill="#20252d"/><rect x="152" y="64" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="64" width="52" height="40" rx="8" fill="#20252d"/>
+       <rect x="24" y="112" width="52" height="40" rx="8" fill="#20252d"/><rect x="88" y="112" width="52" height="40" rx="8" fill="#20252d"/><rect x="152" y="112" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="112" width="52" height="40" rx="8" fill="#20252d"/>
+       <rect x="24" y="160" width="52" height="40" rx="8" fill="#0072b2"/><rect x="88" y="160" width="52" height="40" rx="8" fill="#e69f00"/><rect x="152" y="160" width="52" height="40" rx="8" fill="#20252d"/><rect x="216" y="160" width="52" height="40" rx="8" fill="#20252d"/>
+     </g><text x="24" y="232" fill="#6d7580" font-family="Arial,sans-serif" font-size="11">36 abajo izquierda</text><text x="268" y="232" text-anchor="end" fill="#6d7580" font-family="Arial,sans-serif" font-size="11">51 arriba derecha</text>
   </g>
   <g font-family="Arial,sans-serif"><text x="430" y="410" fill="#f1f3f5" font-size="18" font-weight="700">1. Selecciona tu dispositivo</text><text x="430" y="443" fill="#a3abb5" font-size="14">Elige la entrada MIDI y pulsa Buscar MIDI.</text><text x="430" y="498" fill="#f1f3f5" font-size="18" font-weight="700">2. Aprende los pads</text><text x="430" y="531" fill="#a3abb5" font-size="14">Golpea cada pad que indique xRoll.</text><text x="430" y="586" fill="#f1f3f5" font-size="18" font-weight="700">3. Elige un layout</text><text x="430" y="619" fill="#a3abb5" font-size="14">Las posiciones fisicas permanecen estables.</text></g>
 </svg>

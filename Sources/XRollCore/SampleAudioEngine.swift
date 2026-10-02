@@ -28,13 +28,6 @@ public enum SampleAudioEngineError: LocalizedError {
     }
 }
 
-/// Separa las colas temporales cancelables de los golpes inmediatos. Un golpe
-/// MIDI nunca comparte nodo con una nota programada para el acompañamiento.
-public enum ScheduledAudioDomain: Hashable {
-    case preview
-    case accompaniment
-}
-
 /// Un cerrojo serializa la configuración y los golpes vivos. El render sigue
 /// ocurriendo en Core Audio, fuera de la cola de entrega MIDI y de la interfaz.
 public final class SampleAudioEngine {
@@ -63,6 +56,7 @@ public final class SampleAudioEngine {
     private let latencyClickPlayer = AVAudioPlayerNode()
     private let voicesPerSound: Int
     private var sounds: [String: LoadedSound] = [:]
+    private var liveVoicesByChokeGroup: [String: [AVAudioPlayerNode]] = [:]
     private var samplePlayers: [AVAudioPlayerNode] = []
     private var soundGains: [String: Float] = [:]
     private var loopBuffer: AVAudioPCMBuffer?
@@ -96,6 +90,7 @@ public final class SampleAudioEngine {
         samplePlayers.forEach { engine.detach($0) }
         samplePlayers.removeAll()
         sounds.removeAll()
+        liveVoicesByChokeGroup.removeAll()
         soundGains.removeAll()
 
         for sound in kit.sounds {
@@ -137,12 +132,16 @@ public final class SampleAudioEngine {
                 samplePlayers.append(node)
                 return node
             }
-            sounds[sound.id] = LoadedSound(
+            let loadedSound = LoadedSound(
                 chokeGroup: sound.chokeGroup,
                 buffer: buffer,
                 liveVoices: liveVoices,
                 scheduledVoices: scheduledVoices
             )
+            sounds[sound.id] = loadedSound
+            if let chokeGroup = sound.chokeGroup {
+                liveVoicesByChokeGroup[chokeGroup, default: []].append(contentsOf: liveVoices)
+            }
         }
 
         guard let metronomeFormat = sounds["hihat_closed"]?.buffer.format ?? sounds.values.first?.buffer.format,
@@ -281,10 +280,7 @@ public final class SampleAudioEngine {
         }
 
         if let chokeGroup = sound.chokeGroup {
-            sounds.values
-                .filter { $0.chokeGroup == chokeGroup }
-                .flatMap(\.liveVoices)
-                .forEach { $0.stop() }
+            liveVoicesByChokeGroup[chokeGroup]?.forEach { $0.stop() }
         }
 
         // A node queues a buffer if it is already playing, which makes rapid
@@ -336,7 +332,7 @@ public final class SampleAudioEngine {
         latencyClickPlayer.play()
     }
 
-    public func schedule(soundID: String, atHostTime hostTime: UInt64, domain: ScheduledAudioDomain = .accompaniment, volume: Float = 1) throws {
+    public func schedule(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
         guard let sound = sounds[soundID] else {

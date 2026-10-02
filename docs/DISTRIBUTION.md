@@ -1,18 +1,23 @@
 # Distribución de xRoll
 
-La publicación actual es manual. Las etiquetas `v*` identifican versiones, pero
-este repositorio no contiene un flujo de GitHub que ejecute pruebas ni cree un
-borrador de release. Las notas se redactan para cada etiqueta.
+La integración continua compila y prueba los cambios de `main` y los pull
+requests. Al publicar una etiqueta `v*`, GitHub Actions vuelve a ejecutar los
+chequeos, valida los recursos y crea un borrador de release con notas generadas;
+la distribución firmada de macOS y el IPA de iOS siguen siendo operaciones
+locales.
 
 ## Publicación de una versión
 
-1. Ejecuta `swift test`, `swift run xroll-preflight` y `scripts/build-app.sh`.
-2. Comprueba que toda muestra nueva está anotada en
+1. Ejecuta `swift build`, `swift test` y `swift run xroll-preflight`.
+2. Ejecuta `scripts/build-app.sh` y prueba `dist/xRoll.app`. Para validar un
+   bundle sin reemplazar esa copia local, define `XROLL_APP_OUTPUT` con otra
+   ruta, por ejemplo `XROLL_APP_OUTPUT=/tmp/xRoll-audit.app scripts/build-app.sh`.
+3. Comprueba que toda muestra nueva está anotada en
    `Resources/Loops/ATTRIBUTION.md` y que su licencia permite la distribución.
-3. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
+4. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
    y `git push origin v0.1.0`.
-4. Crea el release y adjunta `dist/xRoll.app` o su archivo comprimido cuando
-   corresponda.
+5. Revisa y publica el borrador de GitHub Actions; adjunta `dist/xRoll.app` o su
+   archivo comprimido cuando corresponda.
 
 ## Firma y notarización
 

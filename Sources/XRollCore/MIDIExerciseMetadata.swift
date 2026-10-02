@@ -36,8 +36,8 @@ public enum MIDIExerciseMetadataParser {
             guard let separator = entry.firstIndex(of: "=") else {
                 throw MIDIExerciseMetadataError.malformed("falta '=' en '\(event)'")
             }
-            let key = String(entry[..<separator])
-            let value = String(entry[entry.index(after: separator)...])
+            let key = String(entry[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(entry[entry.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty, !value.isEmpty else {
                 throw MIDIExerciseMetadataError.malformed("clave o valor vacio en '\(event)'")
             }

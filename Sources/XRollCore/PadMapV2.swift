@@ -58,9 +58,13 @@ public struct PadMapV2: Codable, Equatable {
     }
 
     public func validate(availableSounds: Set<String>) throws {
-        guard format == 2, !id.isEmpty, !name.isEmpty, !device.name.isEmpty else { throw PadMapValidationError.emptyDevice }
+        guard format == 2 else { throw PadMapValidationError.unsupportedFormat(format) }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("id del mapa") }
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("nombre del mapa") }
+        guard !device.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyDevice }
         var ids = Set<String>(), positions = Set<String>(), messages = Set<String>(), roles = Set<String>()
         for pad in pads {
+            guard !pad.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("id del pad") }
             guard ids.insert(pad.id).inserted else { throw PadMapValidationError.duplicatePadID(pad.id) }
             guard (0...3).contains(pad.row), (0...3).contains(pad.column) else { throw PadMapValidationError.invalidPosition(row: pad.row, column: pad.column) }
             guard availableSounds.contains(pad.sound) else { throw PadMapValidationError.unknownSound(pad.sound) }
@@ -68,7 +72,10 @@ public struct PadMapV2: Codable, Equatable {
             guard pad.input.message == "note", (0...127).contains(pad.input.number) else { throw PadMapValidationError.invalidNote(pad.input.number) }
             guard (1...16).contains(pad.input.channel) else { throw PadMapValidationError.invalidChannel(pad.input.channel) }
             guard messages.insert("\(pad.input.message):\(pad.input.number):\(pad.input.channel)").inserted else { throw PadMapValidationError.duplicateMessage(note: pad.input.number, channel: pad.input.channel) }
-            if let role = pad.role { guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateRole(role) } }
+            if let role = pad.role {
+                guard !role.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("rol") }
+                guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateRole(role) }
+            }
         }
     }
 
@@ -78,7 +85,10 @@ public struct PadMapV2Router {
     private let byInput: [PadMapV2.Pad?]
     public init(_ map: PadMapV2) {
         var inputs = Array<PadMapV2.Pad?>(repeating: nil, count: 16 * 128)
-        for pad in map.pads { inputs[Self.index(note: pad.input.number, channel: pad.input.channel)] = pad }
+        for pad in map.pads {
+            guard (0...127).contains(pad.input.number), (1...16).contains(pad.input.channel) else { continue }
+            inputs[Self.index(note: pad.input.number, channel: pad.input.channel)] = pad
+        }
         byInput = inputs
     }
     public func pad(for event: MIDINoteOn) -> PadMapV2.Pad? {

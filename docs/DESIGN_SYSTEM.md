@@ -20,14 +20,14 @@ Interfaz oscura, elegante y precisa, inspirada en software de producción y hard
 | `textSecondary` | `#A3ABB5` | Texto secundario |
 | `textMuted` | `#6D7580` | Metadatos |
 | `accent` | `#63E6BE` | Acción principal |
-| `leftHand` | `#0072B2` | Mano izquierda |
-| `rightHand` | `#E69F00` | Mano derecha |
 | `perfect` | `#63E6BE` | Juicio perfecto |
 | `good` | `#74C0FC` | Juicio bueno |
 | `regular` | `#FFD43B` | Juicio regular |
 | `miss` | `#FF6B6B` | Fallo |
 
-Azul y naranja de manos no se usan como colores globales de acción.
+En el gameplay, `GameplayVisualTheme.soundAccent(_:)` es la fuente de verdad del
+color por sonido. Nota, carril y receptor comparten ese color; no se codifica la
+mano con forma, color o letras.
 
 ## Tipografía
 
@@ -86,10 +86,21 @@ completo. Las voces aisladas viven dentro de Preparación.
 Objetivo, tempo, vueltas, ayudas, duración y estado compacto del equipo. Una acción principal.
 
 ### Práctica
-Solo nombre, BPM, vuelta y pausa. Sin score cambiante ni estrellas. Carriles inactivos atenuados; feedback junto a la línea de golpe; movimiento gobernado por audio.
+Solo nombre, BPM, vuelta y pausa; tras cinco aciertos aparece una racha compacta. Sin score cambiante ni estrellas. La escena SpriteKit ocupa el escenario principal: autopista trapezoidal de profundidad suave, slots físicos fijos, receptores en el plano de impacto y feedback en una banda separada debajo de los pads. El acompañamiento se selecciona por estilo/BPM y puede cambiarse en Preparación. El movimiento temporal sigue gobernado por el reloj de audio.
+
+Los tokens, la proyección y los efectos SpriteKit viven en `Sources/XRollPads/GameplayVisualSystem.swift`; `PracticeScene` compone la presentación sin tomar decisiones de timing o scoring. Fuera de la autopista hay pistas de circuito impreso, ramas y vías ordenadas con la misma perspectiva que la carretera; se crean solo al reconstruir la escena. Notas y receptores comparten el trapecio de `GameplayProjection.padPath`, con acentos del sonido. Las rachas Perfect/Good aumentan gradualmente la respiración de los carriles activos y la intensidad/frecuencia de onda de las separaciones. Es una recompensa visual únicamente: al reiniciar la racha, la escena vuelve a la calma.
+
+La marca `XRollBrandMark` representa dos baquetas cruzadas sobre el impacto. Al abrir la app, `XRollLaunchView` presenta brevemente esa marca y atenúa su salida; `Reduce Motion` evita la escala animada. En Inicio se muestra una de las diez citas registradas con fuentes en `docs/DRUMMER_QUOTES.md`.
 
 ### Resultado
 Jerarquía: diagnóstico, precisión, tendencia, consistencia, microscopio temporal y recomendación. Las estrellas son secundarias.
+
+Al completar un ritmo completo con dos estrellas, la acción siguiente ofrece
+«Subir nivel» para iniciar inmediatamente el siguiente escalón de BPM aún
+pendiente o «Siguiente ejercicio» para preparar la lección siguiente. Si ambas
+opciones existen, una aparece como acción secundaria. Al entrar en Preparación
+se preselecciona el primer escalón todavía no superado con al menos dos estrellas
+y ritmo completo; no se acreditan automáticamente otros requisitos.
 
 ### Progreso
 Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y gráficos superpuestos.
@@ -102,8 +113,9 @@ Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y 
 | Selección | 140–180 ms |
 | Expandir panel | 180–240 ms |
 | Navegación | 220–280 ms |
+| Fin de ejercicio → resultado | 1,05 s | Porcentaje animado en una pantalla de transición |
 
-Las notas se mueven linealmente respecto al reloj musical. `Reduce Motion` elimina desplazamientos ornamentales.
+Las notas se mueven linealmente respecto al reloj musical. Su contorno se calcula para cada carril a partir de los mismos bordes proyectados de la pista; al viajar se escala uniformemente con la profundidad para conservar la inclinación de esos lados. `Reduce Motion` conserva el recorrido y elimina partículas y desplazamientos ornamentales del feedback.
 
 ## Accesibilidad
 
@@ -113,7 +125,7 @@ Las notas se mueven linealmente respecto al reloj musical. `Reduce Motion` elimi
 - Navegación por teclado y VoiceOver.
 - Tooltips en controles solo-icono.
 - Alternativa tabular al microscopio.
-- Modos: color + forma, forma de alto contraste, etiquetas L/R.
+- Modos: color por sonido, contorno de alto contraste y etiquetas de sonido.
 
 ## Componentes SwiftUI
 

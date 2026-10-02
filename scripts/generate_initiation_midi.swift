@@ -3,6 +3,7 @@ import Foundation
 struct ExerciseDefinition {
     let filename: String
     let title: String
+    let objective: String
     let bpm: Int
     let notes: [(step: Int, note: Int)]
 }
@@ -10,11 +11,11 @@ struct ExerciseDefinition {
 let exercises = [
     // Cada bloque empieza ya con un ritmo. Las capas del preparador permiten
     // descomponerlo sin convertir el catálogo en ejercicios de un solo pad.
-    ExerciseDefinition(filename: "00_i_01_bombo_caja", title: "I-01 · Bombo y caja", bpm: 68, notes: [(0, 36), (4, 38), (8, 36), (12, 38)]),
-    ExerciseDefinition(filename: "00_i_02_charles_negras", title: "I-02 · Añade charles", bpm: 68, notes: [(0, 36), (0, 42), (4, 38), (4, 42), (8, 36), (8, 42), (12, 38), (12, 42)]),
+    ExerciseDefinition(filename: "00_i_01_bombo_caja", title: "I-01 · Bombo y caja", objective: "Sigue cuatro pulsos: bombo en uno y tres, caja en dos y cuatro.", bpm: 68, notes: [(0, 36), (4, 38), (8, 36), (12, 38)]),
+    ExerciseDefinition(filename: "00_i_02_charles_negras", title: "I-02 · Añade charles", objective: "Añade un golpe de charles en cada pulso sin perder bombo y caja.", bpm: 68, notes: [(0, 36), (0, 42), (4, 38), (4, 42), (8, 36), (8, 42), (12, 38), (12, 42)]),
     // Las tres velocidades del ritmo completo viven dentro de Preparación;
     // solo existe una tarjeta en el curso para evitar duplicados visuales.
-    ExerciseDefinition(filename: "00_i_03_ritmo_completo", title: "I-03 · Ritmo completo", bpm: 72, notes: [(0, 36), (0, 42), (2, 42), (4, 38), (4, 42), (6, 42), (8, 36), (8, 42), (10, 42), (12, 38), (12, 42), (14, 42)])
+    ExerciseDefinition(filename: "00_i_03_ritmo_completo", title: "I-03 · Ritmo completo", objective: "Toca bombo y caja mientras el charles marca corcheas regulares.", bpm: 72, notes: [(0, 36), (0, 42), (2, 42), (4, 38), (4, 42), (6, 42), (8, 36), (8, 42), (10, 42), (12, 38), (12, 42), (14, 42)])
 ]
 
 func vlq(_ value: Int) -> [UInt8] {
@@ -45,7 +46,7 @@ for exercise in exercises {
         "xroll/1 id=\(exercise.filename)",
         "xroll/1 chapter=initiation",
         "xroll/1 position=\(position)",
-        "xroll/1 objective=\(exercise.title)",
+        "xroll/1 objective=\(exercise.objective)",
         "xroll/1 new-difficulty=initiation-\(position)",
         "xroll/1 recommended-help=full"
     ]

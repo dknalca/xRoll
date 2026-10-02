@@ -9,7 +9,9 @@ exportación. No tiene dependencias externas y su plataforma mínima es macOS 12
 Desde la raiz del repositorio:
 
 ```
+swift build
 swift test --filter XRollCoreTests
+swift test
 swift run xroll-preflight
 swift run xroll-latency kick
 swift run xroll-latency kick --check

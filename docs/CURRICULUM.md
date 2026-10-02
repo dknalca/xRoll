@@ -4,8 +4,8 @@
 
 1. Iniciación: de cero al primer groove.
 2. Fundamentos: pulso y backbeat.
-3. Subdivisión y lectura.
-4. Coordinación e independencia.
+3. Coordinación e independencia.
+4. Subdivisión y lectura.
 5. Groove y fraseo.
 6. Hip-hop.
 7. Rock.
@@ -43,8 +43,9 @@ Cada habilidad recorre: descubrir, aislar, integrar y transferir.
 - **Practicado:** existe un intento guardado, aunque sea parcial.
 - **Superado a un tempo:** ritmo completo con 70 % o más a ese tempo; solo
   concede el premio del BPM tocado.
-- **Capítulo acreditado:** todos sus ritmos se superaron a 100 BPM/70 % o se
-  aprobó el checkpoint MIDI final; permite avanzar por la ruta guiada.
+- **Capítulo acreditado:** todos sus ritmos se superaron completos al tempo de
+  aprendizaje (`min(BPM del MIDI, 100)`) con 70 % o más, o se aprobó la prueba
+  MIDI final del bloque.
 - **Dominado:** ritmo completo con 85 % o más al BPM nominal, sin sesgo o
   dispersión graves según la política de evaluación vigente.
 - **Transferido:** ejercicio ya dominado y superado con ayudas reducidas o en
@@ -71,12 +72,25 @@ Definida en [INITIATION.md](INITIATION.md).
 | 1.6 | Bombo doble | Variación de bombo | mismos | 70 |
 | Escalera común | Aprender, Base, Consolidar, Difícil, Jefe y Nivel dios | El mismo ritmo a 70, 85, 100, 120, 140 y 160 BPM | mismos | 70 / 85 / 100 / 120 / 140 / 160 |
 
-La recomendación propone el siguiente ejercicio de la escalera. Se puede elegir
-cualquier ritmo y tempo; las estrellas/trofeos solo se conceden por resultados
-al tempo correspondiente. La siguiente estación se acredita al superar todos
-sus ejercicios o el checkpoint del capítulo con ritmo completo a 100 BPM y 70 %.
-Los intentos parciales no acreditan el curso. Nivel dios dura al menos 16
-compases.
+La recomendación propone una sola siguiente lección a su tempo de aprendizaje.
+Los retos de 70, 85, 100, 120, 140 y 160 BPM son opcionales; sus estrellas y
+trofeos solo se conceden por resultados completos al tempo correspondiente. La
+estación se acredita al superar todos sus ejercicios o su prueba de bloque con
+70 % o más. Los intentos parciales no acreditan el curso. Nivel dios dura al
+menos 16 compases.
+
+### Coordinación e independencia
+
+| Nivel | Nombre | Habilidad |
+|---:|---|---|
+| 3.1 | Dos manos, un pulso | Alternancia |
+| 3.2 | Golpes simultáneos | Bombo + charles |
+| 3.3 | Backbeat simultáneo | Caja + charles |
+| 3.4 | Cambia de pareja | Alternar simultaneidades |
+| 3.5 | Abre y cierra | HH abierto |
+| 3.6 | Refuerza dos y cuatro | Palmada |
+| 3.7 | Rompe la alternancia | Repetición controlada |
+| 3.8 | Prueba de independencia | Integración |
 
 ### Subdivisión y lectura
 
@@ -91,19 +105,6 @@ compases.
 | 2.7 | Una semicorchea | Integración en bombo | 68 |
 | 2.8 | Consolidación | Aumento de tempo | 78 |
 | 2.9 | Frase integrada | Dos compases de caja desplazada y dos de bombo doble | 78 |
-
-### Coordinación e independencia
-
-| Nivel | Nombre | Habilidad |
-|---:|---|---|
-| 3.1 | Dos manos, un pulso | Alternancia |
-| 3.2 | Golpes simultáneos | Bombo + charles |
-| 3.3 | Backbeat simultáneo | Caja + charles |
-| 3.4 | Cambia de pareja | Alternar simultaneidades |
-| 3.5 | Abre y cierra | HH abierto |
-| 3.6 | Refuerza dos y cuatro | Palmada |
-| 3.7 | Rompe la alternancia | Repetición controlada |
-| 3.8 | Prueba de independencia | Integración |
 
 ### Groove y fraseo
 

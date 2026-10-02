@@ -1,6 +1,8 @@
 # Verificación en hardware iOS
 
-El IPA de desarrollo, versión 1.0, está instalado por USB en un iPad (modelo iPad7,11) con iOS 18.7.10; la presencia de `com.example.xroll` se confirmó con `ideviceinstaller`. Incluye la pantalla de práctica compacta, el curso por checkpoints, Opciones separadas, claqueta sintetizada independiente del HH cerrado y exclusión de los golpes de entrada que quedan fuera de la ventana del primer pulso. También fuerza la claqueta durante la calibración aunque el metrónomo de práctica esté apagado y conserva sonidos/roles de los mapas Custom importados. El usuario confirma que el loop ya suena durante la práctica. Falta probar en el iPad el nuevo sonido y el feedback de calentamiento. Xcode 14.2 detecta el iPad, pero no dispone del developer disk image para depurarlo desde el IDE; `idevicedebug` tampoco puede iniciarlo. Los simuladores no emulan Bluetooth MIDI físico.
+El IPA de desarrollo versión 1.0 está instalado por USB en un iPad7,11 con iPadOS 18.7.10; `ideviceinstaller` confirmó el bundle `com.example.xroll`. En ese build se abrió la app, se cargó el curso y el usuario confirmó que el loop suena durante la práctica. Las casillas marcadas abajo registran pruebas de ese build; las demás siguen pendientes. Los cambios posteriores del árbol de trabajo requieren una instalación nueva antes de validar su comportamiento físico.
+
+Xcode 14.2 detecta el iPad, pero no tiene el developer disk image para depurarlo desde el IDE; `idevicedebug` tampoco puede iniciarlo. Los simuladores no emulan Bluetooth MIDI físico.
 
 La conexión de los pads mediante un cable Lightning–USB‑C directo no los hizo aparecer en CoreMIDI. En iPad con Lightning, repetir la prueba con un adaptador Lightning a USB para cámara; algunos controladores requieren además alimentación externa.
 
@@ -24,13 +26,15 @@ La conexión de los pads mediante un cable Lightning–USB‑C directo no los hi
 - [ ] Apagar el metrónomo en Opciones y calibrar; comprobar que la claqueta obligatoria sigue sonando.
 - [ ] Revisar la traza de calibración: comparar `midiCoreMIDIHostTime`, `midiCallbackHostTime`, `inputHostTime` y `midiTimestampSource`; confirmar que el tiempo efectivo avanza y que timestamps inválidos usan `callbackFallback`.
 - [ ] Golpear el controlador: confirmar reproducción del sample, actividad de pad y resultado de score; anotar ejercicio y comportamiento.
+- [ ] En una toma que incluya pantalla y pads, comprobar que cada impacto gráfico aparece en el siguiente frame y que la marca de desfase queda antes/después de la línea según el golpe.
+- [ ] Comparar en la traza `inputHostTime`, inicio/fin de procesamiento de sesión y `visualFeedbackConsumedHostTime`; los timestamps de scoring deben permanecer ligados al evento MIDI original.
 - [ ] Confirmar que, con entrada MIDI seleccionada, no se muestra la rejilla táctil y la práctica usa el área para los carriles y el estado compacto del controlador.
 - [ ] Revisar icono, marca de cabecera y paleta oscura en preparación, práctica, resultado y pantalla de lanzamiento; repetir en iPad vertical y horizontal.
 - [ ] Con el mismo ejercicio/ruta, comparar A/B «Anticipar un frame visual», calibrando antes de cada sesión.
 - [ ] Compartir la traza JSON; para observar el sonido real, grabar pantalla y click/audio en la misma toma. El retorno de `play()` no es onset acústico.
 - [ ] Completar y cerrar una sesión MIDI, después repetir la calibración y la sesión con pads táctiles.
 - [ ] En Curso, abrir y practicar un ejercicio marcado como pendiente sin acreditar; comprobar que la vía guiada sigue recomendando un siguiente paso.
-- [ ] Probar cualquier tempo directamente, acreditar una estación con el checkpoint a 100 BPM/70 % y confirmar que no se conceden estrellas de tempos que no se tocaron.
+- [ ] Probar cualquier tempo directamente, superar una lección a su tempo de aprendizaje/70 % y confirmar que el reto opcional no bloquea el siguiente paso ni concede premios de tempos no tocados.
 - [ ] Probar un checkpoint de capítulo posterior antes de acreditar los anteriores: guardar la evidencia y comprobar que el avance se activa solo al completar la ruta previa.
 - [ ] Comprobar que Nivel dios exige 16 compases y que un intento más corto no otorga el trofeo ni modifica los desbloqueos.
 - [ ] Instalar, abrir y cerrar la aplicación en un iPhone físico.

@@ -55,10 +55,7 @@ func contextHeading(_ title: String, detail: String) -> some View {
 
 struct AppMark: View {
     var size: CGFloat = 34
-    var body: some View {
-        Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high)
-            .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.23))
-    }
+    var body: some View { XRollBrandMark(size: size) }
 }
 
 enum ActionButtonProminence {
@@ -148,6 +145,7 @@ struct PracticeHome: View {
 
 struct ResultsHome: View {
     @ObservedObject var model: Model
+    @State private var showsEvidence = false
     @State private var showsDetailedAnalysis = false
     @State private var showsTimingDetail = false
     @State private var showsTimingTable = false
@@ -174,6 +172,8 @@ struct ResultsHome: View {
                     }
                 }
                 StagePanel {
+                    DisclosureGroup("Ver detalles del resultado", isExpanded: $showsEvidence) {
+                    VStack(alignment: .leading, spacing: 12) {
                     Text("2 · LA EVIDENCIA").font(.studioLabel).foregroundColor(StudioDesign.accent)
                     HStack(spacing: 18) {
                         diagnosticMetric("Precisión", "\(Int((model.lastScorePercentage ?? 0).rounded())) %")
@@ -223,21 +223,54 @@ struct ResultsHome: View {
                             }
                         }.padding(.top, 10)
                     }
+                    }
+                }
                 }
                 StagePanel {
                     Text("3 · QUÉ HACER AHORA").font(.studioLabel).foregroundColor(StudioDesign.accent)
+                    if !model.microLessonFeedback.isEmpty {
+                        Label(model.microLessonFeedback, systemImage: "sparkles")
+                            .font(.subheadline.weight(.medium)).foregroundColor(StudioDesign.accent)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !model.performanceFeedback.isEmpty {
+                        Label(model.performanceFeedback, systemImage: "music.note.list")
+                            .font(.subheadline.weight(.medium)).foregroundColor(StudioDesign.accent)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text(model.resultActionTitle).font(.title2.bold())
                     Text(model.resultActionReason).font(.subheadline).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        ActionButton(model.resultActionTitle, prominence: .primary) { model.performResultAction() }
-                        if model.resultSummary?.action != .repeatSame {
-                            ActionButton("Repetir sin cambios", prominence: .secondary) { model.repeatPractice() }
+                    if model.canStartCorrectivePractice {
+                        Text(model.correctiveActionReason).font(.caption).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
+                        ActionButton("Practicar la parte difícil", prominence: .secondary) { model.startCorrectivePractice() }
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            ActionButton(model.resultActionTitle, prominence: .primary) { model.performResultAction() }
+                            if let alternative = model.alternativeProgressTitle {
+                                ActionButton(alternative, prominence: .secondary) { model.performAlternativeProgressAction() }
+                            }
                         }
-                        ActionButton("Volver", prominence: .quiet) { model.dismissResults() }
+                        HStack(spacing: 10) {
+                            if model.performanceFeedback.isEmpty && model.canStartTransferPerformance {
+                                ActionButton(model.transferPerformanceTitle, prominence: .secondary) { model.startTransferPerformance() }
+                            } else if !model.performanceFeedback.isEmpty {
+                                ActionButton("Volver a la guía completa", prominence: .secondary) { model.startGuidedPerformance() }
+                            }
+                            if model.resultSummary?.action == .repeatWithAdjustment {
+                                ActionButton("Repetir sin ajuste", prominence: .secondary) { model.repeatPractice() }
+                            }
+                            ActionButton("Volver", prominence: .quiet) { model.dismissResults() }
+                        }
                     }
                 }
             }.foregroundColor(.white).padding(32).frame(maxWidth: 760, alignment: .leading)
             }.frame(maxWidth: .infinity)
+            .onAppear {
+                showsTimingDetail = false
+                showsTimingTable = false
+                showsEvidence = false
+            }
         }
     }
 }
@@ -358,6 +391,7 @@ private struct TimingRecordsTable: View {
 
 struct PreparationHome: View {
     @ObservedObject var model: Model
+    @State private var showsMoreOptions = false
     private var courseSteps: [Exercise] {
         guard let chapter = model.chosen?.metadata?.chapter else { return [] }
         return model.exercises.filter { $0.metadata?.chapter == chapter }
@@ -376,11 +410,29 @@ struct PreparationHome: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("PREPARACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
             Text(model.currentExerciseTitle).font(.system(size: 30, weight: .bold))
-            courseStepsPanel
             objectivePanel
-            tempoLadderPanel
-            sessionViewPanel
-            practiceOptionsPanel
+            tempoLevelSelector
+            loopPreparationPanel
+            HStack(spacing: 10) {
+                ActionButton("Escuchar demostración", prominence: .secondary) { model.dismissPreparation(); model.previewExercise() }
+                ActionButton("Empezar práctica", prominence: .primary) { model.startGuidedLesson() }
+            }
+            StagePanel {
+                DisclosureGroup(isExpanded: $showsMoreOptions) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        tempoLadderPanel
+                        sessionViewPanel
+                        practiceOptionsPanel
+                        courseStepsPanel
+                    }.padding(.top, 10)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Personalizar o explorar").font(.headline)
+                        Text("Primero este ejercicio: tempo, ayudas y voces; después otras lecciones").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                    }
+                }
+                .tint(StudioDesign.accent)
+            }
             HStack { ActionButton("Volver", prominence: .quiet) { model.dismissPreparation() }; Spacer() }
         }
         .foregroundColor(StudioDesign.textPrimary).padding(36).frame(maxWidth: 720, alignment: .leading)
@@ -390,8 +442,8 @@ struct PreparationHome: View {
         let steps = courseSteps
         if steps.count > 1 {
             StagePanel {
-                Text("Escalones del ritmo").font(.headline)
-                Text("Empieza por el escalón que necesites. Cada uno añade una sola idea antes de pasar al siguiente.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                Text("Otras lecciones de este bloque").font(.headline)
+                Text("Puedes explorar cualquier lección. La ruta guiada añade una idea cada vez.").font(.caption).foregroundColor(StudioDesign.textSecondary)
                 ForEach(steps, id: \.id) { step in
                     Button { model.selectPreparationExercise(step) } label: {
                         HStack(alignment: .top, spacing: 10) {
@@ -401,8 +453,8 @@ struct PreparationHome: View {
                                     Text(step.title).font(.subheadline.bold()).lineLimit(1)
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 1) {
-                                        Text("\(model.tempoPracticeOptions[model.selectedTempoTier].bpm) BPM").font(.caption.bold())
-                                        Text(model.tempoTierAwardLabel(model.selectedTempoTier)).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+                                        Text("\(CourseLessonCriteria.targetBPM(for: step)) BPM").font(.caption.bold())
+                                        Text(model.tempoProgressSummary(for: step)).font(.caption2).foregroundColor(StudioDesign.textSecondary)
                                     }
                                 }
                                 ExercisePatternPreview(exercise: step, available: true)
@@ -424,11 +476,61 @@ struct PreparationHome: View {
         }
     }
 
+    private var tempoLevelSelector: some View {
+        StagePanel {
+            Text("NIVEL DE TEMPO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            ScrollView(.horizontal) {
+                HStack(spacing: 7) {
+                    ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
+                        let selected = model.selectedBPM == step.bpm
+                        Button { model.selectTempoTier(index) } label: {
+                            VStack(spacing: 2) {
+                                Text(step.label).font(.caption.bold()).lineLimit(1)
+                                Text("\(step.bpm) BPM").font(.caption2.monospacedDigit())
+                            }
+                            .frame(minWidth: 78).padding(.horizontal, 5).padding(.vertical, 8)
+                            .foregroundColor(selected ? StudioDesign.canvas : StudioDesign.textPrimary)
+                            .background(selected ? StudioDesign.accent : StudioDesign.surfaceRaised, in: RoundedRectangle(cornerRadius: 9))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Seleccionar nivel \(step.label), \(step.bpm) BPM")
+                    }
+                }
+            }
+            Text("El tempo de aprendizaje basta para avanzar; los niveles más rápidos son retos opcionales.")
+                .font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
+    }
+
+    @ViewBuilder
+    private var loopPreparationPanel: some View {
+        if !model.loopOptions.isEmpty {
+            StagePanel {
+                HStack {
+                    Text("Acompañamiento").font(.headline)
+                    Spacer()
+                    Toggle("", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
+                        .labelsHidden()
+                }
+                Picker("Loop", selection: Binding(get: { model.loopSelectionChoice }, set: { model.setLoopSelection($0) })) {
+                    Text(model.loopSelectionLabel).tag(LoopLibraryCatalog.automaticSelectionID)
+                    ForEach(model.loopOptions) { option in
+                        Text(option.bpm.map { "\(option.fileName) · \(Int($0.rounded())) BPM" } ?? option.fileName)
+                            .tag(option.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(!model.canChangeLoopSelection)
+                Text(model.loopStatus).font(.caption2).foregroundColor(StudioDesign.textSecondary).lineLimit(2)
+            }
+        }
+    }
+
     private var tempoLadderPanel: some View {
         StagePanel {
-            Text("Ritmo completo · escalera de tempo").font(.headline)
-            Text("Puedes probar cualquier tempo. Los premios se ganan en el tempo elegido; Consolidar a 100 BPM y 70 % acredita la estación.").font(.caption).foregroundColor(StudioDesign.textSecondary)
-            HStack(spacing: 8) {
+            Text("Retos opcionales de tempo").font(.headline)
+            Text("El curso avanza cuando superas el ritmo completo a su tempo de referencia. Prueba más velocidad cuando te apetezca; no es un requisito.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
                     tempoStepButton(index: index, step: step)
                 }
@@ -446,14 +548,18 @@ struct PreparationHome: View {
                 Text(step.minimumBars.map { "\(model.tempoTierProgressLabel(index)) · \($0) compases" } ?? model.tempoTierProgressLabel(index)).font(.caption2)
                     .foregroundColor(stars == nil ? StudioDesign.textMuted : .yellow)
                 HStack(spacing: 3) {
-                    Image(systemName: step.award.symbolName).font(.caption2)
-                    Text(step.award.label).font(.caption2.bold())
+                    if case .trophies(let count) = step.award {
+                        Text(String(repeating: "🏆", count: count)).font(.caption2)
+                    } else {
+                        Image(systemName: step.award.symbolName).font(.caption2)
+                    }
+                    Text("Premio · \(step.award.label)").font(.caption2.bold())
                 }.foregroundColor(step.award.symbolName == "star.fill" ? .yellow : StudioDesign.regular)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 8)
-            .foregroundColor(model.selectedTempoTier == index ? StudioDesign.canvas : (available ? StudioDesign.textPrimary : StudioDesign.textMuted))
-            .background(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceRaised)
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selectedTempoTier == index ? StudioDesign.accent : StudioDesign.surfaceHover, lineWidth: 1))
+            .foregroundColor(model.selectedBPM == step.bpm ? StudioDesign.canvas : (available ? StudioDesign.textPrimary : StudioDesign.textMuted))
+            .background(model.selectedBPM == step.bpm ? StudioDesign.accent : StudioDesign.surfaceRaised)
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(model.selectedBPM == step.bpm ? StudioDesign.accent : StudioDesign.surfaceHover, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain).disabled(!available)
@@ -466,11 +572,13 @@ struct PreparationHome: View {
                 ContextInfoButton(title: "Sesión y vista", detail: "Configura la práctica antes de entrar en la pantalla de ejecución. Durante el ejercicio estos controles se ocultan para dejar todo el espacio a los carriles.")
             }
             HStack(alignment: .center, spacing: 20) {
-                Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in model.savePreferences() }
+                Stepper("Tempo: \(model.selectedBPM) BPM", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in
+                    model.refreshAutomaticLoopForSelection()
+                    model.savePreferences()
+                }
                 repeatStepper(model: model)
             }
             Toggle("Metrónomo", isOn: $model.metronomeEnabled)
-            Toggle("Loop de acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
             HStack(spacing: 14) {
                 gridGuidePicker
                 practiceZoomPicker
@@ -499,10 +607,6 @@ struct PreparationHome: View {
                 trainingPhaseControls
                 practiceSelectionControls
                 transferControls
-                HStack {
-                    ActionButton("Escuchar y colocar", prominence: .secondary) { model.dismissPreparation(); model.previewExercise() }
-                    ActionButton("Empezar práctica", prominence: .primary) { model.startFromPreparation() }
-                }
             }
         }
     }
@@ -609,20 +713,26 @@ private struct FlowSoundSelection: View {
 struct OnboardingHome: View {
     @ObservedObject var model: Model
     let showPads: () -> Void
-    let showAudio: () -> Void
+    @State private var quote = DrummerQuote.random()
     var body: some View {
         ZStack { StudioDesign.canvas.ignoresSafeArea(); ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text("INICIO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            if model.needsHomeSetup { setupPanel }
             Text("Tu próxima sesión").font(.system(size: 34, weight: .bold))
             if let plan = model.nextSessionPlan {
                 StagePanel {
+                    let pendingBPM = model.pendingTempoBPM(for: plan.exerciseID) ?? plan.bpm
+                    let repeats = model.pendingRepeats(for: plan)
+                    let duration = plan.estimatedDurationMilliseconds * Double(plan.bpm) / Double(pendingBPM)
+                        * Double(repeats) / Double(max(1, plan.repeats))
                     Text(planKindLabel(plan.kind)).font(.studioLabel).foregroundColor(StudioDesign.accent)
                     Text(plan.title).font(.system(size: 28, weight: .bold))
-                    Text(plan.reason).font(.studioBody).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    Text(plan.bpm == pendingBPM ? plan.reason : "Continúa este ritmo en su primer nivel de tempo pendiente.")
+                        .font(.studioBody).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
-                        StudioStatusPill(title: "\(plan.bpm) BPM")
-                        StudioStatusPill(title: "\(plan.repeats) vueltas")
-                        StudioStatusPill(title: estimatedDuration(plan.estimatedDurationMilliseconds))
+                        StudioStatusPill(title: "\(pendingBPM) BPM")
+                        StudioStatusPill(title: "\(repeats) vueltas")
+                        StudioStatusPill(title: estimatedDuration(duration))
                     }
                     ActionButton("Empezar ahora", prominence: .primary) { model.openNextSession() }
                 }
@@ -632,13 +742,39 @@ struct OnboardingHome: View {
                     Text("Carga un ejercicio o revisa el curso para preparar tu primer ritmo.").font(.studioBody).foregroundColor(StudioDesign.textSecondary)
                 }
             }
-            HStack(spacing: 14) {
-                StagePanel { Text("CONTROLADOR").font(.studioLabel).foregroundColor(StudioDesign.accent); StudioStatusPill(title: model.sources.isEmpty ? "Sin MIDI" : "MIDI detectado", active: !model.sources.isEmpty); Text(model.sources.isEmpty ? "Puedes usar el teclado mientras conectas un controlador." : model.selectedMIDIName).font(.caption).foregroundColor(StudioDesign.textSecondary); ActionButton("Pads y layout") { showPads() } }
-                StagePanel { Text("AUDIO").font(.studioLabel).foregroundColor(StudioDesign.accent); StudioStatusPill(title: model.audioOutputs.isEmpty ? "Sin salida" : "Salida lista", active: !model.audioOutputs.isEmpty); Text(model.audioOutputs.isEmpty ? "Elige una salida antes de practicar." : "La salida activa se configura en Audio y latencia.").font(.caption).foregroundColor(StudioDesign.textSecondary); ActionButton("Revisar audio") { showAudio() } }
-                StagePanel { Text("CALIBRACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent); StudioStatusPill(title: model.hasCalibrationForCurrentProfile ? "Calibrada" : "Pendiente", active: model.hasCalibrationForCurrentProfile); Text(model.calibrationMessage).font(.caption).foregroundColor(StudioDesign.textSecondary); ActionButton("Calibración guiada", prominence: model.hasCalibrationForCurrentProfile ? .secondary : .primary) { model.startCalibration() } }
+            VStack(alignment: .leading, spacing: 5) {
+                Text("VOCES DEL RITMO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+                Text("«\(quote.text)»").font(.title3.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                Text("— \(quote.author)").font(.caption).foregroundColor(StudioDesign.textSecondary)
             }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(StudioDesign.surface, in: RoundedRectangle(cornerRadius: 14))
             Text("La preparación confirma objetivo, ayudas y equipo antes de puntuar.").font(.caption).foregroundColor(StudioDesign.textMuted)
         }.foregroundColor(StudioDesign.textPrimary).padding(36).frame(maxWidth: 900, alignment: .leading) } }
+    }
+
+    private var setupPanel: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if !model.hasAssignedPad {
+                StagePanel {
+                    Text("EQUIPO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+                    Text(model.sources.isEmpty ? "Conecta y asigna tu pad para empezar." : "Elige el controlador que vas a usar.")
+                        .font(.caption).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    ActionButton("Asignar pad", prominence: .primary) { showPads() }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            if !model.hasCalibrationForCurrentProfile {
+                StagePanel {
+                    Text("CALIBRACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
+                    Text("Calibra esta ruta de entrada y audio antes de puntuar.")
+                        .font(.caption).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    ActionButton("Calibrar ahora", prominence: .primary) { model.startCalibration() }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func estimatedDuration(_ milliseconds: Double) -> String {
@@ -833,6 +969,10 @@ private struct FillTrainingCard: View {
             HStack(spacing: 6) {
                 Text(number).font(.caption.bold()).foregroundColor(StudioDesign.canvas).frame(width: 20, height: 20).background(StudioDesign.accent).clipShape(Circle())
                 Text(title).font(.subheadline.bold())
+                Spacer(minLength: 4)
+                if let exercise, let award = model.highestTempoAward(for: exercise) {
+                    TempoAwardBadge(award: award)
+                }
             }
             if let exercise { ExercisePatternPreview(exercise: exercise, available: true) }
             Text(detail).font(.caption2).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
@@ -926,7 +1066,7 @@ private struct PlayerColumn: View {
     var body: some View {
         VStack(spacing: 14) {
             StagePanel {
-                Text("REGLAS DEL CURSO\n\n1. Aprender: 70 BPM, 1 estrella\n2. Base: 85 BPM, 2 estrellas\n3. Consolidar: 100 BPM, 3 estrellas\n4. Dificil: 120 BPM, 1 trofeo\n5. Jefe: 140 BPM, 2 trofeos\n6. Nivel dios: 160 BPM, 3 trofeos, 16 compases\n\nConsolidar todos los ritmos abre la siguiente estacion.")
+                Text("CÓMO AVANZAR\n\nCompleta el ritmo entero al tempo de aprendizaje y alcanza el 70 %. Después podrás seguir con la siguiente lección. Tocar más rápido es opcional.")
                     .font(.caption)
                     .foregroundColor(StudioDesign.textPrimary)
             }

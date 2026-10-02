@@ -65,7 +65,7 @@ struct RhythmMetroView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("METRO DEL RITMO").font(.studioLabel).foregroundColor(StudioDesign.accent)
                         Text("Una estación cada vez").font(.largeTitle.bold())
-                        Text("Sigue la ruta recomendada o explora cualquier ejercicio. Cada estación puede acreditarse con un checkpoint a 100 BPM.")
+                        Text("Sigue la ruta recomendada o explora cualquier ejercicio. Para avanzar, supera el ritmo completo a su tempo de referencia.")
                             .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
                     }
                     Spacer()
@@ -144,11 +144,11 @@ private struct MetroNextStation: View {
         StagePanel {
             Text("TE TOCA AHORA · NIVEL \(recommendation.courseLevel)").font(.studioLabel).foregroundColor(StudioDesign.accent)
             Text(exercise.title).font(.title2.bold())
-            Text(exercise.metadata?.objective ?? "Practica el siguiente escalón del curso.")
+            Text(exercise.metadata?.objective ?? "Toca el ritmo completo y mantén el pulso.")
                 .font(.subheadline).foregroundColor(StudioDesign.textSecondary).lineLimit(2)
             ExercisePatternPreview(exercise: exercise, available: true)
             HStack {
-                Text("\(recommendation.tempoStep.label) · \(recommendation.tempoStep.bpm) BPM · \(recommendation.tempoStep.award.label) · \(recommendation.tempoStep.minimumBars.map { "\($0) compases" } ?? "\(recommendation.tempoStep.requiredPasses) resultado\(recommendation.tempoStep.requiredPasses == 1 ? "" : "s") de \(Int(recommendation.tempoStep.requiredScore)) %")")
+                Text("Ritmo completo · \(recommendation.tempoStep.bpm) BPM · 70 % para avanzar")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
                 Spacer()
                 ActionButton("Preparar", prominence: .primary) { model.openPreparation(exercise) }
@@ -167,11 +167,11 @@ private struct MetroFastStart: View {
             Image(systemName: "forward.fill").foregroundColor(StudioDesign.regular)
             VStack(alignment: .leading, spacing: 3) {
                 Text("¿Ya tienes base?").font(.subheadline.bold())
-                Text("Si ya conoces el ritmo, demuéstralo completo a 100 BPM y 70 %. Superarlo acredita la estación inicial.")
+                Text("Si ya conoces el ritmo, tócalo completo a su tempo de referencia y alcanza el 70 %. Así puedes empezar más adelante.")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
             }
             Spacer()
-            ActionButton("Demostrar · 100 BPM", prominence: .secondary) { model.openCheckpointAssessment(exercise) }
+            ActionButton("Ya conozco este ritmo", prominence: .secondary) { model.openCheckpointAssessment(exercise) }
         }
         .padding(12).background(StudioDesign.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -241,10 +241,10 @@ private struct MetroCheckpointAction: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ActionButton("Demostrar capítulo · 100 BPM", prominence: .secondary) {
+            ActionButton("Hacer prueba del bloque", prominence: .secondary) {
                 model.openCheckpointAssessment(exercise)
             }
-            Text("Ritmo completo · ≥70 %")
+            Text("Ritmo completo · tempo de referencia · ≥70 %")
                 .font(.caption2).foregroundColor(StudioDesign.textSecondary)
         }
     }
@@ -289,12 +289,38 @@ private struct MetroExerciseRow: View {
                         Text(progressLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary)
                     }
                     Spacer()
+                    if let award = model.highestTempoAward(for: exercise) {
+                        TempoAwardBadge(award: award)
+                    }
                     Image(systemName: "chevron.right").font(.caption.bold()).foregroundColor(StudioDesign.textMuted)
                 }
                 .padding(9).background(StudioDesign.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+struct TempoAwardBadge: View {
+    let award: TempoAward
+
+    var body: some View {
+        HStack(spacing: 3) {
+            switch award {
+            case .stars(let count):
+                Text(String(repeating: "★", count: count))
+            case .trophies(let count):
+                Text(String(repeating: "🏆", count: count))
+            }
+        }
+        .font(.caption.bold())
+        .foregroundColor(isTrophy ? StudioDesign.regular : .yellow)
+        .accessibilityLabel(award.label)
+    }
+
+    private var isTrophy: Bool {
+        if case .trophies = award { return true }
+        return false
     }
 }
 
@@ -349,7 +375,7 @@ private struct MetroChapterTrainSegment: View {
 
     private var vehicleColor: Color {
         if isCurrent { return StudioDesign.accent }
-        if state == .mastered { return StudioDesign.rightHand }
+        if state == .mastered { return StudioDesign.accent }
         return StudioDesign.surfaceHover
     }
 }
@@ -390,7 +416,7 @@ private struct MetroTrainMarker: View {
 
     private var carColor: Color {
         if isCurrent { return StudioDesign.accent }
-        if isCompleted { return StudioDesign.rightHand }
+        if isCompleted { return StudioDesign.accent }
         return StudioDesign.surfaceHover
     }
 

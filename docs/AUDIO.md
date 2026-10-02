@@ -85,20 +85,22 @@ Lo que sirve:
 Aviso: CC0 es una **renuncia, no una garantia de titularidad**. Si alguien subio
 un loop que contenia material ajeno, su CC0 no lo limpia.
 
-## Loops de acompanamiento
+## Loops de acompañamiento
 
-Van en `Resources/Loops/`, con este nombre:
+Van en `Resources/Loops/`, con BPM al final del nombre. El detector acepta dos
+o tres dígitos y no distingue mayúsculas:
 
 ```
-nombre_XXXbpm.wav
-
+nombre 90bpm.wav
 boom_bap_085bpm.wav
-soul_loop_090bpm.wav
-dusty_keys_100bpm.wav
+piano 88bpm.wav
 ```
 
-**El BPM va relleno a tres digitos.** Sin relleno, el orden alfabetico coloca
-`100bpm` antes que `85bpm` y el desplegable sale desordenado.
+Se puede incluir el estilo en el nombre (`Bass Hiphop 93bpm.wav`): la selección
+automática usa ese marcador de estilo y después prefiere el loop cuyo BPM está
+más cerca del tempo de práctica. El usuario puede elegir otro loop desde
+Preparación. Si no hay loop con el estilo del ejercicio, se usa el genérico más
+cercano por BPM.
 
 Requisitos:
 

@@ -87,6 +87,7 @@ public enum TempoLadder {
         evidence.filter {
             $0.exerciseID == exerciseID
                 && $0.bpm == step.bpm
+                && $0.stars >= 2
                 && $0.score >= step.requiredScore
                 && $0.trainingContext.evaluationScope.countsAsCompletePattern
                 && (step.minimumBars == nil || $0.trainingContext.completedBars >= step.minimumBars!)
@@ -122,24 +123,17 @@ public enum TempoLadder {
     }
 
     public static func isConsolidated(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = 70) -> Bool {
-        guard let step = steps(for: exercise).first(where: { $0.label == "Consolidar" }) else { return false }
-        return evidence.contains {
-            $0.exerciseID == exercise.id
-                && $0.bpm == step.bpm
-                && $0.score >= max(minimumScore, step.requiredScore)
-                && $0.trainingContext.evaluationScope.countsAsCompletePattern
-        }
+        CourseLessonCriteria.isPassed(exercise, evidence: evidence, minimumScore: max(minimumScore, CourseLessonCriteria.minimumScore))
     }
 
     /// A checkpoint concede equivalencias nuevas únicamente con evidencia
     /// explícita de ritmo completo; el alcance histórico desconocido puede
     /// mantener progreso previo, pero no crear créditos por checkpoint.
     public static func isCheckpointPassed(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = 70) -> Bool {
-        guard let step = steps(for: exercise).first(where: { $0.label == "Consolidar" }) else { return false }
         return evidence.contains {
             $0.exerciseID == exercise.id
-                && $0.bpm == step.bpm
-                && $0.score >= max(minimumScore, step.requiredScore)
+                && $0.bpm >= CourseLessonCriteria.targetBPM(for: exercise)
+                && $0.score >= max(minimumScore, CourseLessonCriteria.minimumScore)
                 && $0.trainingContext.evaluationScope == .fullPattern
         }
     }
@@ -147,6 +141,36 @@ public enum TempoLadder {
     public static func repeats(for step: TempoPracticeStep, exercise: Exercise) -> Int? {
         guard let minimumBars = step.minimumBars else { return nil }
         return PracticeConfiguration.normalizedRepeats(Int(ceil(Double(minimumBars) / Double(exercise.bars))))
+    }
+}
+
+/// Criterio de aprendizaje básico, independiente de los retos opcionales de
+/// velocidad: ritmo completo a un tempo de aprendizaje no superior a 100 BPM.
+public enum CourseLessonCriteria {
+    public static let minimumScore = 70.0
+    /// Conserva progreso histórico a 100 BPM en ritmos cuyo tempo nominal es más
+    /// rápido; los ritmos lentos ya no tienen que acelerarse para avanzar.
+    public static func targetBPM(for exercise: Exercise) -> Int { min(exercise.bpm, 100) }
+
+    public static func isPassed(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = CourseLessonCriteria.minimumScore) -> Bool {
+        evidence.contains {
+            $0.exerciseID == exercise.id
+                && $0.score >= minimumScore
+                && lessonEvidenceIsEligible($0, for: exercise)
+        }
+    }
+
+    private static func lessonEvidenceIsEligible(_ evidence: CourseAttemptEvidence, for exercise: Exercise) -> Bool {
+        switch evidence.trainingContext.evaluationScope {
+        case .fullPattern:
+            return evidence.bpm >= targetBPM(for: exercise)
+        case .legacyUnknown:
+            // Historial anterior al contexto de sesión solo se conserva con el
+            // criterio antiguo; no acreditamos retroactivamente prácticas lentas.
+            return evidence.bpm >= 100
+        case .selectedVoices, .fragment, .corrective:
+            return false
+        }
     }
 }
 
@@ -272,12 +296,19 @@ public enum CourseProgress {
             attempts.map(\.score).max() ?? 0
         }
         let ordered = exercises.sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        let advancedPassLevels = completeAttempts.compactMap { attempt -> Int? in
+            guard attempt.bpm > 100, attempt.score >= completionScore,
+                  let exercise = exercises.first(where: { $0.id == attempt.exerciseID }) else { return nil }
+            return exercise.level
+        }
+        let highestAdvancedLevel = advancedPassLevels.max()
         var previousSatisfied = true
 
         return ordered.map { exercise in
             let bestScore = bestScores[exercise.id]
             let completed = bestScore != nil
-            let status: CourseLevelStatus = completed ? .mastered : (previousSatisfied || exercise.id == fastStartID ? .available : .locked)
+            let advancedUnlock = highestAdvancedLevel.map { exercise.level < $0 } ?? false
+            let status: CourseLevelStatus = completed ? .mastered : (previousSatisfied || advancedUnlock || exercise.id == fastStartID ? .available : .locked)
             previousSatisfied = previousSatisfied && completed
             return CourseLevelState(exerciseID: exercise.id, status: status, bestScore: bestScore)
         }
@@ -332,15 +363,28 @@ public enum CourseRecommendationPlanner {
            ordered.allSatisfy({ levelStates[$0.id]?.chapterAccredited == true }) {
             return nil
         }
-        if let current = ordered.first(where: { states[$0.id] == .available }),
-           let step = TempoLadder.nextStep(for: current, evidence: evidence) {
-            return .init(exerciseID: current.id, courseLevel: current.level, tempoStep: step, isCourseCompletion: step.label == "Consolidar")
+        if let current = ordered.first(where: {
+            (courseLevels.isEmpty || states[$0.id] == .available)
+                && guidedStep(for: $0, evidence: evidence) != nil
+        }), let step = guidedStep(for: current, evidence: evidence) {
+            return .init(exerciseID: current.id, courseLevel: current.level, tempoStep: step, isCourseCompletion: true)
         }
-        if let review = ordered.first(where: { states[$0.id] == .mastered && TempoLadder.nextStep(for: $0, evidence: evidence) != nil }),
-           let step = TempoLadder.nextStep(for: review, evidence: evidence) {
+        if let review = ordered.first(where: { states[$0.id] == .mastered && guidedStep(for: $0, evidence: evidence) != nil }),
+           let step = guidedStep(for: review, evidence: evidence) {
             return .init(exerciseID: review.id, courseLevel: review.level, tempoStep: step, isCourseCompletion: false)
         }
         return nil
+    }
+
+    private static func guidedStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
+        guard !CourseLessonCriteria.isPassed(exercise, evidence: evidence) else { return nil }
+        return TempoPracticeStep(
+            label: "Ritmo completo",
+            bpm: CourseLessonCriteria.targetBPM(for: exercise),
+            requiredScore: CourseLessonCriteria.minimumScore,
+            requiredPasses: 1,
+            award: .stars(1)
+        )
     }
 }
 
@@ -353,50 +397,62 @@ public enum NextSessionPlanner {
                 (eligibleExerciseIDs?.contains(exercise.id) ?? true)
             }
             .sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
-        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0.status) })
-        let levelStates = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
-        let guidedCandidates = courseLevels.isEmpty ? eligible : eligible.filter { states[$0.id] == .available }
-        let reviewCandidates = courseLevels.isEmpty ? eligible : eligible.filter { exercise in
-            guard states[exercise.id] == .mastered else { return false }
-            if case .checkpoint = levelStates[exercise.id]?.creditSource { return false }
+        guard !eligible.isEmpty else { return nil }
+        let evidence = attempts.map(CourseAttemptEvidence.init)
+        let recommendation = CourseRecommendationPlanner.recommend(
+            exercises: eligible,
+            courseLevels: courseLevels,
+            evidence: evidence
+        )
+
+        if let recommendation,
+           let exercise = eligible.first(where: { $0.id == recommendation.exerciseID }) {
+            if attempts.isEmpty {
+                return makePlan(
+                    for: exercise,
+                    bpm: recommendation.tempoStep.bpm,
+                    kind: .firstSession,
+                    reason: "Empieza por este ritmo completo, a su tempo de referencia de \(recommendation.tempoStep.bpm) BPM."
+                )
+            }
+            if let recent = attempts.first,
+               recent.exerciseID == exercise.id,
+               recent.score < CourseLessonCriteria.minimumScore {
+                if let weak = recent.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weak.accuracy < 70 {
+                    return makePlan(for: exercise, bpm: recommendation.tempoStep.bpm, kind: .corrective, reason: "Repite el ritmo y presta atención a \(weak.sound); fue la voz con más margen en el último intento.")
+                }
+                return makePlan(for: exercise, bpm: recommendation.tempoStep.bpm, kind: .consolidate, reason: "Repite el ritmo completo a \(recommendation.tempoStep.bpm) BPM; un intento más estable te permitirá continuar.")
+            }
+            return makePlan(
+                for: exercise,
+                bpm: recommendation.tempoStep.bpm,
+                kind: .continueCourse,
+                reason: "Es la siguiente lección disponible. Superarla al tempo de referencia permite continuar; los retos de velocidad son opcionales."
+            )
+        }
+
+        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
+        let attemptsByExercise = Dictionary(grouping: attempts, by: \.exerciseID)
+        let reviewCandidates = eligible.filter { exercise in
+            guard states[exercise.id]?.status == .mastered else { return false }
+            if case .checkpoint = states[exercise.id]?.creditSource { return false }
             return true
         }
-        let candidates = guidedCandidates.isEmpty ? reviewCandidates : guidedCandidates
-        guard !candidates.isEmpty else { return nil }
-
-        let attemptsByExercise = Dictionary(grouping: attempts, by: \.exerciseID)
-        if attempts.isEmpty {
-            return makePlan(for: candidates[0], kind: .firstSession, reason: "Empieza por el primer groove: construye una base estable antes de añadir variaciones.")
-        }
-
-        if let recent = attempts.first,
-           let current = eligible.first(where: { $0.id == recent.exerciseID }),
-           recent.score < 70 {
-            if let weak = recent.soundStatistics.min(by: { $0.accuracy < $1.accuracy }), weak.accuracy < 70 {
-                return makePlan(for: current, kind: .corrective, reason: "Refuerza \(weak.sound): fue la voz con más margen en el último intento.")
-            }
-            return makePlan(for: current, kind: .consolidate, reason: "Repite este nivel: el último intento aún necesita consolidación antes de avanzar.")
-        }
-
-        if let next = candidates.first(where: { (attemptsByExercise[$0.id]?.map(\.score).max() ?? 0) < 70 }) {
-            return makePlan(for: next, kind: .continueCourse, reason: "Es el siguiente escalón disponible del curso.")
-        }
-
-        let review = candidates.min { left, right in
-            let leftScore = attemptsByExercise[left.id]?.last?.score ?? 100
-            let rightScore = attemptsByExercise[right.id]?.last?.score ?? 100
+        guard let review = reviewCandidates.min(by: { left, right in
+            let leftScore = attemptsByExercise[left.id]?.first?.score ?? 100
+            let rightScore = attemptsByExercise[right.id]?.first?.score ?? 100
             return leftScore == rightScore ? left.level < right.level : leftScore < rightScore
-        } ?? candidates[0]
-        return makePlan(for: review, kind: .review, reason: "El curso está consolidado; repasa el ritmo con más margen de mejora.")
+        }) else { return nil }
+        return makePlan(for: review, bpm: review.bpm, kind: .review, reason: "La ruta está acreditada. Repasa este ritmo o elige cualquier otro bloque.")
     }
 
-    private static func makePlan(for exercise: Exercise, kind: NextSessionKind, reason: String) -> NextSessionPlan {
+    private static func makePlan(for exercise: Exercise, bpm: Int, kind: NextSessionKind, reason: String) -> NextSessionPlan {
         let repeats = PracticeConfiguration.normalizedRepeats(exercise.repeats)
-        let configured = PracticeConfiguration(exercise: exercise, repeats: repeats).applying(to: exercise)
+        let configured = PracticeConfiguration(exercise: exercise, bpm: bpm, repeats: repeats).applying(to: exercise)
         return NextSessionPlan(
             exerciseID: exercise.id,
             title: exercise.title,
-            bpm: configured.bpm,
+            bpm: bpm,
             repeats: repeats,
             estimatedDurationMilliseconds: ExerciseTimeline(exercise: configured).patternDurationMilliseconds * Double(repeats),
             kind: kind,

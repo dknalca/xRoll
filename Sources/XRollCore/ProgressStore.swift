@@ -77,7 +77,12 @@ public final class ProgressStore {
 
     public init(url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard sqlite3_open(url.path, &database) == SQLITE_OK else { throw ProgressStoreError.sqlite("No se pudo abrir la base de datos.") }
+        guard sqlite3_open(url.path, &database) == SQLITE_OK else {
+            let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "No se pudo abrir la base de datos."
+            if let database { sqlite3_close(database) }
+            database = nil
+            throw ProgressStoreError.sqlite(message)
+        }
         try execute("""
         CREATE TABLE IF NOT EXISTS attempts (
           id INTEGER PRIMARY KEY, exercise_id TEXT NOT NULL, timestamp REAL NOT NULL,
@@ -87,11 +92,16 @@ public final class ProgressStore {
           sound_stats_json TEXT, hit_records_json TEXT, training_context_json TEXT
         )
         """)
-        // Bases creadas por versiones anteriores no tienen el desglose por
-        // sonido. SQLite conserva los datos existentes al añadir esta columna.
-        try? execute("ALTER TABLE attempts ADD COLUMN sound_stats_json TEXT")
-        try? execute("ALTER TABLE attempts ADD COLUMN hit_records_json TEXT")
-        try? execute("ALTER TABLE attempts ADD COLUMN training_context_json TEXT")
+        // Bases anteriores conservan los intentos y reciben las columnas nuevas.
+        var columns = try columnNames(in: "attempts")
+        for (name, definition) in [
+            ("sound_stats_json", "TEXT"),
+            ("hit_records_json", "TEXT"),
+            ("training_context_json", "TEXT")
+        ] where !columns.contains(name) {
+            try execute("ALTER TABLE attempts ADD COLUMN \(name) \(definition)")
+            columns.insert(name)
+        }
     }
 
     deinit { sqlite3_close(database) }
@@ -120,7 +130,12 @@ public final class ProgressStore {
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
         sqlite3_bind_text(statement, 2, exerciseID, -1, sqliteTransient)
-        guard sqlite3_step(statement) == SQLITE_ROW, sqlite3_column_int(statement, 0) > 0 else { return nil }
+        let status = sqlite3_step(statement)
+        guard status == SQLITE_ROW else {
+            if status == SQLITE_DONE { return nil }
+            throw error()
+        }
+        guard sqlite3_column_int(statement, 0) > 0 else { return nil }
         return ExerciseProgress(attemptCount: Int(sqlite3_column_int(statement, 0)), bestScore: sqlite3_column_double(statement, 1), latestScore: sqlite3_column_double(statement, 2))
     }
 
@@ -130,7 +145,12 @@ public final class ProgressStore {
         sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
         sqlite3_bind_int(statement, 2, Int32(max(1, limit)))
         var scores: [Double] = []
-        while sqlite3_step(statement) == SQLITE_ROW { scores.append(sqlite3_column_double(statement, 0)) }
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW else { throw error() }
+            scores.append(sqlite3_column_double(statement, 0))
+        }
         return scores
     }
 
@@ -152,7 +172,10 @@ public final class ProgressStore {
         if let value = filter.to { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
         sqlite3_bind_int(statement, index, Int32(max(1, limit)))
         var result: [PracticeAttempt] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW else { throw error() }
             let soundStatistics: [SoundStatistics]
             if sqlite3_column_type(statement, 11) == SQLITE_NULL { soundStatistics = [] }
             else if let pointer = sqlite3_column_blob(statement, 11) { soundStatistics = (try? JSONDecoder().decode([SoundStatistics].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 11))))) ?? [] }
@@ -176,7 +199,10 @@ public final class ProgressStore {
         let statement = try prepare("SELECT exercise_id, bpm, score, stars, training_context_json FROM attempts ORDER BY timestamp DESC, id DESC")
         defer { sqlite3_finalize(statement) }
         var result = [CourseAttemptEvidence]()
-        while sqlite3_step(statement) == SQLITE_ROW {
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW else { throw error() }
             let context: TrainingContext
             if sqlite3_column_type(statement, 4) == SQLITE_NULL {
                 context = .init(evaluationScope: .legacyUnknown)
@@ -215,9 +241,33 @@ public final class ProgressStore {
         try data.write(to: url, options: .atomic)
     }
 
-    private func execute(_ sql: String) throws { let statement = try prepare(sql); defer { sqlite3_finalize(statement) }; guard sqlite3_step(statement) == SQLITE_DONE else { throw error() } }
-    private func prepare(_ sql: String) throws -> OpaquePointer? { var statement: OpaquePointer?; guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { throw error() }; return statement }
-    private func error() -> ProgressStoreError { ProgressStoreError.sqlite(String(cString: sqlite3_errmsg(database))) }
+    private func columnNames(in table: String) throws -> Set<String> {
+        let statement = try prepare("PRAGMA table_info(\(table))")
+        defer { sqlite3_finalize(statement) }
+        var columns = Set<String>()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return columns }
+            guard status == SQLITE_ROW, let name = sqlite3_column_text(statement, 1) else { throw error() }
+            columns.insert(String(cString: name))
+        }
+    }
+
+    private func execute(_ sql: String) throws {
+        let statement = try prepare(sql)
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+    }
+
+    private func prepare(_ sql: String) throws -> OpaquePointer? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { throw error() }
+        return statement
+    }
+
+    private func error() -> ProgressStoreError {
+        ProgressStoreError.sqlite(database.map { String(cString: sqlite3_errmsg($0)) } ?? "Error de SQLite.")
+    }
 }
 
 private extension JSONEncoder {

@@ -201,6 +201,115 @@ public struct ExerciseScore: Equatable {
     public var extraCount: Int { hits.filter { $0.judgement == .extra }.count }
 }
 
+/// Puntúa en tiempo constante respecto al historial para entradas cronológicas.
+/// Si llega un hostTime anterior, usa el scorer de referencia para mantener la
+/// semántica batch y recuperar las asociaciones deterministas.
+final class IncrementalRhythmScorer {
+    private let timeline: ExerciseTimeline
+    private let bpm: Int
+    private let grid: Int
+    private let windows: ScoringWindows
+    private let calibrationOffsetMilliseconds: Double
+    private let notesBySound: [String: [ScheduledExerciseNote]]
+    private var consumedNoteIndices = Set<Int>()
+    private var indexedResults = [(inputIndex: Int, result: ScoredPadHit)]()
+    private var inputHits = [TimedPadHit]()
+    private var latestInputTimeMilliseconds: Double?
+
+    init(timeline: ExerciseTimeline, bpm: Int, grid: Int, calibrationOffsetMilliseconds: Double, scoringWindows: ScoringWindows?) {
+        self.timeline = timeline
+        self.bpm = bpm
+        self.grid = grid
+        windows = scoringWindows ?? ScoringWindows(bpm: bpm, grid: grid)
+        self.calibrationOffsetMilliseconds = calibrationOffsetMilliseconds
+        notesBySound = Dictionary(grouping: timeline.notes, by: \.sound)
+        consumedNoteIndices.reserveCapacity(timeline.notes.count)
+        indexedResults.reserveCapacity(timeline.notes.count)
+        inputHits.reserveCapacity(timeline.notes.count)
+    }
+
+    var hits: [TimedPadHit] { inputHits }
+
+    func register(_ hit: TimedPadHit) -> ScoredPadHit {
+        let inputIndex = inputHits.count
+        inputHits.append(hit)
+        if let latestInputTimeMilliseconds, hit.timeMilliseconds < latestInputTimeMilliseconds {
+            return rescoreAndReturnLatestHit(hit, inputIndex: inputIndex)
+        }
+        latestInputTimeMilliseconds = hit.timeMilliseconds
+
+        let result = scoreChronologicalHit(hit)
+        indexedResults.append((inputIndex, result))
+        if let noteIndex = result.expectedNote?.index { consumedNoteIndices.insert(noteIndex) }
+        return result
+    }
+
+    var score: ExerciseScore {
+        let orderedResults = indexedResults.sorted {
+            let leftTime = $0.result.hit.timeMilliseconds
+            let rightTime = $1.result.hit.timeMilliseconds
+            return leftTime == rightTime ? $0.inputIndex < $1.inputIndex : leftTime < rightTime
+        }.map(\.result)
+        let misses = timeline.notes.filter { !consumedNoteIndices.contains($0.index) }
+        return RhythmScorer.makeScore(timeline: timeline, results: orderedResults, misses: misses)
+    }
+
+    private func rescoreAndReturnLatestHit(_ hit: TimedPadHit, inputIndex: Int) -> ScoredPadHit {
+        let (_, indexed) = RhythmScorer.scoreIndexed(
+            timeline: timeline,
+            bpm: bpm,
+            grid: grid,
+            hits: inputHits,
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: windows
+        )
+        indexedResults = indexed.map { (inputIndex: $0.0, result: $0.1) }
+        consumedNoteIndices = Set(indexed.compactMap { $0.1.expectedNote?.index })
+        return indexed.first(where: { $0.0 == inputIndex })?.1
+            ?? ScoredPadHit(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+    }
+
+    private func scoreChronologicalHit(_ hit: TimedPadHit) -> ScoredPadHit {
+        guard let notes = notesBySound[hit.sound], !notes.isEmpty else {
+            return .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+        }
+
+        let targetTime = hit.timeMilliseconds - calibrationOffsetMilliseconds
+        let lowerBound = targetTime - windows.regularMilliseconds
+        let upperBound = targetTime + windows.regularMilliseconds
+        var low = 0
+        var high = notes.count
+        while low < high {
+            let middle = (low + high) / 2
+            if notes[middle].timeMilliseconds < lowerBound { low = middle + 1 }
+            else { high = middle }
+        }
+
+        var expected: ScheduledExerciseNote?
+        var expectedDistance = Double.greatestFiniteMagnitude
+        for note in notes[low...] {
+            guard note.timeMilliseconds <= upperBound else { break }
+            guard !consumedNoteIndices.contains(note.index), RhythmScorer.targetMatches(note.target, hit: hit) else { continue }
+            let distance = abs(targetTime - note.timeMilliseconds)
+            if distance < expectedDistance || (distance == expectedDistance && note.timeMilliseconds < (expected?.timeMilliseconds ?? .greatestFiniteMagnitude)) {
+                expected = note
+                expectedDistance = distance
+            }
+        }
+
+        guard let expected else {
+            return .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+        }
+        let offset = hit.timeMilliseconds - expected.timeMilliseconds - calibrationOffsetMilliseconds
+        let distance = abs(offset)
+        let judgement: RhythmJudgement
+        if distance <= windows.perfectMilliseconds { judgement = .perfect }
+        else if distance <= windows.goodMilliseconds { judgement = .good }
+        else { judgement = .regular }
+        return .init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset)
+    }
+}
+
 public enum RhythmScorer {
     public static func score(
         timeline: ExerciseTimeline,
@@ -210,13 +319,36 @@ public enum RhythmScorer {
         calibrationOffsetMilliseconds: Double = 0,
         scoringWindows: ScoringWindows? = nil
     ) -> ExerciseScore {
+        scoreIndexed(
+            timeline: timeline,
+            bpm: bpm,
+            grid: grid,
+            hits: hits,
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: scoringWindows
+        ).0
+    }
+
+    static func scoreIndexed(
+        timeline: ExerciseTimeline,
+        bpm: Int,
+        grid: Int,
+        hits: [TimedPadHit],
+        calibrationOffsetMilliseconds: Double = 0,
+        scoringWindows: ScoringWindows? = nil
+    ) -> (ExerciseScore, [(Int, ScoredPadHit)]) {
         let windows = scoringWindows ?? ScoringWindows(bpm: bpm, grid: grid)
         var pending = Set(timeline.notes.map(\.index))
-        var results: [ScoredPadHit] = []
+        var indexedResults = [(Int, ScoredPadHit)]()
 
-        for hit in hits.sorted(by: { $0.timeMilliseconds < $1.timeMilliseconds }) {
+        let orderedHits = hits.enumerated().sorted {
+            $0.element.timeMilliseconds == $1.element.timeMilliseconds
+                ? $0.offset < $1.offset
+                : $0.element.timeMilliseconds < $1.element.timeMilliseconds
+        }
+        for (inputIndex, hit) in orderedHits.map({ ($0.offset, $0.element) }) {
             let candidates = timeline.notes.filter { note in
-                guard pending.contains(note.index), note.sound == hit.sound, target(note.target, matches: hit) else { return false }
+                guard pending.contains(note.index), note.sound == hit.sound, targetMatches(note.target, hit: hit) else { return false }
                 let scoredOffset = hit.timeMilliseconds - note.timeMilliseconds - calibrationOffsetMilliseconds
                 return abs(scoredOffset) <= windows.regularMilliseconds
             }
@@ -227,7 +359,7 @@ public enum RhythmScorer {
             }
 
             guard let expected else {
-                results.append(.init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil))
+                indexedResults.append((inputIndex, .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)))
                 continue
             }
             pending.remove(expected.index)
@@ -241,10 +373,19 @@ public enum RhythmScorer {
             } else {
                 judgement = .regular
             }
-            results.append(.init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset))
+            indexedResults.append((inputIndex, .init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset)))
         }
 
         let misses = timeline.notes.filter { pending.contains($0.index) }
+        let result = indexedResults.sorted {
+            $0.1.hit.timeMilliseconds == $1.1.hit.timeMilliseconds
+                ? $0.0 < $1.0
+                : $0.1.hit.timeMilliseconds < $1.1.hit.timeMilliseconds
+        }.map(\.1)
+        return (makeScore(timeline: timeline, results: result, misses: misses), indexedResults)
+    }
+
+    static func makeScore(timeline: ExerciseTimeline, results: [ScoredPadHit], misses: [ScheduledExerciseNote]) -> ExerciseScore {
         let earned = results.reduce(0) { $0 + $1.judgement.value }
         // Extras must matter, but a single accidental tap should not outweigh
         // the credit earned by a valid, if loose, hit.
@@ -263,7 +404,7 @@ public enum RhythmScorer {
         )
     }
 
-    private static func target(_ target: Exercise.Target?, matches hit: TimedPadHit) -> Bool {
+    static func targetMatches(_ target: Exercise.Target?, hit: TimedPadHit) -> Bool {
         guard let target else { return true }
         switch target.type { case .any: return true; case .role: return target.value == hit.role; case .pad: return target.value == hit.padID }
     }

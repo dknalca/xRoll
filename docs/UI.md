@@ -2,18 +2,18 @@
 
 ## Notacion
 
-Notas cayendo en vertical hacia una linea de golpe situada cerca del borde
-inferior, pero no pegada: hace falta hueco para ver la nota aterrizar y su
-destello de juicio.
+Notas que viajan por una autopista trapezoidal hacia una línea de golpe fija,
+cerca del borde inferior. La coordenada temporal permanece lineal; la perspectiva
+solo estrecha la pista y escala las notas hacia el horizonte.
 
 **Perspectiva suave.** La justa para dar profundidad y anticipacion. Una fuga
 dramatica convierte la parte alta de la pantalla en papilla, porque la
 perspectiva comprime el tiempo al fondo y las notas lejanas se apelotonan justo
 donde quieres leer subdivisiones.
 
-**Lineas de pulso y subdivision** cruzando todos los carriles. Son lo que
-neutraliza esa compresion: con la rejilla dibujada, el ojo lee "justo despues del
-tercer tiempo" en lugar de "a treinta y ocho pixeles".
+**Marcas de pulso y subdivisión** siguen la geometría de la pista. La distancia
+temporal entre marcas no cambia con la perspectiva: el ojo puede leer "justo
+después del tercer tiempo" sin estimar píxeles.
 
 **Anticipacion: dos compases.**
 
@@ -36,25 +36,27 @@ retiran.** Los pads libres tambien conservan su hueco. Retirarlos recolocaria lo
 demas y cada ejercicio tendria una geometria distinta, que es lo que destruye la
 memoria espacial.
 
-## Manos
+## Identidad visual de las notas
 
-| Mano | Forma | Color |
+| Sonido | Color de referencia |
 |---|---|---|
-| Izquierda | Circulo | Azul `#0072B2` |
-| Derecha | Cuadrado | Naranja `#E69F00` |
+| Bombo | Azul `#26B8FF` |
+| Caja | Coral `#FF5E7A` |
+| Charles cerrado | Verde `#59DB9E` |
+| Charles abierto | Turquesa `#45C7D1` |
 
-Dos formas y las mas distintas posibles: a sesenta pixeles y en movimiento el
-ojo lee siluetas, no vertices, y un pentagono se lee como un circulo.
+Cada nota, carril y receptor comparte el acento del sonido. La silueta es común:
+la práctica no marca mano izquierda/derecha ni imprime L/R sobre las notas.
+El mapa de colores canónico está en `GameplayVisualTheme.soundAccent(_:)`.
 
-La paleta es Okabe-Ito, distinguible en todos los tipos de daltonismo. **El color
-nunca va solo**: siempre acompanado de la forma. Entre un 5 y un 8 por ciento de
-los hombres tiene alguna deficiencia de vision del color, y la codificacion
-redundante lo resuelve a coste cero.
+Las etiquetas de sonido en los receptores y la posición fija del carril refuerzan
+el color. El juicio usa una capa aparte y nunca cambia el color de identidad de
+la nota.
 
-Reparto de responsabilidades, que conviene no mezclar:
+Reparto de responsabilidades:
 
 - **Carril** indica que sonido.
-- **Forma y color juntos** indican que mano.
+- **Color compartido** identifica el sonido en la nota, el carril y el receptor.
 
 ## Cuenta de entrada
 
@@ -82,12 +84,15 @@ pantalla se abre automaticamente; despues sigue disponible como opcion.
 - Etiqueta e icono de juicio; el color nunca es la unica senal.
 - Flecha izquierda si el golpe fue adelantado y derecha si fue atrasado, junto
   con el desvio en milisegundos.
+- El golpe pulsa el receptor y puede emitir un anillo y pocas partículas dentro
+  de la zona de pads; los efectos no desplazan la línea ni las notas pendientes.
+- Los aciertos consecutivos Perfect/Good hacen respirar los carriles activos y
+  animan las separaciones como ondas progresivamente más rápidas e intensas.
 - Al terminar: puntuacion sobre el total posible, estrellas, y el desvio medio
   redactado en lenguaje llano.
 
-El color de mano permanece en la nota. El juicio se presenta en una capa
-separada para que el naranja de la mano derecha no pueda confundirse con un
-golpe adelantado, convencion que usan otras aplicaciones.
+El color de sonido permanece en la nota. El juicio se presenta en una capa
+separada para no confundir identidad de sonido con precisión temporal.
 
 ## Rendimiento
 
@@ -126,4 +131,7 @@ Orden:
 `Equipo → Pads y layout` permite elegir Core, Drum Kit o Mirror. Cada preset
 conserva las notas MIDI físicas aprendidas y actualiza la vista 4×4.
 
-En layouts con duplicados, los 16 carriles se conservan. Una nota por sonido usa un carril recomendado e ilumina alternativas válidas.
+El mapa físico conserva sus 16 posiciones en Equipo, pero la práctica muestra una
+única pista y un único cuadrado objetivo por sonido. Si hay varios pads para el
+bombo, cualquiera sigue resolviendo al mismo sonido y el scoring conserva sus
+objetivos por rol/pad; la vista no duplica la nota en cada pad alternativo.

@@ -6,8 +6,6 @@ Estas ilustraciones versionadas resumen las pantallas del flujo. Los textos y
 colores siguen la interfaz actual; no contienen datos de usuario ni estado de
 un dispositivo concreto.
 
-![Pantalla de inicio real de xRoll](assets/xroll-home.png)
-
 ![Preparación](assets/preparation.svg)
 
 ![Práctica](assets/practice.svg)
@@ -50,18 +48,27 @@ El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
 
 **Calentamiento recomendado** selecciona un nivel nuevo o un resultado bajo.
 Al terminar, xRoll guarda el porcentaje, estrellas, juicios, desfase medio y
-estadísticas por sonido. **Corregir sonido** abre una práctica corta de la voz
-con menor acierto; Ghost Coach explica la prioridad.
+estadísticas por sonido. Si aún falta superar el ritmo, la acción principal es
+repetirlo; **Practicar la parte difícil** queda como alternativa opcional y
+menos destacada.
 El gráfico representa, en orden cronológico, los 20 intentos más recientes del
 ejercicio elegido.
 
 Las ayudas cambian solo la guía visual: incluso con ayuda **Reducida**, todas
 las notas del ritmo completo siguen siendo objetivos puntuables. Puedes
-seleccionar cualquier ejercicio y tempo del curso. Para acreditar una estación,
-completa todos sus ritmos o supera su botón **Demostrar capítulo** a 100 BPM y
-70 %; si ya conoces la estación, no hace falta tocar cada ejercicio básico. Un
-checkpoint adelantado queda guardado y cuenta cuando la ruta previa esté
-acreditada. Los intentos por voces, fragmento o corrección no acreditan el curso.
+seleccionar cualquier ejercicio y tempo del curso. La acción guiada usa un tempo
+de aprendizaje adecuado para la lección; para acreditarla, toca el ritmo completo
+y alcanza el 70 %. Los retos de velocidad son opcionales. Si ya conoces un
+bloque, puedes hacer su prueba de ritmo completo sin tocar cada ejercicio básico;
+una prueba adelantada queda guardada y cuenta cuando la ruta previa esté
+superada. Los intentos por voces, fragmento o corrección no acreditan el curso.
+Tras un buen resultado completo, Resultado también permite explorar el siguiente
+ejercicio sin conceder acreditación curricular.
+
+En cada ejercicio se muestra el premio de tempo más alto conseguido. Cuando ya
+se han ganado trofeos, estos sustituyen a las estrellas en la fila. Los ejercicios
+MIDI comunitarios se importan desde **Curso → MIDI importados**; su formato y
+límites están en [COMMUNITY_MIDI.md](COMMUNITY_MIDI.md).
 
 Para conservar una copia legible de los datos:
 

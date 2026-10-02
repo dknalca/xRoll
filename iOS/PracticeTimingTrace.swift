@@ -13,12 +13,16 @@ struct PracticeTimingSample: Codable {
     let workerHostTime: UInt64?
     let audioSubmissionStartHostTime: UInt64?
     let audioSubmissionReturnHostTime: UInt64?
+    let sessionProcessingStartHostTime: UInt64?
+    let sessionProcessingEndHostTime: UInt64?
     let audioSubmissionError: String?
     let mainDeliveryHostTime: UInt64
     let visualUpdateHostTime: UInt64?
     let estimatedPresentationHostTime: UInt64?
     let frameIntervalMilliseconds: Double?
     let visualPredictionMilliseconds: Double?
+    let feedbackID: String?
+    var visualFeedbackConsumedHostTime: UInt64?
     let targetHostTime: UInt64?
     let expectedNoteTimeMilliseconds: Double?
     let nearestExpectedTargetHostTime: UInt64?
@@ -58,6 +62,7 @@ struct PracticeTimingTraceDocument: Codable {
     let totalEventCount: Int
     let truncatedEventCount: Int
     let midiDroppedPacketCount: UInt64
+    let droppedVisualFeedbackCount: UInt64
     let samples: [PracticeTimingSample]
 }
 
@@ -70,6 +75,8 @@ final class PracticeTimingTraceBuffer {
     private var nextIndex = 0
     private var count = 0
     private var nextSequence = 0
+    private var pendingVisualMarks = [String: UInt64]()
+    private var sampleIndexByFeedbackID = [String: Int]()
 
     init(capacity: Int = 512) {
         self.capacity = max(1, capacity)
@@ -83,6 +90,8 @@ final class PracticeTimingTraceBuffer {
         nextIndex = 0
         count = 0
         nextSequence = 0
+        pendingVisualMarks.removeAll(keepingCapacity: true)
+        sampleIndexByFeedbackID.removeAll(keepingCapacity: true)
     }
 
     func append(_ sample: PracticeTimingSample) {
@@ -91,9 +100,31 @@ final class PracticeTimingTraceBuffer {
         var sample = sample
         sample.sequence = nextSequence
         nextSequence += 1
+        if let feedbackID = sample.feedbackID {
+            sample.visualFeedbackConsumedHostTime = pendingVisualMarks.removeValue(forKey: feedbackID)
+        }
+        if let overwrittenID = storage[nextIndex]?.feedbackID {
+            sampleIndexByFeedbackID.removeValue(forKey: overwrittenID)
+        }
         storage[nextIndex] = sample
+        if let feedbackID = sample.feedbackID { sampleIndexByFeedbackID[feedbackID] = nextIndex }
         nextIndex = (nextIndex + 1) % capacity
         count = min(capacity, count + 1)
+    }
+
+    func markVisualFeedbackConsumed(feedbackID: String, hostTime: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let index = sampleIndexByFeedbackID[feedbackID], var sample = storage[index] {
+            sample.visualFeedbackConsumedHostTime = hostTime
+            storage[index] = sample
+            return
+        }
+        if pendingVisualMarks.count >= capacity,
+           let oldestFeedbackID = pendingVisualMarks.keys.first {
+            pendingVisualMarks.removeValue(forKey: oldestFeedbackID)
+        }
+        pendingVisualMarks[feedbackID] = hostTime
     }
 
     func snapshot() -> [PracticeTimingSample] {

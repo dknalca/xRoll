@@ -76,12 +76,15 @@ public struct KitManifest: Codable, Equatable {
 
     public func validate() throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
-        guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del kit") }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id del kit") }
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("nombre del kit") }
 
         var identifiers = Set<String>()
         var noteNumbers = Set<Int>()
         for sound in sounds {
-            guard !sound.id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id de sonido") }
+            guard !sound.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id de sonido") }
+            guard !sound.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("etiqueta de sonido") }
+            guard !sound.file.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("archivo de sonido") }
             guard Self.canonicalSoundIDs.contains(sound.id) else {
                 throw ResourceValidationError.unknownSound(sound.id)
             }
@@ -136,7 +139,10 @@ public struct Exercise: Codable, Equatable {
 
     public func validate(availableSounds: Set<String>) throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
-        guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("título del ejercicio") }
+        guard !family.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("familia del ejercicio") }
+        guard !kit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("kit del ejercicio") }
         guard meter == [4, 4] else { throw ResourceValidationError.invalidMeter(meter) }
         guard grid == 12 || grid == 16 else { throw ResourceValidationError.invalidGrid(grid) }
         guard bars > 0 else { throw ResourceValidationError.invalidLength("bars") }
@@ -157,7 +163,10 @@ public struct Exercise: Codable, Equatable {
                 throw ResourceValidationError.invalidHand(hand)
             }
             if let velocity = note.velocity, !(1...127).contains(velocity) { throw ResourceValidationError.invalidVelocity(velocity) }
-            if let target = note.target, target.type != .any, target.value?.isEmpty != false { throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio") }
+            if let target = note.target, target.type != .any,
+               target.value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio")
+            }
             let key = "\(note.step):\(note.sound)"
             guard seenNotes.insert(key).inserted else {
                 throw ResourceValidationError.duplicateNote(step: note.step, sound: note.sound)

@@ -2,6 +2,9 @@ import Foundation
 
 public enum MIDIExerciseError: LocalizedError {
     case invalidFile(String)
+    case unsupportedFormat(Int)
+    case fileTooLarge
+    case patternTooLong(Int)
     case unsupportedTiming
     case unsupportedMeter
     case unsupportedTempoChanges
@@ -14,6 +17,9 @@ public enum MIDIExerciseError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidFile(let message): return "MIDI no válido: \(message)."
+        case .unsupportedFormat(let format): return "El formato MIDI \(format) no es compatible; usa SMF 0 o 1."
+        case .fileTooLarge: return "El archivo MIDI supera el límite de 32 MB."
+        case .patternTooLong(let bars): return "El MIDI dura \(bars) compases; el máximo admitido es 256."
         case .unsupportedTiming: return "El MIDI debe usar pulsos por negra, no timecode."
         case .unsupportedMeter: return "El MIDI debe estar en compás 4/4."
         case .unsupportedTempoChanges: return "El MIDI debe mantener un BPM fijo."
@@ -29,19 +35,34 @@ public enum MIDIExerciseError: LocalizedError {
 /// Minimal Standard MIDI File reader for community exercises. It intentionally
 /// uses only portable MIDI data: track name, tempo, time signature and note-on.
 public enum MIDIExerciseLoader {
+    public static let maximumFileBytes = 32 * 1_024 * 1_024
+    public static let maximumBars = 256
+
     public static func load(url: URL, kit: KitManifest, level: Int) throws -> Exercise {
-        var reader = MIDIReader(bytes: Array(try Data(contentsOf: url)))
+        try kit.validate()
+        if let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+           let fileSize = values.fileSize,
+           fileSize > maximumFileBytes {
+            throw MIDIExerciseError.fileTooLarge
+        }
+        let fileData = try Data(contentsOf: url)
+        guard fileData.count <= maximumFileBytes else { throw MIDIExerciseError.fileTooLarge }
+        var reader = MIDIReader(bytes: Array(fileData))
         guard reader.readASCII(count: 4) == "MThd" else { throw MIDIExerciseError.invalidFile("falta MThd") }
         let headerLength = try reader.readUInt32()
         guard headerLength >= 6 else { throw MIDIExerciseError.invalidFile("cabecera corta") }
-        _ = try reader.readUInt16() // format 0 and 1 both work for exercises
+        let format = try reader.readUInt16()
         let tracks = Int(try reader.readUInt16())
         let division = try reader.readUInt16()
+        guard format == 0 || format == 1 else { throw MIDIExerciseError.unsupportedFormat(Int(format)) }
+        guard tracks > 0, format != 0 || tracks == 1 else {
+            throw MIDIExerciseError.invalidFile("número de pistas incompatible con el formato SMF")
+        }
         guard division & 0x8000 == 0, division > 0 else { throw MIDIExerciseError.unsupportedTiming }
         if headerLength > 6 { try reader.skip(Int(headerLength - 6)) }
 
-        var tempo = 0 // Lo fija el unico metaevento de tempo; sin el se rechaza abajo.
-        var meter = [4, 4]
+        var tempoEventCount = 0
+        var meterEvents = [[Int]]()
         var title: String?
         var endTick = 0
         var hits: [(tick: Int, note: Int, velocity: Int)] = []
@@ -54,18 +75,19 @@ public enum MIDIExerciseLoader {
             let track = try reader.readBytes(count: length)
             let parsed = try parseTrack(track)
             tempos.formUnion(parsed.tempos)
-            if let parsedMeter = parsed.meter { meter = parsedMeter }
+            tempoEventCount += parsed.tempoEventCount
+            meterEvents.append(contentsOf: parsed.meterEvents)
             title = title ?? parsed.title
             endTick = max(endTick, parsed.endTick)
             hits.append(contentsOf: parsed.hits)
             textEvents.append(contentsOf: parsed.textEvents)
         }
 
-        guard meter == [4, 4] else { throw MIDIExerciseError.unsupportedMeter }
+        guard meterEvents.allSatisfy({ $0 == [4, 4] }) else { throw MIDIExerciseError.unsupportedMeter }
         guard tempos.count <= 1 else { throw MIDIExerciseError.unsupportedTempoChanges }
+        guard tempoEventCount <= 1 else { throw MIDIExerciseError.invalidFile("declara más de un metaevento de tempo") }
         guard let parsedTempo = tempos.first else { throw MIDIExerciseError.missingTempo }
         guard parsedTempo > 0 else { throw MIDIExerciseError.invalidTempo }
-        tempo = parsedTempo
         let noteToSound = Dictionary(uniqueKeysWithValues: kit.sounds.map { ($0.gmNote, $0.id) })
         let sixteenthTicks = Double(division) / 4
         let tripletTicks = Double(division) / 3
@@ -89,13 +111,20 @@ public enum MIDIExerciseLoader {
             )
         }
         guard !notes.isEmpty else { throw MIDIExerciseError.noPlayableNotes }
-        let totalSteps = max(grid, Int(ceil(Double(max(endTick, hits.map(\.tick).max() ?? 0)) / ticksPerStep / Double(grid))) * grid)
-        let bpm = max(1, Int((60_000_000 / Double(tempo)).rounded()))
+        let lastTick = max(endTick, hits.map(\.tick).max() ?? 0)
+        let rawBarCount = max(1, ceil(Double(lastTick) / (Double(division) * 4)))
+        guard rawBarCount.isFinite else { throw MIDIExerciseError.invalidFile("duración MIDI no finita") }
+        guard rawBarCount <= Double(maximumBars) else {
+            let reportedBars = rawBarCount >= Double(Int.max) ? Int.max : Int(rawBarCount)
+            throw MIDIExerciseError.patternTooLong(reportedBars)
+        }
+        let barCount = Int(rawBarCount)
+        let bpm = max(1, Int((60_000_000 / Double(parsedTempo)).rounded()))
         let fileID = url.deletingPathExtension().lastPathComponent
         let metadata = try MIDIExerciseMetadataParser.parse(textEvents: textEvents)
         let exercise = Exercise(
             format: 1, id: metadata?.id ?? fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
-            family: "midi", level: level, bpm: bpm, meter: meter, bars: totalSteps / grid,
+            family: "midi", level: level, bpm: bpm, meter: [4, 4], bars: barCount,
             grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes, metadata: metadata
         )
         try exercise.validate(availableSounds: Set(kit.sounds.map(\.id)))
@@ -116,11 +145,14 @@ public enum MIDIExerciseLoader {
         }
     }
 
-    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempos: Set<Int>, meter: [Int]?, title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)], textEvents: [String]) {
+    private static func parseTrack(_ bytes: [UInt8]) throws -> (tempos: Set<Int>, tempoEventCount: Int, meterEvents: [[Int]], title: String?, endTick: Int, hits: [(tick: Int, note: Int, velocity: Int)], textEvents: [String]) {
         var reader = MIDIReader(bytes: bytes)
-        var tick = 0; var runningStatus: UInt8?; var tempos = Set<Int>(); var meter: [Int]?; var title: String?; var hits: [(Int, Int, Int)] = []; var textEvents = [String]()
+        var tick = 0; var runningStatus: UInt8?; var tempos = Set<Int>(); var tempoEventCount = 0; var meterEvents = [[Int]](); var title: String?; var hits: [(Int, Int, Int)] = []; var textEvents = [String]()
         while !reader.isAtEnd {
-            tick += try reader.readVariableLength()
+            let delta = try reader.readVariableLength()
+            let nextTick = tick.addingReportingOverflow(delta)
+            guard !nextTick.overflow else { throw MIDIExerciseError.invalidFile("duración fuera de rango") }
+            tick = nextTick.partialValue
             let first = try reader.readByte()
             let status: UInt8
             var firstData: UInt8?
@@ -131,8 +163,17 @@ public enum MIDIExerciseLoader {
                 let type = try reader.readByte(); let length = try reader.readVariableLength(); let data = try reader.readBytes(count: length)
                 if type == 0x03 { title = String(bytes: data, encoding: .utf8) }
                 if type == 0x01, let text = String(bytes: data, encoding: .utf8) { textEvents.append(text) }
-                if type == 0x51, data.count == 3 { tempos.insert(Int(data[0]) << 16 | Int(data[1]) << 8 | Int(data[2])) }
-                if type == 0x58, data.count >= 2 { meter = [Int(data[0]), 1 << Int(data[1])] }
+                if type == 0x51 {
+                    guard data.count == 3 else { throw MIDIExerciseError.invalidFile("metaevento de tempo incompleto") }
+                    tempoEventCount += 1
+                    tempos.insert(Int(data[0]) << 16 | Int(data[1]) << 8 | Int(data[2]))
+                }
+                if type == 0x58 {
+                    guard data.count == 4 else { throw MIDIExerciseError.invalidFile("metaevento de compás incompleto") }
+                    let denominatorExponent = Int(data[1])
+                    guard denominatorExponent <= 7 else { throw MIDIExerciseError.unsupportedMeter }
+                    meterEvents.append([Int(data[0]), 1 << denominatorExponent])
+                }
                 continue
             }
             guard status < 0xF0 else { throw MIDIExerciseError.invalidFile("evento de sistema") }
@@ -141,7 +182,7 @@ public enum MIDIExerciseLoader {
             let data2: UInt8? = (command == 0xC0 || command == 0xD0) ? nil : try reader.readByte()
             if command == 0x90, let data2, data2 > 0 { hits.append((tick, Int(data1), Int(data2))) }
         }
-        return (tempos, meter, title, tick, hits, textEvents)
+        return (tempos, tempoEventCount, meterEvents, title, tick, hits, textEvents)
     }
 }
 

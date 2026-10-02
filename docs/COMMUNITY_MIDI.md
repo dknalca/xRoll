@@ -3,18 +3,21 @@
 xRoll carga ejercicios desde `data/exercises/` en formato Standard MIDI File
 (`.mid` o `.midi`). No hace falta ningún JSON propio.
 
-Desde la app, abre **Ajustes → Ejercicios MIDI comunitarios → Importar ejercicio
-MIDI**. El archivo se valida y se copia al almacenamiento local de xRoll; queda
-disponible en la biblioteca comunitaria sin bloquearse por el progreso del curso
-base.
+Desde **Curso → MIDI importados → Importar ejercicio .mid**, el archivo se
+valida y se copia al almacenamiento local de xRoll. Queda disponible para
+práctica libre, sin incorporarse al curso ni alterar sus acreditaciones.
 
 ## Reglas del archivo
 
 - Compás 4/4.
 - Pulsos por negra (PPQ), no timecode.
-- BPM fijo. Los archivos con más de un valor de tempo se rechazan.
-- Una pista con nombre: ese nombre se muestra como título del ejercicio.
-- Metaevento de tempo. Si falta, xRoll usa 80 BPM.
+- Standard MIDI File tipo 0 o 1, de hasta 32 MB.
+- Máximo 256 compases.
+- Un único metaevento de tempo, con valor mayor que cero; cambios o eventos
+  duplicados se rechazan.
+- El primer nombre de pista encontrado proporciona el título; si no existe, se
+  usa el nombre del archivo.
+- El compás debe permanecer en 4/4; los cambios de compás se rechazan.
 - Notas de percusión General MIDI; se aceptan las del kit activo:
 
 | Sonido | Nota GM |
@@ -32,8 +35,9 @@ base.
 
 El nombre del archivo identifica el archivo importado, pero no modifica el orden
 del curso oficial. Conserva una sola dificultad nueva por nivel si lo publicas
-como una progresión propia. Las notas que no pertenezcan al kit se ignoran; si
-no queda ninguna nota compatible el archivo se rechaza.
+como una progresión propia. Las notas que no pertenezcan al kit hacen que se
+rechace el archivo; también se rechazan las notas fuera de rejilla y los archivos
+sin notas reproducibles del kit.
 
 ## Recomendaciones didácticas
 

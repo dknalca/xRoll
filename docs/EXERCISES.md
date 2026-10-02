@@ -77,9 +77,10 @@ xroll/1 flag=checkpoint
 
 Cada capítulo integrado declara exactamente un `flag=checkpoint` en su última
 posición. El patrón de checkpoint representa las habilidades del capítulo; al
-superarlo a 100 BPM, con ritmo completo y al menos 70 %, acredita la estación sin
-inventar puntuaciones para sus ejercicios. El validador rechaza checkpoints
-ausentes, duplicados o que no estén al final.
+superarlo a su tempo de aprendizaje (`min(BPM del MIDI, 100)`), con ritmo completo
+y al menos 70 %, acredita la estación sin inventar puntuaciones para sus
+ejercicios. El validador rechaza checkpoints ausentes, duplicados o que no estén
+al final.
 
 No hay sidecar JSON. Un MIDI comunitario sin estos metadatos sigue siendo válido
 y practicable, pero no se incorpora al recorrido oficial.

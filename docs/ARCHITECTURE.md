@@ -10,12 +10,19 @@ SwiftUI y SpriteKit.
   scoring, calibración e historial; la demora al pasar por la interfaz no forma
   parte del offset.
 - El callback de CoreMIDI solo copia paquetes a una cola MPSC preasignada. Un
-  worker fuera del callback decodifica eventos y llama a sus consumidores. Los
-  descartes por cola llena son diagnóstico, no una medida de latencia.
-- `SampleAudioEngine` se confina a un único contexto de control por instancia.
-  La app lo usa en main; las herramientas CLI lo preparan antes de conectar MIDI
-  y su worker de entrada emite los golpes vivos. No se reconfigura audio mientras
-  ese worker está activo.
+  worker fuera del callback decodifica eventos. En iOS, `iOSMIDIPlaybackBridge`
+  resuelve y reproduce el golpe vivo antes de notificar la interfaz; después
+  encola el golpe en `PracticeSessionIngress`. Los descartes por cola llena son
+  diagnóstico, no una medida de latencia.
+- `PracticeSessionIngress` serializa el scoring fuera de SwiftUI y SpriteKit. Al
+  cerrar una generación procesa primero los golpes admitidos y entrega un score
+  final estable; eventos tardíos de esa generación se rechazan.
+- `SampleAudioEngine` serializa acceso a sus nodos con su cerrojo de control.
+  Ningún callback CoreMIDI programa AVAudioEngine directamente y no se
+  reconfigura la ruta mientras el worker MIDI está activo.
+- La aplicación iPad encola feedback puntuado; `PracticeScene.update(_:)` lo
+  consume con el reloj visual del frame. La presentación conserva el `hostTime`
+  de entrada y no modifica el scoring.
 - Los golpes vivos se reproducen inmediatamente; `hostTime` conserva su
   procedencia temporal y no se usa para programar un buffer en un instante ya
   pasado. Preview, loop y metrónomo sí se programan contra host time futuro.
@@ -51,7 +58,9 @@ enum PracticePhase {
 }
 ```
 
-SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo, matching y score permanecen en `XRollCore`.
+SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo,
+matching y score permanecen en `XRollCore`; el feedback visual se consume al
+inicio de un frame.
 
 ## Fuente de verdad del contenido
 

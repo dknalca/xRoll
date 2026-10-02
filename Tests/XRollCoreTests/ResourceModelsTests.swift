@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 @testable import XRollCore
 
 final class ResourceModelsTests: XCTestCase {
@@ -54,6 +55,18 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(hit?.padID, "r0c0")
         XCTAssertEqual(hit?.row, 0)
         XCTAssertEqual(hit?.column, 0)
+    }
+
+    func testAudioEngineUsesSynthesizedMetronomeWithoutOptionalSample() throws {
+        let kitURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/Kits/hiphop_basic/kit.json")
+        let kit = try ResourceCatalog().loadKit(at: kitURL)
+        let engine = SampleAudioEngine()
+
+        try engine.load(kit: kit, from: kitURL.deletingLastPathComponent())
+
+        XCTAssertEqual(engine.metronomeSourceName, "claqueta sintetizada")
     }
 
     func testLegacyCalibrationProfilesAreRejectedForRemeasurement() throws {
@@ -250,6 +263,18 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(PadMapV2Router(drum).soundID(for: MIDINoteOn(hostTime: 0, channel: 10, note: 37, velocity: 100)), "kick")
     }
 
+    func testPadMapV2RouterIgnoresOutOfRangeInputs() {
+        let map = PadMapV2(id: "invalid-inputs", name: "Mapa", preset: .custom, device: .init(name: "Pad", uid: 1), created: "2026-09-25", pads: [
+            .init(id: "bad-note", row: 0, column: 0, sound: "kick", input: .init(number: 128, channel: 10)),
+            .init(id: "bad-channel", row: 0, column: 1, sound: "snare", input: .init(number: 38, channel: 0)),
+            .init(id: "valid", row: 0, column: 2, sound: "snare", input: .init(number: 38, channel: 10))
+        ])
+        let router = PadMapV2Router(map)
+
+        XCTAssertNil(router.soundID(for: MIDINoteOn(hostTime: 1, channel: 10, note: 0, velocity: 100)))
+        XCTAssertEqual(router.soundID(for: MIDINoteOn(hostTime: 2, channel: 10, note: 38, velocity: 100)), "snare")
+    }
+
     func testCoreLayoutUsesAllSixteenPads() {
         let core = PadLayoutFactory.make(.core, device: .init(name: "Pad", uid: 42))
 
@@ -432,10 +457,21 @@ final class ResourceModelsTests: XCTestCase {
         let graph = try CourseGraph(exercises: exercises)
         let chapters = graph.nodes.map(\.metadata.chapter)
         XCTAssertTrue(graph.mainChapterIDs.allSatisfy { graph.checkpoint(for: $0) != nil })
+        XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "fundamentals")), try XCTUnwrap(chapters.firstIndex(of: "coordination")))
+        XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "coordination")), try XCTUnwrap(chapters.firstIndex(of: "subdivision")))
+        XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "subdivision")), try XCTUnwrap(chapters.firstIndex(of: "groove")))
+        let evidence = [
+            CourseAttemptEvidence(exerciseID: "00_i_03_ritmo_completo", bpm: 72, score: 80, stars: 2, trainingContext: .init(evaluationScope: .fullPattern, completedBars: 1)),
+            CourseAttemptEvidence(exerciseID: "01_fund_06_control", bpm: 70, score: 80, stars: 2, trainingContext: .init(evaluationScope: .fullPattern, completedBars: 4))
+        ]
+        let states = Dictionary(uniqueKeysWithValues: graph.states(evidence: evidence).map { ($0.exerciseID, $0.status) })
+        XCTAssertEqual(states["03_coord_01_alternancia"], .available)
+        XCTAssertEqual(states["02_sub_01_corchea_aislada"], .locked)
         XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "disco")), try XCTUnwrap(chapters.firstIndex(of: "funk")))
         XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "dembow")), try XCTUnwrap(chapters.firstIndex(of: "blues")))
         XCTAssertLessThan(try XCTUnwrap(chapters.firstIndex(of: "jazz")), try XCTUnwrap(chapters.firstIndex(of: "clave-bossa")))
         XCTAssertEqual(exercises.first?.title, "I-01 · Bombo y caja")
+        XCTAssertEqual(exercises.first?.metadata?.objective, "Sigue cuatro pulsos: bombo en uno y tres, caja en dos y cuatro.")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
         let ternaryExercises = exercises.filter { $0.id.hasPrefix("22_") || $0.id.hasPrefix("23_") }
         XCTAssertEqual(ternaryExercises.count, 8)
@@ -575,6 +611,8 @@ final class ResourceModelsTests: XCTestCase {
         let whale = try! XCTUnwrap(WhaleMethod.plan(exercise: exercise, score: score))
         XCTAssertEqual(whale.focusStep, 6)
         XCTAssertEqual(whale.stepRange, 5...7)
+        XCTAssertTrue(whale.coachingCue.contains("«y»"))
+        XCTAssertTrue(whale.coachingCue.contains("snare"))
     }
 
     func testMasteryRequiresAllFourTrainingContexts() {
@@ -599,6 +637,129 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertEqual(result.judgement, .perfect)
         XCTAssertEqual(session.score.percentage, 100, accuracy: 0.001)
+    }
+
+    func testIncrementalPracticeScoringMatchesReferenceForChronologicalHits() {
+        let exercise = Exercise(
+            format: 1, id: "incremental", title: "Incremental", family: "test", level: 1,
+            bpm: 100, meter: [4, 4], bars: 2, grid: 16, repeats: 2,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [
+                .init(step: 0, sound: "kick"), .init(step: 4, sound: "snare"),
+                .init(step: 8, sound: "kick", target: .init(type: .role, value: "kick_right")),
+                .init(step: 12, sound: "clap")
+            ]
+        )
+        let timeline = ExerciseTimeline(exercise: exercise)
+        let hits = [
+            TimedPadHit(sound: "kick", timeMilliseconds: 4),
+            TimedPadHit(sound: "snare", timeMilliseconds: 62),
+            TimedPadHit(sound: "kick", timeMilliseconds: 122, role: "kick_right"),
+            TimedPadHit(sound: "clap", timeMilliseconds: 181),
+            TimedPadHit(sound: "kick", timeMilliseconds: 244),
+            TimedPadHit(sound: "snare", timeMilliseconds: 301),
+            TimedPadHit(sound: "kick", timeMilliseconds: 360, role: "kick_left"),
+            TimedPadHit(sound: "clap", timeMilliseconds: 420),
+            TimedPadHit(sound: "kick", timeMilliseconds: 484),
+            TimedPadHit(sound: "snare", timeMilliseconds: 541),
+            TimedPadHit(sound: "kick", timeMilliseconds: 601, role: "kick_right"),
+            TimedPadHit(sound: "clap", timeMilliseconds: 660),
+            TimedPadHit(sound: "kick", timeMilliseconds: 724),
+            TimedPadHit(sound: "snare", timeMilliseconds: 781),
+            TimedPadHit(sound: "kick", timeMilliseconds: 840, role: "kick_right"),
+            TimedPadHit(sound: "clap", timeMilliseconds: 900)
+        ]
+        let session = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: 3)
+        hits.forEach { session.register($0) }
+
+        XCTAssertEqual(
+            session.score,
+            RhythmScorer.score(timeline: timeline, bpm: exercise.bpm, grid: exercise.grid, hits: hits, calibrationOffsetMilliseconds: 3)
+        )
+    }
+
+    func testOutOfOrderPracticeHitsUseReferenceScoringAndReturnTheNewHitJudgement() {
+        let exercise = Exercise(
+            format: 1, id: "out-of-order", title: "Out of order", family: "test", level: 1,
+            bpm: 240, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 1, sound: "kick")]
+        )
+        let timeline = ExerciseTimeline(exercise: exercise)
+        let windows = ScoringWindows(perfectMilliseconds: 35, goodMilliseconds: 45, regularMilliseconds: 50)
+        let session = PracticeSession(exercise: exercise, scoringWindows: windows)
+        let laterHit = TimedPadHit(sound: "kick", timeMilliseconds: 20)
+        let earlierHit = TimedPadHit(sound: "kick", timeMilliseconds: 0)
+
+        XCTAssertEqual(session.register(laterHit).judgement, .perfect)
+        XCTAssertEqual(session.register(earlierHit).judgement, .perfect)
+        XCTAssertEqual(
+            session.score,
+            RhythmScorer.score(timeline: timeline, bpm: exercise.bpm, grid: exercise.grid, hits: [laterHit, earlierHit], scoringWindows: windows)
+        )
+        XCTAssertEqual(session.score.hits.map(\.judgement), [.perfect, .good])
+    }
+
+    func testPracticeSessionIngressFinishesAfterAdmittedHitsAndRejectsLaterOnes() {
+        let exercise = Exercise(
+            format: 1, id: "ingress", title: "Ingress", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+            kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick")]
+        )
+        let ingress = PracticeSessionIngress()
+        let generation = UUID()
+        let finished = expectation(description: "procesar el golpe y cerrar la sesión")
+        var deliveryOrder = [String]()
+        ingress.begin(PracticeSession(exercise: exercise), generation: generation)
+
+        XCTAssertEqual(
+            ingress.submit(.init(sound: "kick", timeMilliseconds: 0)) { returnedGeneration, result in
+                XCTAssertEqual(returnedGeneration, generation)
+                XCTAssertEqual(result.scoredHit?.judgement, .perfect)
+                deliveryOrder.append("golpe")
+            },
+            generation
+        )
+        ingress.finish { returnedGeneration, score in
+            XCTAssertEqual(returnedGeneration, generation)
+            XCTAssertEqual(score?.percentage, 100)
+            deliveryOrder.append("cierre")
+            finished.fulfill()
+        }
+
+        wait(for: [finished], timeout: 2)
+        XCTAssertEqual(deliveryOrder, ["golpe", "cierre"])
+        XCTAssertNil(ingress.submit(.init(sound: "kick", timeMilliseconds: 1)) { _, _ in })
+    }
+
+    func testPracticeSessionIngressRoutesHitsToTheirGenerationWhenRestarted() {
+        let exercise = Exercise(
+            format: 1, id: "restart", title: "Restart", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+            kit: "kit", loop: nil, offset: 0, notes: [.init(step: 0, sound: "kick")]
+        )
+        let ingress = PracticeSessionIngress()
+        let firstGeneration = UUID()
+        let secondGeneration = UUID()
+        let finished = expectation(description: "terminar segunda generación")
+        ingress.begin(PracticeSession(exercise: exercise), generation: firstGeneration)
+        XCTAssertEqual(ingress.submit(.init(sound: "kick", timeMilliseconds: 0)) { generation, result in
+            XCTAssertEqual(generation, firstGeneration)
+            XCTAssertEqual(result.scoredHit?.judgement, .perfect)
+        }, firstGeneration)
+
+        ingress.begin(PracticeSession(exercise: exercise), generation: secondGeneration)
+        XCTAssertEqual(ingress.submit(.init(sound: "kick", timeMilliseconds: 0)) { generation, result in
+            XCTAssertEqual(generation, secondGeneration)
+            XCTAssertEqual(result.scoredHit?.judgement, .perfect)
+        }, secondGeneration)
+        ingress.finish { generation, score in
+            XCTAssertEqual(generation, secondGeneration)
+            XCTAssertEqual(score?.percentage, 100)
+            XCTAssertEqual(score?.hits.count, 1)
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 2)
     }
 
     func testCountInHitsAreUnscoredButEarlyFirstBeatHitsStillCount() {
@@ -635,6 +796,38 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(summary.bestScore, 65, accuracy: 0.001)
         XCTAssertEqual(summary.latestScore, 40, accuracy: 0.001)
         XCTAssertEqual(try store.attempts(filter: .init(exerciseID: "hh_01")).last?.hitRecords, record)
+    }
+
+    func testProgressStoreMigratesLegacyAttemptTableWithoutDroppingRows() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-legacy-progress-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &database), SQLITE_OK)
+        let legacySchema = """
+        CREATE TABLE attempts (
+          id INTEGER PRIMARY KEY, exercise_id TEXT NOT NULL, timestamp REAL NOT NULL,
+          bpm INTEGER NOT NULL, score REAL NOT NULL, stars INTEGER NOT NULL,
+          perfect INTEGER NOT NULL, good INTEGER NOT NULL, regular INTEGER NOT NULL,
+          miss INTEGER NOT NULL, extra INTEGER NOT NULL, mean_offset_ms REAL
+        )
+        """
+        XCTAssertEqual(sqlite3_exec(database, legacySchema, nil, nil, nil), SQLITE_OK)
+        let legacyRow = "INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms) VALUES ('old', 1, 80, 75, 2, 1, 0, 0, 0, 0, 4)"
+        XCTAssertEqual(sqlite3_exec(database, legacyRow, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(database)
+
+        let store = try ProgressStore(url: url)
+        let attempt = PracticeAttempt(
+            exerciseID: "legacy", timestamp: Date(timeIntervalSince1970: 1), bpm: 80,
+            score: 75, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0,
+            extra: 0, meanOffsetMilliseconds: 4
+        )
+        try store.record(attempt)
+
+        let attempts = try store.attempts(limit: 10)
+        XCTAssertEqual(attempts.count, 2)
+        XCTAssertEqual(attempts.first(where: { $0.exerciseID == "old" })?.trainingContext.evaluationScope, .legacyUnknown)
+        XCTAssertEqual(attempts.first(where: { $0.exerciseID == "legacy" })?.trainingContext.evaluationScope, .fullPattern)
     }
 
     func testProgressStoreExportsCSV() throws {
@@ -710,6 +903,12 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertEqual(plan.exerciseID, first.id)
         XCTAssertEqual(plan.kind, .firstSession)
+        XCTAssertEqual(plan.bpm, 80)
+        XCTAssertEqual(plan.bpm, CourseRecommendationPlanner.recommend(
+            exercises: [second, first],
+            courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)],
+            evidence: []
+        )?.tempoStep.bpm)
         XCTAssertEqual(plan.estimatedDurationMilliseconds, 6_000, accuracy: 0.001)
     }
 
@@ -829,20 +1028,25 @@ final class ResourceModelsTests: XCTestCase {
             Exercise(format: 1, id: "level_\(level)", title: "Nivel \(level)", family: "test", level: level, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         }
         let partial = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 80, score: 100, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0, trainingContext: .init(evaluationScope: .selectedVoices))
+        let fragment = PracticeAttempt(exerciseID: "level_1", timestamp: .init().addingTimeInterval(1), bpm: 100, score: 100, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0, trainingContext: .init(evaluationScope: .fragment))
 
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [partial], fastStartID: nil).map(\.status), [.available, .locked])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [partial, fragment], fastStartID: nil).map(\.status), [.available, .locked])
     }
 
-    func testCourseProgressRequiresConsolidarToUnlock() {
-        let exercises = (1...2).map { level in
+    func testCourseProgressAdvancesAtTheLearningTempoWithoutTempoChallenges() {
+        let exercises = (1...3).map { level in
             Exercise(format: 1, id: "level_\(level)", title: "Nivel \(level)", family: "test", level: level, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         }
         let learnPass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 70, score: 100, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
-        let basePass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 85, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let basePass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 80, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
         let consolidatePass = PracticeAttempt(exerciseID: "level_1", timestamp: .init(), bpm: 100, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
 
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass], fastStartID: nil).map(\.status), [.available, .locked])
-        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass, consolidatePass], fastStartID: nil).map(\.status), [.mastered, .available])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass], fastStartID: nil).map(\.status), [.available, .locked, .locked])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass], fastStartID: nil).map(\.status), [.mastered, .available, .locked])
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [learnPass, basePass, consolidatePass], fastStartID: nil).map(\.status), [.mastered, .available, .locked])
+
+        let advancedPass = PracticeAttempt(exerciseID: "level_3", timestamp: .init(), bpm: 120, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        XCTAssertEqual(CourseProgress.states(exercises: exercises, attempts: [advancedPass], fastStartID: nil).map(\.status), [.available, .available, .mastered])
     }
 
     func testTempoLadderUsesFixedStepsAndLongChallenge() {
@@ -859,6 +1063,11 @@ final class ResourceModelsTests: XCTestCase {
             PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 85, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
         ]
         XCTAssertEqual(TempoLadder.nextStep(for: exercise, attempts: attempts)?.label, "Consolidar")
+
+        let withTrophy = attempts + [
+            PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 120, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        ]
+        XCTAssertEqual(TempoLadder.highestPassedStep(for: exercise, attempts: withTrophy)?.award, .trophies(1))
     }
 
     func testPassingOneTempoDoesNotInventBadgesAtEarlierTempos() {
@@ -875,6 +1084,29 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertTrue(TempoLadder.isPassed(steps[2], exerciseID: exercise.id, evidence: evidence))
         XCTAssertFalse(TempoLadder.isPassed(steps[0], exerciseID: exercise.id, evidence: evidence))
         XCTAssertEqual(TempoLadder.nextStep(for: exercise, evidence: evidence)?.label, "Aprender")
+
+        let oneStarAtTargetTempo = [CourseAttemptEvidence(
+            exerciseID: exercise.id,
+            bpm: 70,
+            score: 70,
+            stars: 1,
+            trainingContext: .init(evaluationScope: .fullPattern, completedBars: 1)
+        )]
+        XCTAssertFalse(TempoLadder.isPassed(steps[0], exerciseID: exercise.id, evidence: oneStarAtTargetTempo))
+    }
+
+    func testCourseLessonUsesLearningTargetAndRequiresFullPattern() {
+        let exercise = Exercise(format: 1, id: "lesson", title: "Lección", family: "test", level: 1, bpm: 82, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
+        let slow = CourseAttemptEvidence(exerciseID: exercise.id, bpm: 70, score: 100, stars: 3, trainingContext: .init(evaluationScope: .fullPattern, completedBars: 1))
+        let partial = CourseAttemptEvidence(exerciseID: exercise.id, bpm: 82, score: 100, stars: 3, trainingContext: .init(evaluationScope: .selectedVoices, completedBars: 1))
+        let complete = CourseAttemptEvidence(exerciseID: exercise.id, bpm: 82, score: 70, stars: 2, trainingContext: .init(evaluationScope: .fullPattern, completedBars: 1))
+
+        XCTAssertEqual(CourseLessonCriteria.targetBPM(for: exercise), 82)
+        XCTAssertFalse(CourseLessonCriteria.isPassed(exercise, evidence: [slow, partial]))
+        XCTAssertTrue(CourseLessonCriteria.isPassed(exercise, evidence: [complete]))
+
+        let fastExercise = Exercise(format: 1, id: "fast-lesson", title: "Lección rápida", family: "test", level: 2, bpm: 120, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
+        XCTAssertEqual(CourseLessonCriteria.targetBPM(for: fastExercise), 100)
     }
 
     func testNivelDiosRequiresSixteenCompletedBarsOfAFullPattern() throws {
@@ -900,20 +1132,40 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertTrue(TempoLadder.isPassed(levelGod, exerciseID: exercise.id, attempts: [sixteenBars]))
     }
 
-    func testCourseRecommendationUsesCurrentStationThenPendingTempoStep() {
+    func testCourseRecommendationUsesOneLearningTempoThenMovesToNextLesson() {
         let first = Exercise(format: 1, id: "first", title: "Primero", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         let second = Exercise(format: 1, id: "second", title: "Segundo", family: "test", level: 2, bpm: 110, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [])
         let initial = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)], attempts: [])
         XCTAssertEqual(initial?.exerciseID, first.id)
-        XCTAssertEqual(initial?.tempoStep.label, "Aprender")
+        XCTAssertEqual(initial?.tempoStep.label, "Ritmo completo")
+        XCTAssertEqual(initial?.tempoStep.bpm, 80)
 
         let learnPass = PracticeAttempt(exerciseID: first.id, timestamp: .init(), bpm: 70, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
-        let base = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)], attempts: [learnPass])
-        XCTAssertEqual(base?.tempoStep.label, "Base")
+        let baseRecommendation = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .available, bestScore: nil), .init(exerciseID: second.id, status: .locked, bestScore: nil)], attempts: [learnPass])
+        XCTAssertEqual(baseRecommendation?.tempoStep.label, "Ritmo completo")
+        XCTAssertEqual(baseRecommendation?.tempoStep.bpm, 80)
+        let basePass = PracticeAttempt(exerciseID: first.id, timestamp: .init(), bpm: 80, score: 80, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
 
         let next = CourseRecommendationPlanner.recommend(exercises: [first, second], courseLevels: [.init(exerciseID: first.id, status: .mastered, bestScore: 80), .init(exerciseID: second.id, status: .available, bestScore: nil)], attempts: [learnPass])
         XCTAssertEqual(next?.exerciseID, second.id)
-        XCTAssertEqual(next?.tempoStep.bpm, 70)
+        XCTAssertEqual(next?.tempoStep.bpm, 100)
+
+        let consolidatePass = PracticeAttempt(exerciseID: first.id, timestamp: .init(), bpm: 100, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        let afterConsolidating = CourseRecommendationPlanner.recommend(
+            exercises: [first, second],
+            courseLevels: [.init(exerciseID: first.id, status: .mastered, bestScore: 70), .init(exerciseID: second.id, status: .available, bestScore: nil)],
+            attempts: [learnPass, basePass, consolidatePass]
+        )
+        XCTAssertEqual(afterConsolidating?.exerciseID, second.id)
+        XCTAssertEqual(afterConsolidating?.tempoStep.label, "Ritmo completo")
+        XCTAssertEqual(afterConsolidating?.tempoStep.bpm, 100)
+
+        let noMoreExercises = CourseRecommendationPlanner.recommend(
+            exercises: [first],
+            courseLevels: [.init(exerciseID: first.id, status: .mastered, bestScore: 70)],
+            attempts: [learnPass, basePass, consolidatePass]
+        )
+        XCTAssertNil(noMoreExercises, "Los retos de velocidad no bloquean la ruta de aprendizaje")
     }
 
     func testCourseRecommendationStopsWhenEveryMainChapterIsAccredited() {
@@ -975,6 +1227,30 @@ final class ResourceModelsTests: XCTestCase {
 
         let firstConsolidated = PracticeAttempt(exerciseID: "i1", timestamp: .init(), bpm: 100, score: 90, stars: 3, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
         XCTAssertEqual(graph.states(attempts: [firstConsolidated, fastStart]).map(\.status), [.mastered, .mastered, .available, .available])
+    }
+
+    func testAdvancedTempoUnlocksEarlierExercisesWithoutAccreditingThem() throws {
+        func exercise(_ id: String, level: Int, chapter: String, position: Int, prerequisites: [String] = [], flags: [String] = []) -> Exercise {
+            Exercise(
+                format: 1, id: id, title: id, family: "test", level: level, bpm: 80,
+                meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil,
+                offset: 0, notes: [], metadata: .init(
+                    id: id, chapter: chapter, position: position, prerequisites: prerequisites,
+                    objective: nil, newDifficulty: nil, recommendedHelp: .full, flags: flags
+                )
+            )
+        }
+        let exercises = [
+            exercise("i1", level: 1, chapter: "initiation", position: 1, flags: ["fast-start"]),
+            exercise("i2", level: 2, chapter: "initiation", position: 2, prerequisites: ["i1"]),
+            exercise("i3", level: 3, chapter: "initiation", position: 3, prerequisites: ["i2"], flags: ["checkpoint"]),
+            exercise("f1", level: 4, chapter: "fundamentals", position: 1, prerequisites: ["i3"]),
+            exercise("f2", level: 5, chapter: "fundamentals", position: 2, prerequisites: ["f1"], flags: ["checkpoint"])
+        ]
+        let graph = try CourseGraph(exercises: exercises)
+        let advancedPass = PracticeAttempt(exerciseID: "f1", timestamp: .init(), bpm: 120, score: 70, stars: 2, perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+
+        XCTAssertEqual(graph.states(attempts: [advancedPass]).map(\.status), [.available, .available, .available, .mastered, .locked])
     }
 
     func testLegacyUnknownCheckpointAttemptDoesNotGrantNewChapterEquivalency() throws {
@@ -1053,8 +1329,9 @@ final class ResourceModelsTests: XCTestCase {
     func testTuningClampsAndPersists() throws {
         let tuning = PracticeTuning(debugEnabled: true, anticipationBars: 8, perfectWindowMilliseconds: 80, goodWindowMilliseconds: 20, regularWindowMilliseconds: 10, manualTimingOffsetMilliseconds: 500, countInVolume: 2, metronomePitchSemitones: 30, padFlashMilliseconds: 1)
         XCTAssertEqual(tuning.anticipationBars, 4)
-        XCTAssertEqual(tuning.goodWindowMilliseconds, 80)
-        XCTAssertEqual(tuning.regularWindowMilliseconds, 80)
+        XCTAssertEqual(tuning.perfectWindowMilliseconds, 35)
+        XCTAssertEqual(tuning.goodWindowMilliseconds, 35)
+        XCTAssertEqual(tuning.regularWindowMilliseconds, 35)
         XCTAssertEqual(tuning.manualTimingOffsetMilliseconds, 200)
         XCTAssertEqual(tuning.metronomePitchSemitones, 24)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-tuning-\(UUID().uuidString).json")
@@ -1070,6 +1347,15 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(windows.regularMilliseconds, 42.1875, accuracy: 0.001)
         XCTAssertLessThanOrEqual(windows.goodMilliseconds, windows.regularMilliseconds)
         XCTAssertLessThanOrEqual(windows.perfectMilliseconds, windows.goodMilliseconds)
+    }
+
+    func testDebugScoringWindowsCanSetJudgementThresholds() {
+        let tuning = PracticeTuning(debugEnabled: true, perfectWindowMilliseconds: 12, goodWindowMilliseconds: 24, regularWindowMilliseconds: 48)
+        let windows = tuning.scoringWindows(bpm: 100, grid: 16)
+
+        XCTAssertEqual(windows.perfectMilliseconds, 12)
+        XCTAssertEqual(windows.goodMilliseconds, 24)
+        XCTAssertEqual(windows.regularMilliseconds, 48)
     }
 
     func testScoresKeepsTheMostRecentAttemptsInChronologicalOrder() throws {
@@ -1223,12 +1509,49 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(detected?.source, "nombre del archivo")
     }
 
+    func testLoopRecommendationPrioritizesGenreThenClosestTempo() throws {
+        let metadata = try XCTUnwrap(try MIDIExerciseMetadataParser.parse(textEvents: [
+            "xroll/1 id=10_hh_01",
+            "xroll/1 chapter=hiphop",
+            "xroll/1 position=1"
+        ]))
+        let hiphop = Exercise(
+            format: 1, id: "10_hh_01", title: "Hip-hop · Boom bap", family: "midi",
+            level: 1, bpm: 72, meter: [4, 4], bars: 1, grid: 16, repeats: 4,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick")], metadata: metadata
+        )
+        let options = [
+            LoopLibraryOption(id: "bass 90bpm.wav", fileName: "bass 90bpm.wav", bpm: 90, url: URL(fileURLWithPath: "/loops/bass 90bpm.wav")),
+            LoopLibraryOption(id: "Piano 88bpm.wav", fileName: "Piano 88bpm.wav", bpm: 88, url: URL(fileURLWithPath: "/loops/Piano 88bpm.wav")),
+            LoopLibraryOption(id: "Hip hop 86bpm.wav", fileName: "Hip hop 86bpm.wav", bpm: 86, url: URL(fileURLWithPath: "/loops/Hip hop 86bpm.wav")),
+            LoopLibraryOption(id: "Bass Hiphop 93bpm.wav", fileName: "Bass Hiphop 93bpm.wav", bpm: 93, url: URL(fileURLWithPath: "/loops/Bass Hiphop 93bpm.wav"))
+        ]
+
+        XCTAssertEqual(LoopLibraryCatalog.recommended(for: hiphop, options: options)?.id, "Hip hop 86bpm.wav")
+        XCTAssertEqual(LoopLibraryCatalog.recommended(for: hiphop, targetBPM: 95, options: options)?.id, "Bass Hiphop 93bpm.wav")
+
+        let genericMetadata = try XCTUnwrap(try MIDIExerciseMetadataParser.parse(textEvents: [
+            "xroll/1 id=generic",
+            "xroll/1 chapter=groove",
+            "xroll/1 position=1"
+        ]))
+        let genericExercise = Exercise(
+            format: 1, id: "generic", title: "Groove", family: "midi", level: 1,
+            bpm: 90, meter: [4, 4], bars: 1, grid: 16, repeats: 4,
+            kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick")], metadata: genericMetadata
+        )
+        XCTAssertEqual(LoopLibraryCatalog.recommended(for: genericExercise, targetBPM: 91, options: options)?.id, "bass 90bpm.wav")
+    }
+
     // MARK: - Endurecimiento del loader MIDI y validación de recursos
 
-    private func writeCommunityMIDI(track: [UInt8], division: UInt16 = 480) throws -> URL {
+    private func writeCommunityMIDI(track: [UInt8], division: UInt16 = 480, format: UInt16 = 1) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-loader-\(UUID().uuidString).mid")
         let header: [UInt8] = [
-            0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1,
+            0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6,
+            UInt8(format >> 8), UInt8(format & 0xFF), 0, 1,
             UInt8(division >> 8), UInt8(division & 0xFF)
         ]
         let count = UInt32(track.count)
@@ -1258,13 +1581,94 @@ final class ResourceModelsTests: XCTestCase {
         return bytes
     }
 
-    private func tempoTrack(notes: [(delta: Int, note: UInt8)], tempo: [UInt8]? = [0x07, 0xA1, 0x20]) -> [UInt8] {
+    private func tempoTrack(
+        notes: [(delta: Int, note: UInt8)],
+        tempo: [UInt8]? = [0x07, 0xA1, 0x20],
+        additionalTempos: [[UInt8]] = [],
+        meters: [[UInt8]] = [[0x04, 0x02, 0x18, 0x08]]
+    ) -> [UInt8] {
         var track: [UInt8] = [0x00, 0xFF, 0x03, 0x04] + Array("Test".utf8)
-        track += [0x00, 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]
+        for meter in meters { track += [0x00, 0xFF, 0x58, UInt8(meter.count)] + meter }
         if let tempo { track += [0x00, 0xFF, 0x51, 0x03] + tempo }
+        for additionalTempo in additionalTempos { track += [0x00, 0xFF, 0x51, 0x03] + additionalTempo }
         for note in notes { track += vlq(note.delta) + [0x99, note.note, 0x64] }
         track += [0x00, 0xFF, 0x2F, 0x00]
         return track
+    }
+
+    func testCommunityMIDIRejectsSMFFormatTwo() throws {
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36)]), format: 2)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .unsupportedFormat(2) = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba rechazar SMF tipo 2; se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIAcceptsSMFFormatZero() throws {
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36)]), format: 0)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let exercise = try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)
+        XCTAssertEqual(exercise.notes.map(\.sound), ["kick"])
+        XCTAssertEqual(exercise.bpm, 120)
+    }
+
+    func testCommunityMIDIRejectsOversizedFile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-oversized-\(UUID().uuidString).mid")
+        XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
+        defer { try? FileManager.default.removeItem(at: url) }
+        let file = try FileHandle(forWritingTo: url)
+        try file.truncate(atOffset: UInt64(MIDIExerciseLoader.maximumFileBytes + 1))
+        try file.close()
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .fileTooLarge = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba limitar el tamaño del MIDI; se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsMeterChangesBackToFourFour() throws {
+        let track = tempoTrack(notes: [(0, 36)], meters: [
+            [0x04, 0x02, 0x18, 0x08],
+            [0x03, 0x02, 0x18, 0x08],
+            [0x04, 0x02, 0x18, 0x08]
+        ])
+        let url = try writeCommunityMIDI(track: track)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .unsupportedMeter = error as? MIDIExerciseError else {
+                return XCTFail("Se esperaba rechazar cambios de compás; se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsDuplicateTempoEvents() throws {
+        let track = tempoTrack(notes: [(0, 36)], additionalTempos: [[0x07, 0xA1, 0x20]])
+        let url = try writeCommunityMIDI(track: track)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .invalidFile(let message) = error as? MIDIExerciseError, message.contains("más de un metaevento") else {
+                return XCTFail("Se esperaba rechazar metaeventos de tempo duplicados; se obtuvo: \(error)")
+            }
+        }
+    }
+
+    func testCommunityMIDIRejectsPatternsLongerThanTheSupportedLimit() throws {
+        let notes = (0..<257).map { _ in (delta: 1_920, note: UInt8(36)) }
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: notes))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)) { error in
+            guard case .patternTooLong(let bars) = error as? MIDIExerciseError, bars == 257 else {
+                return XCTFail("Se esperaba limitar la duración del ejercicio; se obtuvo: \(error)")
+            }
+        }
     }
 
     func testCommunityMIDIRejectsNoteOutsideTheKit() throws {
@@ -1361,6 +1765,22 @@ final class ResourceModelsTests: XCTestCase {
                 return XCTFail("Se esperaba rol duplicado, se obtuvo: \(error)")
             }
         }
+    }
+
+    func testPadMapV2RejectsWhitespaceOnlyIdentifiers() {
+        let map = PadMapV2(id: " ", name: "\n", preset: .custom, device: .init(name: "Pad", uid: 1), created: "2026-09-25", pads: [
+            .init(id: "r0c0", row: 0, column: 0, sound: "kick", role: " \t", input: .init(number: 36, channel: 10))
+        ])
+
+        XCTAssertThrowsError(try map.validate(availableSounds: ["kick"]))
+    }
+
+    func testExerciseRejectsWhitespaceOnlyPadTarget() {
+        let exercise = Exercise(format: 1, id: "target", title: "Target", family: "test", level: 1, bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0, notes: [
+            .init(step: 0, sound: "kick", target: .init(type: .pad, value: " \t"))
+        ])
+
+        XCTAssertThrowsError(try exercise.validate(availableSounds: ["kick"]))
     }
 
     func testExerciseRejectsInvalidVelocity() {

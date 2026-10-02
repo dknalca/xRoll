@@ -177,6 +177,13 @@ pendiente más cercana del mismo sonido dentro de la ventana Regular. En un
 empate exacto se consume la nota anterior. Las ventanas recortadas evitan que
 notas consecutivas de la misma voz compartan una zona ambigua.
 
+`PracticeSession` conserva un acumulador incremental para entradas con
+`hostTime` cronológico: indexa objetivos por sonido y busca solo las notas de la
+ventana temporal del golpe. Si llega una marca temporal anterior al máximo visto,
+reconstruye las asociaciones con el scorer batch de referencia; la ruta de audio
+no espera esa reconstrucción. `PracticeSessionIngress` mantiene cada sesión en
+una cola serial y cierra con una barrera antes de producir el resultado final.
+
 ## Simultaneidad
 
 Los objetivos simultáneos de sonidos distintos se puntúan de forma individual.

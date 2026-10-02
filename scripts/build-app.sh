@@ -2,7 +2,7 @@
 set -eu
 
 project_root=${0:A:h:h}
-output="$project_root/dist/xRoll.app"
+output=${XROLL_APP_OUTPUT:-"$project_root/dist/xRoll.app"}
 binary="$project_root/.build/release/xroll-pads"
 
 cd "$project_root"
@@ -30,7 +30,7 @@ cat > "$output/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>xRoll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleShortVersionString</key><string>0.3.0</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSBluetoothAlwaysUsageDescription</key><string>xRoll usa Bluetooth para buscar y conectar tus pads MIDI inalámbricos.</string>
 </dict></plist>

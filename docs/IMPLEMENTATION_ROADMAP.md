@@ -4,7 +4,7 @@
 
 - Catálogo activo MIDI con 77 ejercicios sin patrones duplicados;
   la versión archivada se conserva fuera del catálogo activo.
-- Curso por bloques: iniciación, fundamentos, subdivisión, coordinación,
+- Curso por bloques: iniciación, fundamentos, coordinación, subdivisión,
   grooves, Hip-hop, Rock, Funk, Blues/Shuffle, Jazz, Disco, Reggae, Dembow y
   Clave/Bossa.
 - Preparación, ayudas completa/normal/reducida, capas, transferencia y ruta
@@ -26,11 +26,21 @@
   subdivisión, vuelta y transición; microscopio objetivo/ejecución.
 - Rescate Whale: aislamiento de micro-célula alrededor de un error, tempo al
   80 % y acompañamiento del resto del compás.
+- Microlección con instrucción concreta para la subdivisión detectada, práctica
+  aislada y retorno al groove completo; las comparaciones solo afirman mejora
+  cuando hay suficientes golpes comparables.
+- Transferencia desde resultados con patrón completo, guía visual retirada y
+  acción para volver a tocar con guía; mantiene el scoring de ritmo completo y
+  solo compara rondas con condiciones equivalentes.
 - Conservación de velocity MIDI para compatibilidad futura y cuatro sellos de
   dominio: precisión, elasticidad, pulso interno y memoria.
 - Curso guiado con exploración libre, checkpoints MIDI por capítulo y evidencia
   curricular consultada sobre el historial completo; los tempo-awards siguen
   perteneciendo solo al tempo realmente superado.
+- Resultado ofrece una vía opcional al siguiente ejercicio tras dos estrellas en
+  ritmo completo, sin acreditar ni saltar requisitos del curso. Las filas del
+  curso muestran el premio más alto ganado; los trofeos sustituyen visualmente a
+  las estrellas anteriores.
 
 ## Próxima capa técnica
 

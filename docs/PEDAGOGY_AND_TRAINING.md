@@ -202,16 +202,22 @@ Al implementar o modificar código relacionado con el motor de xRoll:
   vuelta y transición; el microscopio temporal compara ejecución y objetivo.
 - **Corregir sonido** usa el método Whale para aislar paso anterior, error y
   paso posterior al 80 % del tempo, manteniendo acompañamiento.
+- Desde resultados, la microlección añade una indicación de subdivisión, una
+  célula breve y el regreso al groove completo. La comparación por sonido solo
+  afirma mejora con al menos cuatro golpes comparables por muestra.
+- La transferencia iniciada desde un resultado toca el patrón completo sin
+  notas ni etiquetas visuales, conserva el scoring y permite recuperar la guía.
+  Solo compara rondas con la misma configuración de acompañamiento y al menos
+  ocho notas esperadas en ambas.
 - Los sellos de dominio requieren: 85 % a tempo nominal, −15/+15 BPM, Gap
   Metronome 2+2 y transferencia sin guía. Son evidencia adicional: el curso
   básico conserva su desbloqueo amable al 70 %.
-- La escalera visible de todos los ritmos es fija: Aprender (70 BPM, una
-  estrella), Base (85 BPM, dos estrellas), Consolidar (100 BPM, tres estrellas),
-  Difícil (120 BPM, un trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios
-  (160 BPM, tres trofeos durante 16 compases). Solo Consolidar al 70 %
-  acredita un ejercicio. Se puede elegir cualquier escalón: el resultado solo
-  concede el premio del tempo realmente tocado. La estación se acredita al
-  superar todos sus ejercicios o su checkpoint MIDI final (ritmo completo a
-  100 BPM y 70 %); las sesiones parciales no cuentan para el curso. Se permite
-  explorar y practicar capítulos posteriores, pero sus checkpoints adelantados
-  solo acreditan cuando queda completada la ruta anterior.
+- El criterio básico de una lección es ritmo completo a `min(BPM del MIDI, 100)` y
+  70 % o más. No exige superar varios tempos. La escalera fija (70, 85, 100, 120,
+  140 y 160 BPM) ofrece retos opcionales y sus premios solo cuentan para el tempo
+  realmente tocado; Nivel dios conserva su requisito de 16 compases. Las sesiones
+  parciales no acreditan el curso. Se permite explorar capítulos posteriores,
+  pero sus checkpoints adelantados solo acreditan al completarse la ruta previa.
+- Inicio, Curso y Resultados consultan el mismo planificador y muestran una sola
+  siguiente lección. Preparación deja visible el objetivo y la acción principal;
+  tempo, voces, ayudas y fases avanzadas quedan bajo personalización.

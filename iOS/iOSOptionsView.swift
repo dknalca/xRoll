@@ -1,4 +1,5 @@
 import SwiftUI
+import XRollCore
 
 struct iOSOptionsView: View {
     @ObservedObject var model: iOSPracticeModel
@@ -90,12 +91,13 @@ struct iOSOptionsView: View {
                 Toggle("Loop", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
                     .font(.subheadline)
                 Picker("Loop incluido", selection: Binding(
-                    get: { model.selectedLoopID },
-                    set: { if let id = $0 { model.selectLoop(id) } }
+                    get: { model.loopSelectionChoice },
+                    set: { model.setLoopSelectionChoice($0) }
                 )) {
+                    Text(model.loopSelectionLabel).tag(LoopLibraryCatalog.automaticSelectionID)
                     ForEach(model.loopOptions) { option in
                         Text(option.bpm.map { "\(option.fileName) · \(Int($0.rounded())) BPM" } ?? option.fileName)
-                            .tag(option.id as String?)
+                            .tag(option.id)
                     }
                 }
                 .pickerStyle(.menu)

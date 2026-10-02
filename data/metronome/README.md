@@ -1,9 +1,13 @@
-# Sonido del metrónomo
+# Metrónomo personalizado
 
-Coloca aquí un único archivo de metrónomo en formato WAV, AIFF, CAF o M4A.
+El motor incluye una claqueta sintetizada y no necesita un archivo de audio en
+este directorio. Se puede añadir aquí un solo click personalizado en formato
+WAV, AIFF, CAF o M4A; xRoll conservará la claqueta sintetizada como fallback.
 
-Nombre recomendado: `metronome-click.wav`.
+Antes de añadirlo al repositorio, confirma su procedencia y licencia y regístralo
+en `Resources/Loops/ATTRIBUTION.md` en el mismo cambio. No distribuyas un audio
+personalizado sin esos datos.
 
-El archivo se incluirá en la siguiente compilación de `xRoll.app`. Cuando esté
-disponible, se conectará al reproductor dedicado del metrónomo, sin alterar los
-sonidos del kit.
+Los formatos admitidos son WAV, AIFF, CAF y M4A. Si por error hay varios, la app
+usa el primero por orden alfabético; mantén uno solo para que la elección sea
+predecible.

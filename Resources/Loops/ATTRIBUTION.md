@@ -30,9 +30,8 @@ pueden distribuirse con la aplicación bajo MIT.
 | Fichero | Autor | Origen | Licencia |
 |---|---|---|---|
 | `Resources/Loops/bass 90bpm.wav` | alkbit | Grabado por el autor | MIT |
-| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_bass_airhead_01_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
-| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_synth_airhead_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
-| `Resources/Loops/SD_MIDNIGHT_90_C#m/SD_MIDNIGHT_guitar_airhead_01_90_C#m.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Loops/Bass Hiphop 93bpm.wav` | alkbit | Grabado por el autor | MIT |
+| `Resources/Loops/Piano 88bpm.wav` | alkbit | Grabado por el autor | MIT |
 
-Los cuatro loops incluidos son material propio del autor y pueden distribuirse
+Los tres loops incluidos son material propio del autor y pueden distribuirse
 con la aplicación bajo MIT.

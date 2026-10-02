@@ -38,6 +38,20 @@ public struct CourseGraph: Equatable {
             return (node.metadata.id, best)
         })
         let directlyCompleted = Set(directScores.keys)
+        let advancedPasses = Set(nodes.compactMap { node -> String? in
+            let consolidationBPM = TempoLadder.steps(for: node.exercise).first(where: { $0.label == "Consolidar" })?.bpm ?? 100
+            let passedAdvancedTempo = evidenceByExercise[node.metadata.id, default: []].contains {
+                $0.bpm > consolidationBPM
+                    && $0.score >= completionScore
+                    && $0.trainingContext.evaluationScope.countsAsCompletePattern
+            }
+            return passedAdvancedTempo ? node.metadata.id : nil
+        })
+        let advancedUnlocks = Set(nodes.enumerated().flatMap { index, node in
+            advancedPasses.contains(node.metadata.id)
+                ? nodes[..<index].map { $0.metadata.id }
+                : []
+        })
         let fullPatternCompleted = Set(nodes.compactMap { node -> String? in
             guard evidenceByExercise[node.metadata.id, default: []].contains(where: {
                 $0.trainingContext.evaluationScope == .fullPattern
@@ -111,7 +125,7 @@ public struct CourseGraph: Equatable {
             let isFastStart = node.metadata.flags.contains("fast-start")
             let isCheckpoint = node.metadata.flags.contains("checkpoint")
             let prerequisitesPassed = node.metadata.prerequisites.allSatisfy(completedForPrerequisites.contains)
-            let available = isMastered || isFastStart || (
+            let available = isMastered || isFastStart || advancedUnlocks.contains(exerciseID) || (
                 previousChapterAccredited && (isCheckpoint || prerequisitesPassed)
             )
             let chapterAccredited = node.metadata.chapter.hasPrefix("fills-")

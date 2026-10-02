@@ -12,19 +12,26 @@ func drawIcon(size: Int) throws -> Data {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
     let rect = NSRect(x: 0, y: 0, width: size, height: size)
-    color(16, 20, 28).setFill()
+    color(11, 19, 27).setFill()
     NSBezierPath(roundedRect: rect, xRadius: CGFloat(size) * 0.215, yRadius: CGFloat(size) * 0.215).fill()
-    let panel = rect.insetBy(dx: CGFloat(size) * 0.185, dy: CGFloat(size) * 0.185)
-    color(29, 44, 66).setFill(); NSBezierPath(roundedRect: panel, xRadius: CGFloat(size) * 0.09, yRadius: CGFloat(size) * 0.09).fill()
-    let padSize = CGFloat(size) * 0.17; let gap = CGFloat(size) * 0.02
-    for row in 0..<2 { for column in 0..<2 {
-        let x = CGFloat(size) * 0.265 + CGFloat(column) * (padSize + gap)
-        let y = CGFloat(size) * 0.43 + CGFloat(row) * (padSize + gap)
-        color(0, 114, 178).setFill(); NSBezierPath(roundedRect: NSRect(x: x, y: y, width: padSize, height: padSize), xRadius: CGFloat(size) * 0.028, yRadius: CGFloat(size) * 0.028).fill()
-    }}
-    NSColor.white.setFill(); NSBezierPath(ovalIn: NSRect(x: CGFloat(size) * 0.30, y: CGFloat(size) * 0.62, width: CGFloat(size) * 0.09, height: CGFloat(size) * 0.09)).fill()
-    NSBezierPath(roundedRect: NSRect(x: CGFloat(size) * 0.51, y: CGFloat(size) * 0.63, width: CGFloat(size) * 0.055, height: CGFloat(size) * 0.055), xRadius: 2, yRadius: 2).fill()
-    color(230, 159, 0).setStroke(); let line = NSBezierPath(); line.move(to: NSPoint(x: CGFloat(size) * 0.29, y: CGFloat(size) * 0.28)); line.line(to: NSPoint(x: CGFloat(size) * 0.71, y: CGFloat(size) * 0.28)); line.lineWidth = CGFloat(size) * 0.035; line.lineCapStyle = .round; line.stroke()
+    let s = CGFloat(size)
+    color(64, 199, 194).withAlphaComponent(0.48).setStroke()
+    let ring = NSBezierPath(ovalIn: rect.insetBy(dx: s * 0.165, dy: s * 0.165))
+    ring.lineWidth = max(1, s * 0.018); ring.stroke()
+    for (start, end, tint) in [
+        (NSPoint(x: s * 0.31, y: s * 0.70), NSPoint(x: s * 0.69, y: s * 0.30), color(218, 240, 245)),
+        (NSPoint(x: s * 0.69, y: s * 0.70), NSPoint(x: s * 0.31, y: s * 0.30), color(90, 224, 194))
+    ] {
+        tint.setStroke()
+        let stick = NSBezierPath()
+        stick.move(to: start); stick.line(to: end)
+        stick.lineWidth = max(1.5, s * 0.09); stick.lineCapStyle = .round
+        stick.stroke()
+    }
+    color(250, 196, 89).setFill()
+    NSBezierPath(ovalIn: NSRect(x: s * 0.43, y: s * 0.43, width: s * 0.14, height: s * 0.14)).fill()
+    color(90, 224, 194).setFill()
+    NSBezierPath(roundedRect: NSRect(x: s * 0.33, y: s * 0.16, width: s * 0.34, height: max(1, s * 0.025)), xRadius: 2, yRadius: 2).fill()
     image.unlockFocus()
     let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
     return bitmap.representation(using: .png, properties: [:])!
