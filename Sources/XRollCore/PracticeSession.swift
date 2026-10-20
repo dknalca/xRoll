@@ -1,5 +1,10 @@
 import Foundation
 
+public struct PracticeSessionRegistration {
+    public let scoredHit: ScoredPadHit
+    public let expiredMisses: [ScheduledExerciseNote]
+}
+
 public final class PracticeSession {
     public let timeline: ExerciseTimeline
     public let bpm: Int
@@ -28,7 +33,12 @@ public final class PracticeSession {
 
     @discardableResult
     public func register(_ hit: TimedPadHit) -> ScoredPadHit {
-        scorer.register(hit)
+        registerWithMisses(hit).scoredHit
+    }
+
+    public func registerWithMisses(_ hit: TimedPadHit) -> PracticeSessionRegistration {
+        let scoredHit = scorer.register(hit)
+        return PracticeSessionRegistration(scoredHit: scoredHit, expiredMisses: scorer.takeNewlyExpiredMisses())
     }
 
     /// Descarta los golpes de la cuenta de entrada que quedan fuera de la
@@ -36,10 +46,14 @@ public final class PracticeSession {
     /// sencillamente no forman parte del intento puntuable.
     @discardableResult
     public func registerIfScorable(_ hit: TimedPadHit) -> ScoredPadHit? {
+        registerIfScorableWithMisses(hit)?.scoredHit
+    }
+
+    public func registerIfScorableWithMisses(_ hit: TimedPadHit) -> PracticeSessionRegistration? {
         let regularWindow = scoringWindows?.regularMilliseconds
             ?? ScoringWindows(bpm: bpm, grid: grid).regularMilliseconds
         guard hit.timeMilliseconds - calibrationOffsetMilliseconds >= -regularWindow else { return nil }
-        return register(hit)
+        return registerWithMisses(hit)
     }
 
     public var score: ExerciseScore {

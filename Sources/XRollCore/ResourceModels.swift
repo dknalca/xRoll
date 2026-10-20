@@ -14,6 +14,7 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case duplicateNote(step: Int, sound: String)
     case invalidHand(String)
     case duplicateNoteNumber(Int)
+    case missingSampleFiles([String])
 
     public var errorDescription: String? {
         switch self {
@@ -43,6 +44,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "La mano \(hand) no es valida."
         case .duplicateNoteNumber(let note):
             return "La nota MIDI \(note) esta asignada a mas de un sonido."
+        case .missingSampleFiles(let files):
+            return "Faltan \(files.count) samples obligatorios: \(files.joined(separator: ", "))."
         }
     }
 }
@@ -213,5 +216,10 @@ public struct ResourceCatalog {
 
     public func missingSampleFiles(for kit: KitManifest, in directory: URL) -> [String] {
         kit.sounds.map(\.file).filter { !fileManager.fileExists(atPath: directory.appendingPathComponent($0).path) }
+    }
+
+    public func validateSampleFiles(for kit: KitManifest, in directory: URL) throws {
+        let missingFiles = missingSampleFiles(for: kit, in: directory)
+        guard missingFiles.isEmpty else { throw ResourceValidationError.missingSampleFiles(missingFiles) }
     }
 }

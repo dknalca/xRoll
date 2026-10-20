@@ -13,12 +13,23 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Comprobar que el release parte de main
+        run: |
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD || {
+            echo "El commit etiquetado debe estar integrado en main antes de crear el release." >&2
+            exit 1
+          }
       - name: Compilar
         run: swift build
       - name: Probar
         run: swift test
       - name: Validar recursos
         run: swift run xroll-preflight
+      - name: Compilar iOS sin firma
+        run: xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
       - uses: softprops/action-gh-release@v2
         with:
           draft: true

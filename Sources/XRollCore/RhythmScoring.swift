@@ -215,6 +215,8 @@ final class IncrementalRhythmScorer {
     private var indexedResults = [(inputIndex: Int, result: ScoredPadHit)]()
     private var inputHits = [TimedPadHit]()
     private var latestInputTimeMilliseconds: Double?
+    private var nextMissDeadlineIndex = 0
+    private var newlyExpiredMisses = [ScheduledExerciseNote]()
 
     init(timeline: ExerciseTimeline, bpm: Int, grid: Int, calibrationOffsetMilliseconds: Double, scoringWindows: ScoringWindows?) {
         self.timeline = timeline
@@ -241,7 +243,27 @@ final class IncrementalRhythmScorer {
         let result = scoreChronologicalHit(hit)
         indexedResults.append((inputIndex, result))
         if let noteIndex = result.expectedNote?.index { consumedNoteIndices.insert(noteIndex) }
+        collectMissesExpired(by: hit.timeMilliseconds)
         return result
+    }
+
+    func takeNewlyExpiredMisses() -> [ScheduledExerciseNote] {
+        let misses = newlyExpiredMisses
+        newlyExpiredMisses.removeAll(keepingCapacity: true)
+        return misses
+    }
+
+    private func collectMissesExpired(by timeMilliseconds: Double) {
+        while nextMissDeadlineIndex < timeline.notes.count {
+            let note = timeline.notes[nextMissDeadlineIndex]
+            let deadline = note.timeMilliseconds + calibrationOffsetMilliseconds + windows.regularMilliseconds
+            // La ventana incluye el límite superior; la nota falla solo después.
+            guard deadline < timeMilliseconds else { break }
+            if !consumedNoteIndices.contains(note.index) {
+                newlyExpiredMisses.append(note)
+            }
+            nextMissDeadlineIndex += 1
+        }
     }
 
     var score: ExerciseScore {

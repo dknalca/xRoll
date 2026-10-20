@@ -26,6 +26,30 @@ public struct PracticeAttempt: Codable, Equatable {
         self.hitRecords = hitRecords
         self.trainingContext = trainingContext
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case exerciseID, timestamp, bpm, score, stars, perfect, good, regular, miss, extra
+        case meanOffsetMilliseconds, soundStatistics, hitRecords, trainingContext
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        exerciseID = try values.decode(String.self, forKey: .exerciseID)
+        timestamp = try values.decode(Date.self, forKey: .timestamp)
+        bpm = try values.decode(Int.self, forKey: .bpm)
+        score = try values.decode(Double.self, forKey: .score)
+        stars = try values.decode(Int.self, forKey: .stars)
+        perfect = try values.decode(Int.self, forKey: .perfect)
+        good = try values.decode(Int.self, forKey: .good)
+        regular = try values.decode(Int.self, forKey: .regular)
+        miss = try values.decode(Int.self, forKey: .miss)
+        extra = try values.decode(Int.self, forKey: .extra)
+        meanOffsetMilliseconds = try values.decodeIfPresent(Double.self, forKey: .meanOffsetMilliseconds)
+        soundStatistics = try values.decodeIfPresent([SoundStatistics].self, forKey: .soundStatistics) ?? []
+        hitRecords = try values.decodeIfPresent([HitRecord].self, forKey: .hitRecords) ?? []
+        trainingContext = try values.decodeIfPresent(TrainingContext.self, forKey: .trainingContext)
+            ?? .init(evaluationScope: .legacyUnknown)
+    }
 }
 
 /// Evidencia compacta que basta para calcular el curso y la escalera sin
@@ -75,6 +99,60 @@ public enum ProgressStoreError: LocalizedError {
 public final class ProgressStore {
     private var database: OpaquePointer?
 
+    private struct AttemptImportIdentity: Hashable {
+        let exerciseID: String
+        let timestamp: Double
+        let bpm: Int
+        let score: Double
+        let stars: Int
+        let perfect: Int
+        let good: Int
+        let regular: Int
+        let miss: Int
+        let extra: Int
+        let meanOffsetMilliseconds: Double?
+
+        init(_ attempt: PracticeAttempt) {
+            exerciseID = attempt.exerciseID
+            timestamp = attempt.timestamp.timeIntervalSince1970
+            bpm = attempt.bpm
+            score = attempt.score
+            stars = attempt.stars
+            perfect = attempt.perfect
+            good = attempt.good
+            regular = attempt.regular
+            miss = attempt.miss
+            extra = attempt.extra
+            meanOffsetMilliseconds = attempt.meanOffsetMilliseconds
+        }
+
+        init(
+            exerciseID: String,
+            timestamp: Double,
+            bpm: Int,
+            score: Double,
+            stars: Int,
+            perfect: Int,
+            good: Int,
+            regular: Int,
+            miss: Int,
+            extra: Int,
+            meanOffsetMilliseconds: Double?
+        ) {
+            self.exerciseID = exerciseID
+            self.timestamp = timestamp
+            self.bpm = bpm
+            self.score = score
+            self.stars = stars
+            self.perfect = perfect
+            self.good = good
+            self.regular = regular
+            self.miss = miss
+            self.extra = extra
+            self.meanOffsetMilliseconds = meanOffsetMilliseconds
+        }
+    }
+
     public init(url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard sqlite3_open(url.path, &database) == SQLITE_OK else {
@@ -102,6 +180,7 @@ public final class ProgressStore {
             try execute("ALTER TABLE attempts ADD COLUMN \(name) \(definition)")
             columns.insert(name)
         }
+        try execute("CREATE TABLE IF NOT EXISTS training_state (state_key TEXT PRIMARY KEY NOT NULL, value_json TEXT NOT NULL)")
     }
 
     deinit { sqlite3_close(database) }
@@ -123,6 +202,79 @@ public final class ProgressStore {
         let contextData = try JSONEncoder().encode(attempt.trainingContext)
         _ = contextData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 14, bytes.baseAddress, Int32(contextData.count), sqliteTransient) }
         guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+    }
+
+    /// Persiste estado didáctico versionable sin alterar la tabla histórica de
+    /// intentos. Se usa para objetivos de repaso y sesiones diarias pendientes.
+    public func saveTrainingState<Value: Encodable>(_ value: Value, forKey key: String) throws {
+        let data = try JSONEncoder.xroll.encode(value)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw ProgressStoreError.sqlite("No se pudo codificar el estado de entrenamiento.")
+        }
+        let statement = try prepare("INSERT INTO training_state (state_key, value_json) VALUES (?, ?) ON CONFLICT(state_key) DO UPDATE SET value_json = excluded.value_json")
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, key, -1, sqliteTransient)
+        sqlite3_bind_text(statement, 2, json, -1, sqliteTransient)
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+    }
+
+    public func loadTrainingState<Value: Decodable>(_ type: Value.Type, forKey key: String) throws -> Value? {
+        let statement = try prepare("SELECT value_json FROM training_state WHERE state_key = ?")
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, key, -1, sqliteTransient)
+        let status = sqlite3_step(statement)
+        if status == SQLITE_DONE { return nil }
+        guard status == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else { throw error() }
+        return try JSONDecoder.xroll.decode(type, from: Data(String(cString: text).utf8))
+    }
+
+    /// Importa intentos compartidos en una única transacción e ignora los que
+    /// ya existen para que volver a elegir el mismo archivo no duplique progreso.
+    @discardableResult
+    public func importAttempts(_ importedAttempts: [PracticeAttempt]) throws -> Int {
+        guard !importedAttempts.isEmpty else { return 0 }
+        var knownAttempts = try existingAttemptImportIdentities()
+        try execute("SAVEPOINT import_progress")
+        do {
+            var importedCount = 0
+            for attempt in importedAttempts {
+                guard knownAttempts.insert(AttemptImportIdentity(attempt)).inserted else { continue }
+                try record(attempt)
+                importedCount += 1
+            }
+            try execute("RELEASE import_progress")
+            return importedCount
+        } catch {
+            try? execute("ROLLBACK TO import_progress")
+            try? execute("RELEASE import_progress")
+            throw error
+        }
+    }
+
+    private func existingAttemptImportIdentities() throws -> Set<AttemptImportIdentity> {
+        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms FROM attempts")
+        defer { sqlite3_finalize(statement) }
+        var result = Set<AttemptImportIdentity>()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return result }
+            guard status == SQLITE_ROW, let exerciseID = sqlite3_column_text(statement, 0) else { throw error() }
+            result.insert(AttemptImportIdentity(
+                exerciseID: String(cString: exerciseID),
+                timestamp: sqlite3_column_double(statement, 1),
+                bpm: Int(sqlite3_column_int(statement, 2)),
+                score: sqlite3_column_double(statement, 3),
+                stars: Int(sqlite3_column_int(statement, 4)),
+                perfect: Int(sqlite3_column_int(statement, 5)),
+                good: Int(sqlite3_column_int(statement, 6)),
+                regular: Int(sqlite3_column_int(statement, 7)),
+                miss: Int(sqlite3_column_int(statement, 8)),
+                extra: Int(sqlite3_column_int(statement, 9)),
+                meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL
+                    ? nil
+                    : sqlite3_column_double(statement, 10)
+            ))
+        }
     }
 
     public func progress(for exerciseID: String) throws -> ExerciseProgress? {
@@ -274,5 +426,12 @@ private extension JSONEncoder {
     static var xroll: JSONEncoder {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var xroll: JSONDecoder {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

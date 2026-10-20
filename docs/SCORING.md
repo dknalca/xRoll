@@ -55,6 +55,10 @@ del primer pulso; así se conserva el scoring normal de una entrada adelantada.
 - Cada nota solo puede consumir un golpe y cada golpe solo puede consumir una
   nota. Las notas simultaneas de sonidos distintos se resuelven por separado.
 - Una nota pasa a Fallo cuando termina su ventana Regular sin golpe asociado.
+- En la sesión incremental, los fallos vencidos se notifican con el siguiente
+  golpe puntuable posterior al cierre de su ventana; el `hostTime` del golpe
+  decide el vencimiento, no el retraso de presentación. El score final sigue
+  incluyendo toda nota no consumida, aunque no haya otro golpe.
 - En un empate exacto se elige la nota anterior, para que el resultado sea
   determinista.
 
@@ -109,6 +113,11 @@ compases, se descartan los primeros y se toma la **mediana** del desvio, no la
 media, para que un golpe perdido no contamine el resultado. Ese valor se resta
 de todas las mediciones posteriores.
 
+El emparejamiento de calibración usa offsets brutos con `CalibrationMatcher`,
+no los golpes aceptados por las ventanas de puntuación. En macOS lo realiza el
+procesador serial de práctica. La guía permanece visible y los silencios de
+Gap Metronome no se aplican durante la calibración.
+
 El desvio bruto se define como `instante_del_golpe - instante_objetivo`: positivo
 significa atrasado y negativo, adelantado. El desvio puntuado es
 `desvio_bruto - compensacion_del_perfil`.
@@ -147,6 +156,10 @@ leen con una colección de eventos vacía.
 `training_context_json` acompaña a los intentos nuevos con fase D-A-I-T, nivel
 de Gap Metronome y estado de guía visual. Permite evaluar maestría sin inferir
 la intención de una pantalla o una versión concreta de la interfaz.
+
+Los compases completados se calculan con el host time de cierre y la duración
+real de la sesión. Un abandono no se registra como intento completo ni concede
+premios de duración, aunque su porcentaje de aciertos ya supere el umbral.
 
 ## Diagnóstico robusto
 

@@ -62,24 +62,38 @@ enum GameplayVisualTheme {
     }
 }
 
-/// Proyección 2.5D de slots físicos. La coordenada temporal sigue siendo lineal;
+/// Proyección 2.5D de carriles por sonido. La coordenada temporal sigue siendo lineal;
 /// solo se estrecha la pista hacia el horizonte para dar profundidad.
 struct GameplayProjection {
     let size: CGSize
     let hitLineY: CGFloat
+    let laneCount: Int
     var topInset: CGFloat = 16
     var topWidthRatio: CGFloat = 0.74
 
     var horizonY: CGFloat { max(hitLineY + 1, size.height - topInset) }
 
-    static func padPath(width: CGFloat, height: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: -width * 0.39, y: height / 2))
-        path.addLine(to: CGPoint(x: width * 0.39, y: height / 2))
-        path.addLine(to: CGPoint(x: width / 2, y: -height / 2))
-        path.addLine(to: CGPoint(x: -width / 2, y: -height / 2))
-        path.closeSubpath()
-        return path
+    /// Prolonga los límites de un carril por debajo de la línea de golpe para
+    /// que el receptor conserve la misma fuga y la misma pendiente lateral.
+    func padGeometry(slot: Int, height: CGFloat) -> ProjectedPadGeometry {
+        let boundedSlot = max(0, min(laneCount - 1, slot))
+        let padHeight = max(1, height)
+        let backTrackWidth = trackWidth(at: 0)
+        let projectionHeight = max(1, horizonY - hitLineY)
+        let widthGrowth = backTrackWidth * (1 - topWidthRatio) * padHeight / projectionHeight
+        let frontTrackWidth = backTrackWidth + widthGrowth
+        let slotCenterFraction = (CGFloat(boundedSlot) + 0.5) / CGFloat(laneCount) - 0.5
+        let backCenterX = size.width / 2 + slotCenterFraction * backTrackWidth
+        let frontCenterX = size.width / 2 + slotCenterFraction * frontTrackWidth
+
+        return ProjectedPadGeometry(
+            center: CGPoint(x: (backCenterX + frontCenterX) / 2, y: hitLineY - padHeight / 2),
+            backCenterX: backCenterX,
+            frontCenterX: frontCenterX,
+            backWidth: backTrackWidth / CGFloat(laneCount),
+            frontWidth: frontTrackWidth / CGFloat(laneCount),
+            height: padHeight
+        )
     }
 
     func depth(for millisecondsRemaining: Double, displayLeadMilliseconds: Double) -> CGFloat {
@@ -98,14 +112,14 @@ struct GameplayProjection {
     }
 
     func x(atSlotBoundary boundary: Int, depth: CGFloat) -> CGFloat {
-        let slotFraction = CGFloat(max(0, min(16, boundary))) / 16
+        let slotFraction = CGFloat(max(0, min(laneCount, boundary))) / CGFloat(laneCount)
         return size.width / 2 + (slotFraction - 0.5) * trackWidth(at: depth)
     }
 
     func point(slot: Int, depth: CGFloat) -> CGPoint {
-        let boundedSlot = max(0, min(15, slot))
+        let boundedSlot = max(0, min(laneCount - 1, slot))
         return CGPoint(
-            x: x(atSlotBoundary: boundedSlot, depth: depth) + trackWidth(at: depth) / 32,
+            x: x(atSlotBoundary: boundedSlot, depth: depth) + trackWidth(at: depth) / CGFloat(laneCount * 2),
             y: y(at: depth)
         )
     }
@@ -113,12 +127,12 @@ struct GameplayProjection {
     /// Silueta local de una nota: sus dos bordes son paralelos a los bordes
     /// proyectados de SU carril. Se construye al activar el nodo, no por frame.
     func notePath(slot: Int) -> CGPath {
-        let laneWidth = trackWidth(at: 0) / 16
+        let laneWidth = trackWidth(at: 0) / CGFloat(laneCount)
         let width = min(36, max(8, laneWidth - 6))
         let height: CGFloat = 30
         let heightRange = max(1, horizonY - hitLineY)
         let centerSlope = (point(slot: slot, depth: 1).x - point(slot: slot, depth: 0).x) / heightRange
-        let widthSlope = (trackWidth(at: 1) - trackWidth(at: 0)) / (16 * heightRange) * (width / laneWidth)
+        let widthSlope = (trackWidth(at: 1) - trackWidth(at: 0)) / (CGFloat(laneCount) * heightRange) * (width / laneWidth)
         let halfHeight = height / 2
         let topWidth = width + widthSlope * halfHeight
         let bottomWidth = width - widthSlope * halfHeight
@@ -135,7 +149,7 @@ struct GameplayProjection {
     }
 
     func lanePath(slot: Int) -> CGPath {
-        let lane = max(0, min(15, slot))
+        let lane = max(0, min(laneCount - 1, slot))
         let path = CGMutablePath()
         path.move(to: CGPoint(x: x(atSlotBoundary: lane, depth: 0), y: hitLineY))
         path.addLine(to: CGPoint(x: x(atSlotBoundary: lane + 1, depth: 0), y: hitLineY))
@@ -171,6 +185,44 @@ struct GameplayProjection {
 
     private func clamp(_ value: CGFloat) -> CGFloat {
         max(0, min(1, value))
+    }
+}
+
+/// Geometría local de un receptor proyectado, derivada de los bordes del carril.
+struct ProjectedPadGeometry {
+    let center: CGPoint
+    let backCenterX: CGFloat
+    let frontCenterX: CGFloat
+    let backWidth: CGFloat
+    let frontWidth: CGFloat
+    let height: CGFloat
+
+    var centerShift: CGFloat { frontCenterX - backCenterX }
+
+    func path(sideInset: CGFloat = 0, verticalInset: CGFloat = 0) -> CGPath {
+        let safeVerticalInset = min(max(0, verticalInset), height / 2)
+        let upperProgress = safeVerticalInset / height
+        let lowerProgress = 1 - upperProgress
+        let upperCenter = backCenterX + centerShift * upperProgress
+        let lowerCenter = backCenterX + centerShift * lowerProgress
+        let upperWidth = backWidth + (frontWidth - backWidth) * upperProgress
+        let lowerWidth = backWidth + (frontWidth - backWidth) * lowerProgress
+        let upperHalfWidth = max(1, upperWidth / 2 - sideInset)
+        let lowerHalfWidth = max(1, lowerWidth / 2 - sideInset)
+        let upperY = height / 2 - safeVerticalInset
+        let lowerY = -height / 2 + safeVerticalInset
+        let path = CGMutablePath()
+
+        path.move(to: CGPoint(x: upperCenter - center.x - upperHalfWidth, y: upperY))
+        path.addLine(to: CGPoint(x: upperCenter - center.x + upperHalfWidth, y: upperY))
+        path.addLine(to: CGPoint(x: lowerCenter - center.x + lowerHalfWidth, y: lowerY))
+        path.addLine(to: CGPoint(x: lowerCenter - center.x - lowerHalfWidth, y: lowerY))
+        path.closeSubpath()
+        return path
+    }
+
+    func centerOffset(atY y: CGFloat) -> CGFloat {
+        -centerShift * max(-0.5, min(0.5, y / height))
     }
 }
 

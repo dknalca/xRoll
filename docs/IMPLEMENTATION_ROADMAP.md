@@ -37,10 +37,25 @@
 - Curso guiado con exploración libre, checkpoints MIDI por capítulo y evidencia
   curricular consultada sobre el historial completo; los tempo-awards siguen
   perteneciendo solo al tempo realmente superado.
+- Continuación compartida por orden topológico: no vuelve a bloques acreditados
+  ni atraviesa bloques pendientes. Resultados encadena la práctica directamente;
+  la prueba final presenta primero su resumen y patrón integrador.
+- Audio vivo con rotación acotada y choke de la voz activa anterior, cubierto por
+  pruebas de PCM offline; validación acústica iPhone/iPad aún pendiente.
 - Resultado ofrece una vía opcional al siguiente ejercicio tras dos estrellas en
   ritmo completo, sin acreditar ni saltar requisitos del curso. Las filas del
   curso muestran el premio más alto ganado; los trofeos sustituyen visualmente a
   las estrellas anteriores.
+- El coaching correctivo exige errores repetidos en el mismo sonido y paso; la
+  comparación al volver al groove solo se hace con condiciones completas
+  equivalentes. Los objetivos se conservan en SQLite y se vuelven a comprobar
+  con repasos espaciados.
+- Pulso interno ofrece cinco etapas de retirada de ayudas. Cada etapa requiere
+  dos intentos equivalentes; las etapas con silencios también requieren deriva
+  estable. El resultado muestra desfase por pulso y distingue los silencios.
+- La sesión diaria breve combina entrada conocida, repaso vencido, reto curricular
+  e integración; conserva bloques completados, omitidos y pendientes para poder
+  retomarla durante el mismo día.
 
 ## Próxima capa técnica
 

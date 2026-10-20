@@ -6,12 +6,13 @@ project="$project_root/xRoll.xcodeproj"
 scheme="xRoll"
 export_options="$project_root/iOS/ExportOptions.plist"
 ipa_output="$project_root/dist/ios-device/xRoll.ipa"
-team_id=$(/usr/libexec/PlistBuddy -c 'Print :teamID' "$export_options")
+team_id="${XROLL_DEVELOPMENT_TEAM:-}"
 script_name=${0:t}
 
 usage() {
-    print "Uso: $script_name [--udid UDID]"
-    print "Compila, firma, exporta e instala xRoll en un iPad conectado por USB."
+    print "Uso: $script_name [--udid UDID] [--team-id TEAM_ID]"
+    print "Compila, firma, exporta e instala xRoll en un iPhone o iPad por USB."
+    print "El Team ID se indica con --team-id o XROLL_DEVELOPMENT_TEAM; no se guarda en el repositorio."
 }
 
 device_udid=""
@@ -20,6 +21,11 @@ while (( $# > 0 )); do
         --udid)
             (( $# >= 2 )) || { print -u2 "Falta el UDID después de --udid."; exit 2; }
             device_udid="$2"
+            shift 2
+            ;;
+        --team-id)
+            (( $# >= 2 )) || { print -u2 "Falta el Team ID después de --team-id."; exit 2; }
+            team_id="$2"
             shift 2
             ;;
         -h|--help)
@@ -41,6 +47,11 @@ for tool in xcodebuild idevice_id ideviceinfo ideviceinstaller; do
     }
 done
 
+if [[ -z "$team_id" ]]; then
+    print -u2 "Indica tu Team ID con --team-id o define XROLL_DEVELOPMENT_TEAM antes de instalar en hardware."
+    exit 2
+fi
+
 if [[ -z "$device_udid" ]]; then
     device_output="$(idevice_id -l)"
     if [[ -z "$device_output" ]]; then
@@ -61,8 +72,8 @@ device_name="$(ideviceinfo -u "$device_udid" -k DeviceName 2>/dev/null)" || {
     exit 1
 }
 device_product_type="$(ideviceinfo -u "$device_udid" -k ProductType 2>/dev/null || true)"
-if [[ "$device_product_type" != iPad* ]]; then
-    print -u2 "El dispositivo seleccionado no es un iPad ($device_product_type)."
+if [[ "$device_product_type" != iPad* && "$device_product_type" != iPhone* ]]; then
+    print -u2 "El dispositivo seleccionado no es un iPhone/iPad compatible ($device_product_type)."
     exit 1
 fi
 device_version="$(ideviceinfo -u "$device_udid" -k ProductVersion 2>/dev/null || print "versión desconocida")"
@@ -73,7 +84,7 @@ trap 'exit 130' INT TERM
 archive_path="$temporary_directory/xRoll.xcarchive"
 export_path="$temporary_directory/export"
 
-print "Dispositivo: $device_name · iPadOS $device_version · $device_udid"
+print "Dispositivo: $device_name · iOS $device_version · $device_udid"
 print "Compilando y firmando xRoll para iOS..."
 xcodebuild \
     -project "$project" \
@@ -82,6 +93,7 @@ xcodebuild \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -allowProvisioningUpdates \
+    -allowProvisioningDeviceRegistration \
     DEVELOPMENT_TEAM="$team_id" \
     CODE_SIGN_STYLE=Automatic \
     archive
@@ -105,4 +117,4 @@ print "Instalando en $device_name..."
 ideviceinstaller -u "$device_udid" -w install "$ipa_output"
 
 print "Listo. IPA guardado en: $ipa_output"
-print "Abre xRoll desde la pantalla de inicio del iPad para probarlo."
+print "Abre xRoll desde la pantalla de inicio del dispositivo para probarlo."

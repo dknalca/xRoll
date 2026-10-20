@@ -1,8 +1,9 @@
 # Distribución de xRoll
 
 La integración continua compila y prueba los cambios de `main` y los pull
-requests. Al publicar una etiqueta `v*`, GitHub Actions vuelve a ejecutar los
-chequeos, valida los recursos y crea un borrador de release con notas generadas;
+requests, incluida una compilación genérica iOS sin firma. Al publicar una
+etiqueta `v*`, GitHub Actions vuelve a ejecutar los chequeos, valida los recursos
+y compila iOS antes de crear un borrador de release con notas generadas;
 la distribución firmada de macOS y el IPA de iOS siguen siendo operaciones
 locales.
 
@@ -14,8 +15,9 @@ locales.
    ruta, por ejemplo `XROLL_APP_OUTPUT=/tmp/xRoll-audit.app scripts/build-app.sh`.
 3. Comprueba que toda muestra nueva está anotada en
    `Resources/Loops/ATTRIBUTION.md` y que su licencia permite la distribución.
-4. Crea y sube una etiqueta, por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'`
-   y `git push origin v0.1.0`.
+4. Integra el commit de release en `main`; después crea y sube una etiqueta,
+   por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'` y
+   `git push origin v0.1.0`.
 5. Revisa y publica el borrador de GitHub Actions; adjunta `dist/xRoll.app` o su
    archivo comprimido cuando corresponda.
 

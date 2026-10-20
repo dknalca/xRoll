@@ -57,6 +57,7 @@ struct PracticeTimingTraceDocument: Codable {
     let scoringCompensationMilliseconds: Double
     let calibrationTargetTimesMillisecondsBySound: [String: [Double]]
     let predictsVisualFrame: Bool
+    let requestedIOBufferDurationMilliseconds: Double
     let sampleRate: Double
     let bufferFrames: Int
     let totalEventCount: Int

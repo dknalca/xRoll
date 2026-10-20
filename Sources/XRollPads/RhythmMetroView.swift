@@ -76,6 +76,47 @@ struct RhythmMetroView: View {
                 if let recommendation, let nextExercise {
                     MetroNextStation(model: model, exercise: nextExercise, recommendation: recommendation)
                 }
+                StagePanel {
+                    HStack {
+                        Label("TU SESIÓN DE HOY", systemImage: "calendar.badge.clock")
+                            .font(.studioLabel).foregroundColor(StudioDesign.accent)
+                        Spacer()
+                        Button(model.dailyPracticeCompletedToday ? "Sesión completada" : (model.hasDailyPracticePlanForToday ? "Empezar / continuar" : "Preparar cinco minutos")) {
+                            model.startDailyPractice()
+                        }
+                        .buttonStyle(.borderedProminent).tint(StudioDesign.accent)
+                        .disabled(model.dailyPracticeCompletedToday)
+                    }
+                    if model.hasDailyPracticePlanForToday, let plan = model.dailyPracticePlan, !plan.blocks.isEmpty {
+                        Text("\(plan.completedBlockCount) completados · \(plan.skippedBlockCount) omitidos de \(plan.blocks.count) · unos \(max(1, (plan.estimatedSeconds + 59) / 60)) min")
+                            .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
+                        if let block = plan.currentBlock {
+                            Text("Siguiente: \(block.title) · \(block.reason)")
+                                .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                        }
+                    } else {
+                        Text("Un patrón conocido, un repaso, un pequeño reto y un groove completo.")
+                            .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
+                    }
+                    if !model.dailyPracticeMessage.isEmpty {
+                        Text(model.dailyPracticeMessage).font(.caption).foregroundColor(StudioDesign.accent)
+                    }
+                    if model.hasDailyPracticePlanForToday, model.dailyPracticePlan?.currentBlock != nil {
+                        Button("Omitir este bloque") { model.skipNextDailyBlock() }
+                            .buttonStyle(.borderless).foregroundColor(StudioDesign.textSecondary)
+                    }
+                }
+                StagePanel {
+                    HStack {
+                        Label("PULSO INTERNO", systemImage: "metronome.fill")
+                            .font(.studioLabel).foregroundColor(StudioDesign.accent)
+                        Spacer()
+                        Button("Empezar / continuar") { model.startPulseTraining() }
+                            .buttonStyle(.bordered).tint(StudioDesign.accent)
+                    }
+                    Text(model.pulseTrainingStage?.explanation ?? "Retira las ayudas por etapas y aprende a mantener el ritmo durante los silencios.")
+                        .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
+                }
                 if let fastStart, state(for: fastStart) != .mastered { MetroFastStart(model: model, exercise: fastStart) }
 
                 MetroTrainLegend(chapterCount: model.metroChapters.count)
@@ -211,7 +252,7 @@ private struct MetroChapterStation: View {
                         .font(.caption.bold()).foregroundColor(chapterAccredited ? StudioDesign.accent : StudioDesign.textSecondary)
                 }
                 ProgressView(value: Double(completed), total: Double(max(1, chapter.exercises.count))).tint(StudioDesign.accent)
-                Text(chapterAccredited ? "Puedes repasar estos ejercicios o subir el tempo." : "Todos los ritmos se pueden practicar. Acredita la estación con el checkpoint o supera cada ejercicio.")
+                Text(chapterAccredited ? "Bloque acreditado · continúa con la siguiente estación." : "Todos los ritmos se pueden practicar. Acredita la estación con el checkpoint o supera cada ejercicio.")
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
                 if let checkpoint, !chapterAccredited {
                     MetroCheckpointAction(model: model, exercise: checkpoint)
@@ -241,7 +282,7 @@ private struct MetroCheckpointAction: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ActionButton("Hacer prueba del bloque", prominence: .secondary) {
+            ActionButton("Empezar prueba final", prominence: .secondary) {
                 model.openCheckpointAssessment(exercise)
             }
             Text("Ritmo completo · tempo de referencia · ≥70 %")

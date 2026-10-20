@@ -60,6 +60,10 @@ pulso y subdivision cruzando los carriles. Con la rejilla dibujada el ojo lee
 "justo despues del tercer tiempo" en vez de "a treinta y ocho pixeles", y la
 compresion deja de importar.
 
+Los receptores bajo la línea de golpe prolongan la pendiente de los límites de
+carril y comparten su punto de fuga; no usan una proporción trapezoidal
+independiente.
+
 ## D-007 - Circulo y cuadrado, no pentagono y circulo
 
 Dos formas, las mas distintas posibles: circulo para la mano izquierda, cuadrado
@@ -296,7 +300,10 @@ Al terminar un ritmo completo con al menos dos estrellas, la pantalla de
 resultado ofrece una acción secundaria para practicar el siguiente ejercicio
 del curso, aunque la recomendación guiada todavía proponga otro tempo del ritmo
 actual. Esa elección no acredita el ejercicio ni el capítulo y no altera la
-recomendación oficial; el usuario puede volver a ella desde Curso.
+recomendación oficial; el usuario puede volver a ella desde Curso. La continuación
+desde Resultados permanece dentro del primer bloque sin acreditar; solo cambia
+de bloque cuando el anterior queda acreditado. La exploración manual del Curso
+sigue permitiendo elegir otros bloques (revisión del 20/10/2026).
 
 En cada fila del curso se muestra el mayor premio de tempo acreditado para ese
 ejercicio: estrellas hasta Consolidar; al obtener trofeos se muestran solo los
@@ -313,6 +320,11 @@ La vista de ejecución dibuja cada nota en una única pista estable por sonido,
 aunque el layout tenga varios pads que produzcan esa voz. El mapa de Equipo
 conserva todas las posiciones físicas y CoreMIDI acepta cada alternativa; los
 objetivos exactos por rol o pad siguen aplicándose al scoring.
+
+La proyección usa tantos carriles como sonidos distintos tenga el mapa completo,
+sin huecos para pads duplicados. El orden deriva del primer pad físico de cada
+sonido y se conserva entre ejercicios; los sonidos inactivos quedan atenuados.
+Notas, receptores y feedback comparten esa misma distribución en macOS e iOS.
 
 **Por qué:** repetir cuadrados idénticos para un bombo duplicado hacía parecer
 que había dos notas que golpear. La práctica enseña el sonido y el tiempo; la
@@ -339,6 +351,10 @@ carriles de sonidos activos y la onda de las separaciones. Al recibir un juicio
 Regular, Extra o Miss, el efecto vuelve a su intensidad inicial. Es feedback
 visual solamente: no cambia puntuación, ventanas ni reproducción.
 
+Desde 20 aciertos seguidos aparece además un resplandor pulsante en el fondo; se
+intensifica en 40 y 60. Reduce Motion y el modo de bajo consumo visual lo ocultan.
+Al romperse la racha, el fondo vuelve a su estado normal.
+
 Desde el quinto acierto consecutivo el HUD muestra «Racha xN»; la intensidad
 gráfica se limita aunque el contador continúe. Este contador no acredita
 ejercicios ni altera las recompensas por tempo.
@@ -346,18 +362,6 @@ ejercicios ni altera las recompensas por tempo.
 **Por qué:** una cadena de golpes bien colocados debe sentirse más enérgica y
 premiante, pero los efectos no deben convertirse en una regla de juego ni
 competir con la lectura temporal.
-
-## D-037 - Acompañamiento por estilo y BPM con elección manual
-
-La selección automática prefiere loops cuyo nombre indica el estilo del capítulo
-(por ejemplo, `hiphop`) y, entre ellos, la fuente más cercana al BPM de práctica.
-Si no hay coincidencia de estilo, usa el loop genérico más próximo. Preparación y
-Opciones permiten sustituir la recomendación o volver al modo automático. La
-fuente se ajusta al BPM seleccionado sin modificar el tempo ni el scoring del
-ejercicio.
-
-**Por qué:** el acompañamiento debe conservar el carácter del estilo y seguir el
-tempo elegido, sin obligar al usuario a buscar el archivo apropiado.
 
 ## D-036 - La preparación propone el primer escalón pendiente
 
@@ -372,8 +376,17 @@ usando su tempo de aprendizaje, porque esa acción comprueba la acreditación de
 bloque y no un reto de velocidad.
 
 Desde Resultados, «Subir nivel» selecciona el siguiente escalón de BPM pendiente
-por encima del practicado e inicia directamente la práctica guiada; «Siguiente
-ejercicio» continúa abriendo Preparación.
+por encima del practicado e inicia directamente la práctica guiada;
+«Siguiente ejercicio» entra también directamente en el ritmo recomendado sin
+abrir Preparación (revisión del 20/10/2026: los menús intermedios rompían el
+encadenamiento de práctica que el propio resultado proponía). Los resultados
+ofrecen además una acción explícita para volver al menú del curso.
+
+Inicio, Curso y Resultados comparten el orden topológico de `CourseGraph`, no
+el número de nivel histórico. Los bloques ya acreditados no generan nuevas
+recomendaciones curriculares. La prueba de cierre tiene una preparación propia,
+identificada por el bloque, con su objetivo y patrón MIDI integrador; conserva
+el ID del MIDI para no fragmentar la evidencia histórica.
 
 **Por qué:** repetir automáticamente un escalón ya completado oculta el siguiente
 reto al practicar de nuevo el mismo ritmo.
@@ -388,3 +401,18 @@ Cambiar de loop nunca cambia el BPM ni el scoring del ejercicio.
 
 **Por qué:** el acompañamiento debe encajar con el carácter del ritmo y evitar
 cambios de velocidad innecesarios, sin quitar al usuario la elección de la banda.
+
+## D-038 - Rotación acotada y choke explícito para golpes vivos
+
+Los golpes vivos rotan por cuatro nodos por sonido, separados del pool de notas
+programadas. Un único registro identifica la voz activa de cada sonido o grupo
+de choke. El nuevo golpe corta esa voz anterior y se programa con `.interrupts`
+en otro nodo: no se para el mismo nodo que se acaba de elegir para el ataque.
+Cerrar el motor limpia ese registro. Las notas futuras conservan el recorte de
+su cola al siguiente golpe del mismo sonido o grupo.
+
+**Por qué:** evita reciclar un único nodo en cada re-disparo y limita el trabajo
+de choke a la voz anterior. Las pruebas offline inspeccionan PCM de golpes
+rápidos, corte abierto/cerrado, aislamiento de otros grupos y reinicio. No
+demuestran la causa del fallo observado en iPhone ni sustituyen su comprobación
+acústica con MIDI y pads táctiles.

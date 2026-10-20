@@ -116,6 +116,7 @@ final class PracticeScene: SKScene {
     private let beatLabel = SKLabelNode()
     private let streakLabel = SKLabelNode()
     private var streakPanel: SKShapeNode?
+    private var streakBackgroundGlows = [SKShapeNode]()
     private let progressFill = SKSpriteNode(color: GameplayVisualTheme.perfect, size: .zero)
     private var hitGlow: SKSpriteNode?
     private var hitLine: SKSpriteNode?
@@ -127,19 +128,33 @@ final class PracticeScene: SKScene {
     private var lastBarText = ""
     private var lastBeatText = ""
     private var successfulStreak = 0
+    private var streakVisualsActive = false
+    private var streakBackgroundActive = false
+    private var lastSeparatorStreakPhase: Int?
+    private var lastSeparatorStreakIntensity: CGFloat?
 
     private var projection: GameplayProjection {
-        GameplayProjection(size: size, hitLineY: hitY)
+        GameplayProjection(size: size, hitLineY: hitY, laneCount: max(1, slotBySound.count))
     }
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], slotByNoteIndex: [Int: Int] = [:], targetSlotsBySound: [String: [Int]] = [:], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false, predictsPresentationFrame: Bool = false) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false, predictsPresentationFrame: Bool = false) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.noteByIndex = Dictionary(uniqueKeysWithValues: timeline.notes.map { ($0.index, $0) })
-        self.slotBySound = slotBySound
-        self.slotByNoteIndex = slotByNoteIndex
-        self.targetSlotsBySound = targetSlotsBySound.isEmpty ? slotBySound.mapValues { [$0] } : targetSlotsBySound
+        // Conserva el orden del mapa completo entre ejercicios, pero elimina los
+        // huecos de pads duplicados. Nota, receptor y feedback comparten carril.
+        let orderedSounds = slotBySound.keys.sorted {
+            let left = slotBySound[$0] ?? 0
+            let right = slotBySound[$1] ?? 0
+            return left == right ? $0 < $1 : left < right
+        }
+        let compactSlots = Dictionary(uniqueKeysWithValues: orderedSounds.enumerated().map { ($0.element, $0.offset) })
+        self.slotBySound = compactSlots
+        self.slotByNoteIndex = Dictionary(uniqueKeysWithValues: timeline.notes.compactMap { note in
+            compactSlots[note.sound].map { (note.index, $0) }
+        })
+        self.targetSlotsBySound = compactSlots.mapValues { [$0] }
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
         self.showsNotes = showsNotes
@@ -206,6 +221,11 @@ final class PracticeScene: SKScene {
         targetBaseFills.removeAll()
         activeChannelGlows.removeAll()
         separatorVisuals.removeAll()
+        streakBackgroundGlows.removeAll(keepingCapacity: true)
+        streakVisualsActive = false
+        streakBackgroundActive = false
+        lastSeparatorStreakPhase = nil
+        lastSeparatorStreakIntensity = nil
         let soundsInTimeline = Set(timeline.notes.map(\.sound))
         let activeSounds = Set(soundsInTimeline.filter { playerSounds?.contains($0) ?? true })
         let activeSlots = Set(activeSounds.flatMap { sound in
@@ -222,8 +242,8 @@ final class PracticeScene: SKScene {
         // tiempo: los slots conservan su orden y la línea de golpe permanece fija.
         let roadPath = CGMutablePath()
         roadPath.move(to: CGPoint(x: projection.x(atSlotBoundary: 0, depth: 0), y: hitY))
-        roadPath.addLine(to: CGPoint(x: projection.x(atSlotBoundary: 16, depth: 0), y: hitY))
-        roadPath.addLine(to: CGPoint(x: projection.x(atSlotBoundary: 16, depth: 1), y: projection.horizonY))
+        roadPath.addLine(to: CGPoint(x: projection.x(atSlotBoundary: projection.laneCount, depth: 0), y: hitY))
+        roadPath.addLine(to: CGPoint(x: projection.x(atSlotBoundary: projection.laneCount, depth: 1), y: projection.horizonY))
         roadPath.addLine(to: CGPoint(x: projection.x(atSlotBoundary: 0, depth: 1), y: projection.horizonY))
         roadPath.closeSubpath()
         let road = SKShapeNode(path: roadPath)
@@ -233,7 +253,7 @@ final class PracticeScene: SKScene {
         road.zPosition = -8
         staticLayer.addChild(road)
 
-        for index in 0..<16 {
+        for index in 0..<projection.laneCount {
             let isActive = activeSlots.contains(index)
             let lane = SKShapeNode(path: projection.lanePath(slot: index))
             lane.fillColor = isActive
@@ -254,16 +274,16 @@ final class PracticeScene: SKScene {
             }
         }
 
-        for boundary in 0...16 {
+        for boundary in 0...projection.laneCount {
             let divider = SKShapeNode(path: projection.boundaryPath(boundary))
             let isActiveEdge = activeSlots.contains(boundary) || activeSlots.contains(boundary - 1)
             let activeSlot: Int?
-            if boundary < 16 && activeSlots.contains(boundary) { activeSlot = boundary }
+            if boundary < projection.laneCount && activeSlots.contains(boundary) { activeSlot = boundary }
             else if boundary > 0 && activeSlots.contains(boundary - 1) { activeSlot = boundary - 1 }
             else { activeSlot = nil }
             divider.strokeColor = (activeSlot.map(color(forSlot:)) ?? SKColor.white)
                 .withAlphaComponent(isActiveEdge ? 0.16 : 0.045)
-            divider.lineWidth = boundary.isMultiple(of: 4) ? 1.1 : 0.65
+            divider.lineWidth = boundary == 0 || boundary == projection.laneCount ? 1.1 : 0.65
             divider.zPosition = -5
             staticLayer.addChild(divider)
             let bottom = CGPoint(x: projection.x(atSlotBoundary: boundary, depth: 0), y: hitY)
@@ -377,31 +397,31 @@ final class PracticeScene: SKScene {
         for (sound, slots) in targetSlotsBySound {
             let isPlayerSound = activeSounds.contains(sound)
             for slot in slots {
-                let x = projection.point(slot: slot, depth: 0).x
                 let isRecommended = slotBySound[sound] == slot
                 let accent = color(forSlot: slot)
-                let padWidth = max(14, projection.trackWidth(at: 0) / 16 - 7)
-                let target = SKShapeNode(path: GameplayProjection.padPath(width: padWidth, height: 48))
+                let padGeometry = projection.padGeometry(slot: slot, height: 48)
+                let padWidth = max(14, padGeometry.backWidth - 7)
+                let target = SKShapeNode(path: padGeometry.path(sideInset: 3.5))
                 target.fillColor = GameplayVisualTheme.padBody.withAlphaComponent(isPlayerSound ? 1 : 0.72)
                 target.strokeColor = accent.withAlphaComponent(isPlayerSound ? (isRecommended ? 0.90 : 0.42) : 0.22)
                 target.lineWidth = isRecommended ? 1.5 : 1
-                target.position = CGPoint(x: x, y: hitY - 24)
+                target.position = padGeometry.center
                 target.zPosition = 8
                 staticLayer.addChild(target)
                 targetBySound[sound, default: []].append(target)
                 targetBaseFills[sound, default: []].append(target.fillColor)
 
-                let face = SKShapeNode(path: GameplayProjection.padPath(width: max(8, padWidth - 6), height: 40))
+                let face = SKShapeNode(path: padGeometry.path(sideInset: 7.5, verticalInset: 4))
                 face.name = "padFace"
                 face.fillColor = GameplayVisualTheme.padFace.withAlphaComponent(isPlayerSound ? 1 : 0.75)
                 face.strokeColor = SKColor.white.withAlphaComponent(isPlayerSound ? 0.12 : 0.05)
                 face.lineWidth = 0.8
-                face.position = CGPoint(x: 0, y: 1)
+                face.position = .zero
                 face.zPosition = 1
                 target.addChild(face)
 
                 let lightBar = SKSpriteNode(color: accent.withAlphaComponent(isPlayerSound ? 0.88 : 0.25), size: CGSize(width: max(6, padWidth - 14), height: 2.5))
-                lightBar.position = CGPoint(x: 0, y: 17)
+                lightBar.position = CGPoint(x: padGeometry.centerOffset(atY: 17), y: 17)
                 lightBar.zPosition = 2
                 target.addChild(lightBar)
 
@@ -410,7 +430,7 @@ final class PracticeScene: SKScene {
                 symbol.fillColor = .clear
                 symbol.lineWidth = 1.6
                 symbol.lineCap = .round
-                symbol.position = CGPoint(x: 0, y: 5)
+                symbol.position = CGPoint(x: padGeometry.centerOffset(atY: 5), y: 5)
                 symbol.yScale = 0.72
                 symbol.zPosition = 2
                 target.addChild(symbol)
@@ -422,7 +442,7 @@ final class PracticeScene: SKScene {
                     label.fontColor = GameplayVisualTheme.text.withAlphaComponent(isPlayerSound ? (isRecommended ? 1 : 0.72) : 0.40)
                     label.verticalAlignmentMode = .center
                     label.horizontalAlignmentMode = .center
-                    label.position = CGPoint(x: 0, y: -11)
+                    label.position = CGPoint(x: padGeometry.centerOffset(atY: -11), y: -11)
                     label.zPosition = 3
                     label.xScale = min(1, max(1, padWidth - 10) / max(1, label.frame.width))
                     target.addChild(label)
@@ -447,6 +467,26 @@ final class PracticeScene: SKScene {
             wall.strokeColor = .clear
             wall.zPosition = -19
             staticLayer.addChild(wall)
+
+            let edge = projection.x(atSlotBoundary: isLeft ? 0 : projection.laneCount, depth: 0.52)
+            let sideMargin = isLeft ? edge : size.width - edge
+            let ambientGlow = SKShapeNode(ellipseOf: CGSize(
+                width: max(24, sideMargin * 1.8),
+                height: max(80, size.height * 0.46)
+            ))
+            ambientGlow.fillColor = .clear
+            ambientGlow.strokeColor = accent.withAlphaComponent(0.55)
+            ambientGlow.lineWidth = 4
+            ambientGlow.glowWidth = 24
+            ambientGlow.position = CGPoint(
+                x: isLeft ? edge / 2 : (edge + size.width) / 2,
+                y: projection.y(at: 0.52)
+            )
+            ambientGlow.zPosition = -18
+            ambientGlow.alpha = 0
+            staticLayer.addChild(ambientGlow)
+            streakBackgroundGlows.append(ambientGlow)
+
             for track in 0..<3 {
                 let fraction = CGFloat(track + 1) * 0.23
                 let path = CGMutablePath()
@@ -476,7 +516,7 @@ final class PracticeScene: SKScene {
     }
 
     private func sidePoint(fraction: CGFloat, depth: CGFloat, isLeft: Bool, projection: GameplayProjection) -> CGPoint {
-        let edge = projection.x(atSlotBoundary: isLeft ? 0 : 16, depth: depth)
+        let edge = projection.x(atSlotBoundary: isLeft ? 0 : projection.laneCount, depth: depth)
         let margin = isLeft ? edge : size.width - edge
         let direction: CGFloat = isLeft ? -1 : 1
         return CGPoint(x: edge + direction * margin * fraction, y: projection.y(at: depth))
@@ -726,8 +766,28 @@ final class PracticeScene: SKScene {
     private func updateStreakVisuals(elapsedMilliseconds: Double) {
         let boundedStreak = min(successfulStreak, 20)
         let intensity = usesMinimalFeedback ? 0 : CGFloat(boundedStreak) / 20
+        let showsStreakMotion = successfulStreak >= 5 && !usesMinimalFeedback
+        guard showsStreakMotion else {
+            if streakBackgroundActive { updateStreakBackground(elapsedMilliseconds: elapsedMilliseconds) }
+            guard streakVisualsActive else { return }
+            streakVisualsActive = false
+            lastSeparatorStreakPhase = nil
+            lastSeparatorStreakIntensity = nil
+            for glow in activeChannelGlows.values { glow.alpha = 0.07 }
+            for separator in separatorVisuals.values {
+                separator.node.path = separator.basePath
+                separator.node.position = .zero
+                separator.node.zRotation = 0
+                separator.node.setScale(1)
+                separator.node.alpha = 1
+                separator.node.lineWidth = separator.baseWidth
+            }
+            return
+        }
+        streakVisualsActive = true
         let frequencyHz = 0.55 + Double(boundedStreak) * 0.13
         let phase = elapsedMilliseconds / 1_000 * frequencyHz * 2 * Double.pi
+        updateStreakBackground(elapsedMilliseconds: elapsedMilliseconds)
 
         for (slot, glow) in activeChannelGlows {
             let breath = CGFloat((sin(phase - Double(slot) * 0.42) + 1) * 0.5)
@@ -736,6 +796,9 @@ final class PracticeScene: SKScene {
 
         let phaseCount = separatorWavePaths.count
         let phaseStep = Int((elapsedMilliseconds / 1_000 * frequencyHz * Double(phaseCount)).rounded(.down))
+        guard phaseStep != lastSeparatorStreakPhase || intensity != lastSeparatorStreakIntensity else { return }
+        lastSeparatorStreakPhase = phaseStep
+        lastSeparatorStreakIntensity = intensity
         for (boundary, separator) in separatorVisuals {
             let line = separator.node
             guard separator.isActive, boundedStreak >= 5, !usesMinimalFeedback, phaseCount > 0 else {
@@ -758,6 +821,31 @@ final class PracticeScene: SKScene {
             line.yScale = separator.length
             line.alpha = 0.78 + intensity * 0.22
             line.lineWidth = separator.baseWidth + intensity * 0.5
+        }
+    }
+
+    private func updateStreakBackground(elapsedMilliseconds: Double) {
+        let tier = usesMinimalFeedback ? 0 : min(3, successfulStreak / 20)
+        let baseOpacity: [CGFloat] = [0, 0.055, 0.11, 0.18]
+        let pulseOpacity: [CGFloat] = [0, 0.04, 0.065, 0.085]
+        let pulseScale: [CGFloat] = [0, 0.03, 0.055, 0.08]
+        guard tier > 0 else {
+            guard streakBackgroundActive else { return }
+            streakBackgroundActive = false
+            for glow in streakBackgroundGlows {
+                glow.alpha = 0
+                glow.setScale(1)
+            }
+            return
+        }
+
+        streakBackgroundActive = true
+        let frequency = 0.32 + Double(tier) * 0.08
+        let phase = elapsedMilliseconds / 1_000 * frequency * 2 * Double.pi
+        for (index, glow) in streakBackgroundGlows.enumerated() {
+            let breath = CGFloat((sin(phase - Double(index) * 0.7) + 1) * 0.5)
+            glow.alpha = baseOpacity[tier] + pulseOpacity[tier] * breath
+            glow.setScale(1 + pulseScale[tier] * breath)
         }
     }
 
@@ -871,7 +959,7 @@ final class PracticeScene: SKScene {
         if judgement == .extra || judgement == .miss {
             successfulStreak = 0
             refreshStreakHUD(animated: false)
-            effectsRenderer.showExtra(at: hitPoint, laneWidth: projection.trackWidth(at: 0) / 16, color: GameplayVisualTheme.miss, reducesMotion: minimizesFeedback)
+            effectsRenderer.showExtra(at: hitPoint, laneWidth: projection.trackWidth(at: 0) / CGFloat(projection.laneCount), color: GameplayVisualTheme.miss, reducesMotion: minimizesFeedback)
             presentJudgement(judgement == .extra ? "EXTRA" : "FALLO", color: GameplayVisualTheme.miss)
             return
         }
@@ -910,14 +998,17 @@ final class PracticeScene: SKScene {
         case .perfect:
             let reachedStreakMilestone = advanceSuccessfulStreak()
             judgementColor = GameplayVisualTheme.perfect
-            effectsRenderer.showImpact(at: hitPoint, color: judgementColor, particleCount: 4, reducesMotion: minimizesFeedback)
+            // En semicorcheas el destello del pad y la nota ya confirman cada
+            // golpe. Reserva partículas para hitos de racha para evitar mantener
+            // decenas de acciones y nodos animados en cada frame.
+            effectsRenderer.showImpact(at: hitPoint, color: judgementColor, particleCount: reachedStreakMilestone ? 4 : 0, reducesMotion: minimizesFeedback)
             presentJudgement("PERFECTO\(timingSuffix)", color: judgementColor)
             impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: minimizesFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.42, duration: 0.13), .fadeAlpha(to: 0.95, duration: 0.13)]), exit: minimizesFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 54, duration: 0.34), .fadeOut(withDuration: 0.34)])))
             if reachedStreakMilestone { effectsRenderer.showStreak(at: hitPoint, color: judgementColor, reducesMotion: minimizesFeedback) }
         case .good:
             let reachedStreakMilestone = advanceSuccessfulStreak()
             judgementColor = GameplayVisualTheme.good
-            effectsRenderer.showImpact(at: hitPoint, color: judgementColor, particleCount: 2, reducesMotion: minimizesFeedback)
+            effectsRenderer.showImpact(at: hitPoint, color: judgementColor, particleCount: reachedStreakMilestone ? 2 : 0, reducesMotion: minimizesFeedback)
             presentJudgement("BIEN\(timingSuffix)", color: judgementColor)
             impact.run(feedbackAction(snap: snap, index: note.index, impact: impact, flourish: minimizesFeedback ? .wait(forDuration: 0) : .group([.scale(to: 1.18, duration: 0.13), .fadeAlpha(to: 0.82, duration: 0.13)]), exit: minimizesFeedback ? .fadeOut(withDuration: 0.24) : .group([.moveBy(x: 0, y: 38, duration: 0.30), .fadeOut(withDuration: 0.30)])))
             if reachedStreakMilestone { effectsRenderer.showStreak(at: hitPoint, color: judgementColor, reducesMotion: minimizesFeedback) }

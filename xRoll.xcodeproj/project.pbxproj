@@ -15,9 +15,9 @@
 		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
 		A10000000000000000000007 /* Resources/Loops in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Resources/Loops */; };
 		A10000000000000000000008 /* iOSOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* iOSOptionsView.swift */; };
-		A10000000000000000000009 /* GameplayVisualSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* GameplayVisualSystem.swift */; };
-		A1000000000000000000000A /* XRollBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* XRollBrand.swift */; };
-		A1000000000000000000000B /* DrummerQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* DrummerQuotes.swift */; };
+		A10000000000000000000009 /* ../Sources/XRollPads/GameplayVisualSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */; };
+		A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */; };
+		A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */; };
 		D10000000000000000000001 /* XRollCore/SystemInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* XRollCore/SystemInspection.swift */; };
 		D10000000000000000000002 /* XRollCore/RhythmScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* XRollCore/RhythmScoring.swift */; };
 		D10000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */; };
@@ -37,7 +37,6 @@
 		D10000000000000000000011 /* XRollCore/ProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000011 /* XRollCore/ProgressStore.swift */; };
 		D10000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift */; };
 		D10000000000000000000013 /* XRollCore/PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000013 /* XRollCore/PracticeSession.swift */; };
-		D1000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift */; };
 		D10000000000000000000014 /* XRollCore/MIDIExercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000014 /* XRollCore/MIDIExercise.swift */; };
 		D10000000000000000000015 /* XRollCore/ResourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000015 /* XRollCore/ResourceModels.swift */; };
 		D10000000000000000000016 /* XRollCore/CourseGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000016 /* XRollCore/CourseGraph.swift */; };
@@ -46,6 +45,7 @@
 		D10000000000000000000019 /* XRollCore/PadMapV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000019 /* XRollCore/PadMapV2.swift */; };
 		D1000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c */; };
 		D1000000000000000000001B /* XRollCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001B /* XRollCore.framework */; };
+		D1000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,9 +68,9 @@
 		A20000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000008 /* Resources/Loops */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Loops; sourceTree = "<group>"; };
 		A20000000000000000000009 /* iOSOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSOptionsView.swift; sourceTree = "<group>"; };
-		A2000000000000000000000A /* GameplayVisualSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/GameplayVisualSystem.swift; sourceTree = "<group>"; };
-		A2000000000000000000000B /* XRollBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/XRollBrand.swift; sourceTree = "<group>"; };
-		A2000000000000000000000C /* DrummerQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/DrummerQuotes.swift; sourceTree = "<group>"; };
+		A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/GameplayVisualSystem.swift; sourceTree = "<group>"; };
+		A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/XRollBrand.swift; sourceTree = "<group>"; };
+		A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/DrummerQuotes.swift; sourceTree = "<group>"; };
 		D20000000000000000000001 /* XRollCore/SystemInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/SystemInspection.swift; sourceTree = "<group>"; };
 		D20000000000000000000002 /* XRollCore/RhythmScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/RhythmScoring.swift; sourceTree = "<group>"; };
 		D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LatencyRecordingAnalysis.swift; sourceTree = "<group>"; };
@@ -90,7 +90,6 @@
 		D20000000000000000000011 /* XRollCore/ProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/ProgressStore.swift; sourceTree = "<group>"; };
 		D20000000000000000000012 /* XRollCore/LiveMIDIProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LiveMIDIProcessor.swift; sourceTree = "<group>"; };
 		D20000000000000000000013 /* XRollCore/PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PracticeSession.swift; sourceTree = "<group>"; };
-		D2000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PracticeSessionProcessor.swift; sourceTree = "<group>"; };
 		D20000000000000000000014 /* XRollCore/MIDIExercise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/MIDIExercise.swift; sourceTree = "<group>"; };
 		D20000000000000000000015 /* XRollCore/ResourceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/ResourceModels.swift; sourceTree = "<group>"; };
 		D20000000000000000000016 /* XRollCore/CourseGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/CourseGraph.swift; sourceTree = "<group>"; };
@@ -99,6 +98,7 @@
 		D20000000000000000000019 /* XRollCore/PadMapV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PadMapV2.swift; sourceTree = "<group>"; };
 		D2000000000000000000001A /* XRollRealtimeQueue/XRollRealtimeQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = XRollRealtimeQueue/XRollRealtimeQueue.c; sourceTree = "<group>"; };
 		D2000000000000000000001B /* XRollCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = XRollCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D2000000000000000000001C /* XRollCore/PracticeSessionProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/PracticeSessionProcessor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,9 +136,9 @@
 				A20000000000000000000001 /* XRolliOSApp.swift */,
 				A20000000000000000000009 /* iOSOptionsView.swift */,
 				A20000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift */,
-				A2000000000000000000000A /* GameplayVisualSystem.swift */,
-				A2000000000000000000000B /* XRollBrand.swift */,
-				A2000000000000000000000C /* DrummerQuotes.swift */,
+				A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */,
+				A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */,
+				A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */,
 				A20000000000000000000006 /* PracticeTimingTrace.swift */,
 				A20000000000000000000007 /* Assets.xcassets */,
 			);
@@ -291,9 +291,9 @@
 				A10000000000000000000001 /* XRolliOSApp.swift in Sources */,
 				A10000000000000000000008 /* iOSOptionsView.swift in Sources */,
 				A10000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift in Sources */,
-				A10000000000000000000009 /* GameplayVisualSystem.swift in Sources */,
-				A1000000000000000000000A /* XRollBrand.swift in Sources */,
-				A1000000000000000000000B /* DrummerQuotes.swift in Sources */,
+				A10000000000000000000009 /* ../Sources/XRollPads/GameplayVisualSystem.swift in Sources */,
+				A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */,
+				A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */,
 				A10000000000000000000005 /* PracticeTimingTrace.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -346,15 +346,15 @@
 		AA0000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = VDGXRX42BR;
 				GENERATE_INFOPLIST_FILE = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -365,15 +365,15 @@
 		AA0000000000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = VDGXRX42BR;
 				GENERATE_INFOPLIST_FILE = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -384,6 +384,7 @@
 		AA0000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 			};
 			name = Debug;
@@ -391,6 +392,7 @@
 		AA0000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 			};
 			name = Release;
@@ -398,17 +400,17 @@
 		D50000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 1.0.0;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = VDGXRX42BR;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/XRollRealtimeQueue/include";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MACH_O_TYPE = staticlib;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll.XRollCore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll.XRollCore;
 				PRODUCT_MODULE_NAME = XRollCore;
 				PRODUCT_NAME = XRollCore;
 				SDKROOT = iphoneos;
@@ -422,17 +424,18 @@
 		D50000000000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CURRENT_PROJECT_VERSION = 1.0.0;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = VDGXRX42BR;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/Sources/XRollRealtimeQueue/include";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MACH_O_TYPE = staticlib;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.xroll.XRollCore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll.XRollCore;
 				PRODUCT_MODULE_NAME = XRollCore;
 				PRODUCT_NAME = XRollCore;
 				SDKROOT = iphoneos;

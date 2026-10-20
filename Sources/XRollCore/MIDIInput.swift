@@ -126,10 +126,22 @@ public enum MIDIByteDecoder {
             }
 
             let dataLength = (status & 0xE0 == 0xC0) ? 1 : 2
-            guard index + dataLength <= bytes.count else { break }
-            let data1 = bytes[index]
-            let data2 = dataLength == 2 ? bytes[index + 1] : 0
-            index += dataLength
+            var data1: UInt8 = 0
+            var data2: UInt8 = 0
+            var receivedDataCount = 0
+            while index < bytes.count && receivedDataCount < dataLength {
+                let data = bytes[index]
+                // Clock, Active Sensing y demás realtime pueden aparecer entre
+                // cualesquiera dos bytes sin consumir datos ni running status.
+                if data >= 0xF8 { index += 1; continue }
+                // Un nuevo status interrumpe el mensaje incompleto. La siguiente
+                // iteración lo procesará sin interpretarlo como nota o velocity.
+                guard data < 0x80 else { break }
+                if receivedDataCount == 0 { data1 = data } else { data2 = data }
+                receivedDataCount += 1
+                index += 1
+            }
+            guard receivedDataCount == dataLength else { continue }
 
             guard status & 0xF0 == 0x90, data2 > 0 else { continue }
             let arrivalHostTime = callbackHostTime ?? hostTime

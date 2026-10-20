@@ -158,9 +158,16 @@ struct ResultsHome: View {
                 HStack(spacing: 14) {
                     AppMark(size: 52)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("EJERCICIO TERMINADO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+                        Text(model.isCheckpointAssessment ? "PRUEBA DEL BLOQUE COMPLETADA" : "EJERCICIO TERMINADO")
+                            .font(.studioLabel).foregroundColor(StudioDesign.accent)
                         Text(model.currentExerciseTitle).font(.title.bold()).foregroundColor(.white)
                     }
+                }
+                if let outcome = model.checkpointAssessmentOutcome {
+                    Label(outcome, systemImage: outcome.contains("no superada") ? "arrow.counterclockwise" : "checkmark.seal.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(outcome.contains("no superada") ? StudioDesign.regular : StudioDesign.accent)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 StagePanel {
                     Text("1 · QUÉ PASÓ").font(.studioLabel).foregroundColor(StudioDesign.accent)
@@ -238,6 +245,14 @@ struct ResultsHome: View {
                             .font(.subheadline.weight(.medium)).foregroundColor(StudioDesign.accent)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    if !model.pulseDriftMessage.isEmpty {
+                        Label(model.pulseDriftMessage, systemImage: "metronome.fill")
+                            .font(.subheadline.weight(.medium)).foregroundColor(StudioDesign.accent)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let report = model.pulseDriftReport {
+                        PulseDriftChart(report: report)
+                    }
                     Text(model.resultActionTitle).font(.title2.bold())
                     Text(model.resultActionReason).font(.subheadline).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
                     if model.canStartCorrectivePractice {
@@ -261,6 +276,16 @@ struct ResultsHome: View {
                                 ActionButton("Repetir sin ajuste", prominence: .secondary) { model.repeatPractice() }
                             }
                             ActionButton("Volver", prominence: .quiet) { model.dismissResults() }
+                        }
+                        if model.hasDailyPracticePlanForToday, model.dailyPracticePlan?.currentBlock != nil {
+                            ActionButton("Siguiente bloque de la sesión diaria", prominence: .secondary) { model.startNextDailyBlock() }
+                            ActionButton("Omitir este bloque", prominence: .quiet) { model.skipNextDailyBlock() }
+                        } else if model.dailyPracticeCompletedToday {
+                            Text("Sesión diaria completa. Puedes volver mañana para el siguiente repaso.")
+                                .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                        }
+                        if model.pulseTrainingStage != nil {
+                            ActionButton("Repetir / avanzar pulso interno", prominence: .secondary) { model.startNextPulseStage() }
                         }
                     }
                 }
@@ -408,34 +433,86 @@ struct PreparationHome: View {
 
     private var preparationContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("PREPARACIÓN").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            Text(model.isCheckpointAssessment ? "PRUEBA FINAL DEL BLOQUE" : "PREPARACIÓN")
+                .font(.studioLabel).foregroundColor(StudioDesign.accent)
             Text(model.currentExerciseTitle).font(.system(size: 30, weight: .bold))
-            objectivePanel
-            tempoLevelSelector
-            loopPreparationPanel
-            HStack(spacing: 10) {
-                ActionButton("Escuchar demostración", prominence: .secondary) { model.dismissPreparation(); model.previewExercise() }
-                ActionButton("Empezar práctica", prominence: .primary) { model.startGuidedLesson() }
-            }
-            StagePanel {
-                DisclosureGroup(isExpanded: $showsMoreOptions) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        tempoLadderPanel
-                        sessionViewPanel
-                        practiceOptionsPanel
-                        courseStepsPanel
-                    }.padding(.top, 10)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Personalizar o explorar").font(.headline)
-                        Text("Primero este ejercicio: tempo, ayudas y voces; después otras lecciones").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            if model.isCheckpointAssessment {
+                checkpointAssessmentPanel
+            } else {
+                objectivePanel
+                tempoLevelSelector
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(model.trainingPhase == .discover
+                         ? "Escucha una vuelta sin puntuación; después vuelve aquí para tocar."
+                         : "\(model.trainingPhase.label) · \(model.isFullRhythmSelection ? "Ritmo completo" : "Voces seleccionadas") · Ayuda \(model.practiceHelp.label)")
+                        .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
+                    Text("Una pista por sonido. Golpea cuando la nota llegue a la línea; los sonidos apagados conservan su sitio.")
+                        .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                    HStack(spacing: 10) {
+                        ActionButton("Escuchar demostración", prominence: .secondary) { model.previewExercise() }
+                        ActionButton(model.trainingPhase == .discover ? "Escuchar sin puntuar" : "Empezar práctica", prominence: .primary) { model.startFromPreparation() }
+                    }
+                    if !model.hasCalibrationForCurrentProfile {
+                        HStack {
+                            Text("Antes de puntuar, calibra esta entrada y salida. Puedes escuchar la demostración mientras tanto.")
+                                .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                            ActionButton("Calibrar ahora") { model.startCalibration() }
+                        }
+                    }
+                    if !model.isFullRhythmSelection || model.transferCheck {
+                        Text("Esta práctica parcial sirve para aprender; vuelve al ritmo completo para acreditar la lección.")
+                            .font(.caption).foregroundColor(StudioDesign.regular)
                     }
                 }
-                .tint(StudioDesign.accent)
+                StagePanel {
+                    DisclosureGroup(isExpanded: $showsMoreOptions) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            tempoLadderPanel
+                            sessionViewPanel
+                            practiceOptionsPanel
+                            loopPreparationPanel
+                            courseStepsPanel
+                        }.padding(.top, 10)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Personalizar o explorar").font(.headline)
+                            Text("Primero este ejercicio: tempo, ayudas y voces; después otras lecciones").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                        }
+                    }
+                    .tint(StudioDesign.accent)
+                }
             }
             HStack { ActionButton("Volver", prominence: .quiet) { model.dismissPreparation() }; Spacer() }
         }
         .foregroundColor(StudioDesign.textPrimary).padding(36).frame(maxWidth: 720, alignment: .leading)
+    }
+
+    private var checkpointAssessmentPanel: some View {
+        let targetBPM = model.chosen.map { CourseLessonCriteria.targetBPM(for: $0) } ?? model.selectedBPM
+        return StagePanel {
+            Text("QUÉ DEMUESTRA").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            Text("Resumen del bloque: toca su patrón integrador completo a \(targetBPM) BPM y alcanza el 70 %. Si quedan bloques anteriores pendientes, la prueba queda guardada hasta acreditarlos.")
+                .font(.studioBody).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let exercise = model.chosen {
+                Text(exercise.metadata?.objective ?? "Combina las habilidades practicadas en este bloque.")
+                    .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
+                Text("Patrón integrador: \(exercise.title)").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                ExercisePatternPreview(exercise: exercise, available: true)
+            }
+            HStack {
+                StudioStatusPill(title: "Ritmo completo")
+                StudioStatusPill(title: "\(targetBPM) BPM")
+                StudioStatusPill(title: "70 % para aprobar")
+            }
+            ActionButton("Empezar prueba", prominence: .primary) { model.startGuidedLesson() }
+            if !model.hasCalibrationForCurrentProfile {
+                HStack {
+                    Text("Calibra esta entrada y salida antes de empezar la prueba.")
+                        .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Calibrar ahora") { model.startCalibration() }
+                }
+            }
+        }
     }
 
     @ViewBuilder private var courseStepsPanel: some View {
@@ -875,7 +952,7 @@ private struct BlockProgressHeader: View {
                 Text(isOpen ? "Siguiente guiada: \(next.title)" : "Puedes explorar el bloque; acredita su checkpoint o supera todos sus ejercicios.")
                     .font(.caption2).foregroundColor(isOpen ? StudioDesign.textSecondary : StudioDesign.textMuted).lineLimit(1)
             } else {
-                Text("Bloque consolidado · sube el tempo o repasa el ritmo completo.").font(.caption2).foregroundColor(StudioDesign.accent)
+                Text("Bloque acreditado · continúa con la siguiente estación.").font(.caption2).foregroundColor(StudioDesign.accent)
             }
         }
     }
@@ -1195,5 +1272,52 @@ private struct PracticeFooter: View {
             Spacer()
             Text(model.calibrationMessage).font(.caption).foregroundColor(.white.opacity(0.55))
         }.padding(.horizontal, 24).padding(.bottom, 12)
+    }
+}
+
+private struct PulseDriftChart: View {
+    let report: PulseDriftReport
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("DERIVA DURANTE EL SILENCIO").font(.studioLabel).foregroundColor(StudioDesign.textMuted)
+            GeometryReader { geometry in
+                let points = report.points
+                let width = max(1, geometry.size.width)
+                let height = max(1, geometry.size.height)
+                let extent = max(40, points.map { abs($0.medianOffsetMilliseconds) }.max() ?? 40)
+                ZStack {
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: height / 2))
+                        path.addLine(to: CGPoint(x: width, y: height / 2))
+                    }
+                    .stroke(StudioDesign.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    if points.count > 1 {
+                        Path { path in
+                            for (index, point) in points.enumerated() {
+                                let x = width * CGFloat(index) / CGFloat(points.count - 1)
+                                let normalized = CGFloat(point.medianOffsetMilliseconds / extent)
+                                let y = height / 2 - normalized * (height * 0.42)
+                                if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                                else { path.addLine(to: CGPoint(x: x, y: y)) }
+                            }
+                        }
+                        .stroke(StudioDesign.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    }
+                    ForEach(Array(points.enumerated()), id: \.offset) { index, point in
+                        let x = width * CGFloat(index) / CGFloat(max(1, points.count - 1))
+                        let normalized = CGFloat(point.medianOffsetMilliseconds / extent)
+                        let y = height / 2 - normalized * (height * 0.42)
+                        Circle().fill(point.metronomeAudible ? StudioDesign.accent : StudioDesign.regular)
+                            .frame(width: 6, height: 6).position(x: x, y: y)
+                    }
+                }
+            }
+            .frame(height: 72)
+            Text("Arriba = retraso · abajo = adelanto · amarillo = silencio del metrónomo")
+                .font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Gráfica de desfase por pulso. El centro representa cero milisegundos; arriba es retraso, abajo adelanto y los puntos amarillos corresponden al silencio del metrónomo.")
     }
 }

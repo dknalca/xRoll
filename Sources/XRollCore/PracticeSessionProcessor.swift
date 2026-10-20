@@ -2,8 +2,10 @@ import Foundation
 
 public struct PracticeSessionProcessingResult {
     public let scoredHit: ScoredPadHit?
+    public let expiredMisses: [ScheduledExerciseNote]
     public let startedHostTime: UInt64
     public let completedHostTime: UInt64
+    public let calibrationAssociation: CalibrationHitAssociation?
 }
 
 /// Serializa las mutaciones de una sesión fuera de la interfaz. La cola también
@@ -13,15 +15,22 @@ public final class PracticeSessionProcessor {
     private let queue = DispatchQueue(label: "xRoll.practice-session", qos: .userInitiated)
     private var generation: UUID?
     private var session: PracticeSession?
+    private var calibrationMatchers = [String: CalibrationMatcher]()
+    private var isCalibrating = false
 
     public init() {}
 
     /// Se encola en la misma cola que los golpes; así `begin` no bloquea el
     /// cerrojo de admisión mientras termina un callback de la sesión anterior.
-    public func begin(_ session: PracticeSession, generation: UUID) {
+    public func begin(_ session: PracticeSession, generation: UUID, calibration: Bool = false) {
         queue.async { [weak self] in
             self?.generation = generation
             self?.session = session
+            self?.isCalibrating = calibration
+            self?.calibrationMatchers = calibration
+                ? Dictionary(grouping: session.timeline.notes, by: \.sound).mapValues {
+                    CalibrationMatcher(targetTimesMilliseconds: $0.map(\.timeMilliseconds))
+                } : [:]
         }
     }
 
@@ -37,11 +46,14 @@ public final class PracticeSessionProcessor {
                   self.generation == requestedGeneration,
                   let session = self.session else { return }
             let startedHostTime = AudioClock.currentHostTime()
-            let scoredHit = session.registerIfScorable(hit)
+            let calibrationAssociation = self.calibrationMatchers[hit.sound]?.associateHit(atMilliseconds: hit.timeMilliseconds)
+            let registration = self.isCalibrating ? nil : session.registerIfScorableWithMisses(hit)
             completion(.init(
-                scoredHit: scoredHit,
+                scoredHit: registration?.scoredHit,
+                expiredMisses: registration?.expiredMisses ?? [],
                 startedHostTime: startedHostTime,
-                completedHostTime: AudioClock.currentHostTime()
+                completedHostTime: AudioClock.currentHostTime(),
+                calibrationAssociation: calibrationAssociation
             ))
         }
     }
@@ -60,6 +72,7 @@ public final class PracticeSessionProcessor {
             let score = self.session?.score
             self.session = nil
             self.generation = nil
+            self.calibrationMatchers.removeAll()
             completion(score)
         }
     }
@@ -72,6 +85,7 @@ public final class PracticeSessionProcessor {
             }
             self.session = nil
             self.generation = nil
+            self.calibrationMatchers.removeAll()
             completion?()
         }
     }
@@ -84,14 +98,32 @@ public final class PracticeSessionIngress {
     private let lock = NSLock()
     private let processor = PracticeSessionProcessor()
     private var generation: UUID?
+    private var startHostTime: UInt64 = 0
+    private var admissionHostTime: UInt64 = 0
 
     public init() {}
 
-    public func begin(_ session: PracticeSession, generation: UUID) {
+    public func begin(_ session: PracticeSession, generation: UUID, startHostTime: UInt64 = 0, admissionHostTime: UInt64 = AudioClock.currentHostTime(), calibration: Bool = false) {
         lock.lock()
-        processor.begin(session, generation: generation)
+        processor.begin(session, generation: generation, calibration: calibration)
+        self.startHostTime = startHostTime
+        self.admissionHostTime = admissionHostTime
         self.generation = generation
         lock.unlock()
+    }
+
+    /// Convierte el reloj y admite el golpe bajo el mismo cerrojo que cambia la
+    /// generación. Un evento anterior al arranque no puede entrar en el reinicio.
+    @discardableResult
+    public func submit(sound: String, hostTime: UInt64, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil,
+                       completion: @escaping (UUID, PracticeSessionProcessingResult) -> Void) -> UUID? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let generation, hostTime >= admissionHostTime else { return nil }
+        let hit = TimedPadHit(sound: sound, hostTime: hostTime, practiceStartHostTime: startHostTime,
+                              role: role, padID: padID, velocity: velocity)
+        processor.register(hit, generation: generation) { result in completion(generation, result) }
+        return generation
     }
 
     @discardableResult

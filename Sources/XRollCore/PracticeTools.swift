@@ -23,6 +23,41 @@ public struct PracticeConfiguration: Equatable {
                   grid: exercise.grid, repeats: repeats, kit: exercise.kit, loop: exercise.loop,
                   offset: exercise.offset, notes: exercise.notes, metadata: exercise.metadata)
     }
+
+    /// 0 = frase completa; 1/2 = primera/segunda mitad de todos sus compases.
+    /// Una célula correctiva limita adicionalmente los pasos seleccionados.
+    public static func notes(in exercise: Exercise, fragment: Int, stepRange: ClosedRange<Int>? = nil) -> [Exercise.Note] {
+        let midpoint = exercise.bars * exercise.grid / 2
+        return exercise.notes.filter { note in
+            guard stepRange?.contains(note.step) ?? true else { return false }
+            switch fragment {
+            case 1: return note.step < midpoint
+            case 2: return note.step >= midpoint
+            default: return true
+            }
+        }
+    }
+}
+
+/// El cierre se basa en el tiempo recorrido, no en el porcentaje de aciertos ni
+/// en la duración configurada. Un abandono no acredita compases sin tocar.
+public struct PracticeCompletion: Equatable {
+    public let completedBars: Int
+    public let totalBars: Int
+    public var isComplete: Bool { completedBars == totalBars }
+
+    public init(exercise: Exercise, elapsedMilliseconds: Double) {
+        totalBars = exercise.bars * exercise.repeats
+        let barDuration = ExerciseTimeline(exercise: exercise).barDurationMilliseconds
+        completedBars = Int(max(0, min(Double(totalBars), floor(elapsedMilliseconds / barDuration))))
+    }
+
+    public func context(from original: TrainingContext) -> TrainingContext {
+        TrainingContext(phase: original.phase, gapMetronomeLevel: original.gapMetronomeLevel,
+                        showsVisualGuides: original.showsVisualGuides,
+                        evaluationScope: isComplete ? original.evaluationScope : .fragment,
+                        completedBars: completedBars, practiceConditions: original.practiceConditions)
+    }
 }
 
 public enum TempoAward: Equatable {
@@ -232,6 +267,139 @@ public enum WarmupPlanner {
     }
 }
 
+public enum DailyPracticeBlockKind: String, Codable, Equatable {
+    case warmup
+    case review
+    case challenge
+    case integrate
+}
+
+public struct DailyPracticeBlock: Codable, Equatable, Identifiable {
+    public let id: UUID
+    public let kind: DailyPracticeBlockKind
+    public let exerciseID: String
+    public let title: String
+    public let reason: String
+    public let bpm: Int
+    public let repeats: Int
+    public let phase: TrainingPhase
+    public let gapMetronomeLevel: Int
+    public let metronomeEnabled: Bool
+    public let loopEnabled: Bool
+    public let loopIdentifier: String?
+    public let focusedSound: String?
+    public let estimatedSeconds: Int
+    public var isCompleted: Bool
+    public var isSkipped: Bool
+
+    public init(id: UUID = UUID(), kind: DailyPracticeBlockKind, exerciseID: String, title: String, reason: String, bpm: Int, repeats: Int, phase: TrainingPhase, gapMetronomeLevel: Int = 0, metronomeEnabled: Bool = true, loopEnabled: Bool = false, loopIdentifier: String? = nil, focusedSound: String? = nil, estimatedSeconds: Int, isCompleted: Bool = false, isSkipped: Bool = false) {
+        self.id = id; self.kind = kind; self.exerciseID = exerciseID; self.title = title; self.reason = reason
+        self.bpm = min(240, max(40, bpm)); self.repeats = PracticeConfiguration.normalizedRepeats(repeats)
+        self.phase = phase; self.gapMetronomeLevel = min(3, max(0, gapMetronomeLevel))
+        self.metronomeEnabled = metronomeEnabled; self.loopEnabled = loopEnabled; self.loopIdentifier = loopIdentifier
+        self.focusedSound = focusedSound; self.estimatedSeconds = max(1, estimatedSeconds)
+        self.isCompleted = isCompleted; self.isSkipped = isSkipped
+    }
+}
+
+public struct DailyPracticePlan: Codable, Equatable, Identifiable {
+    public let id: UUID
+    public let day: Date
+    public let targetSeconds: Int
+    public var blocks: [DailyPracticeBlock]
+    public var startedAt: Date?
+    public var finishedAt: Date?
+
+    public init(id: UUID = UUID(), day: Date, targetSeconds: Int = 300, blocks: [DailyPracticeBlock], startedAt: Date? = nil, finishedAt: Date? = nil) {
+        self.id = id; self.day = Calendar.current.startOfDay(for: day); self.targetSeconds = max(60, targetSeconds)
+        self.blocks = blocks; self.startedAt = startedAt; self.finishedAt = finishedAt
+    }
+
+    public var estimatedSeconds: Int { blocks.reduce(0) { $0 + $1.estimatedSeconds } }
+    public var completedBlockCount: Int { blocks.filter(\.isCompleted).count }
+    public var skippedBlockCount: Int { blocks.filter(\.isSkipped).count }
+    public var currentBlock: DailyPracticeBlock? { blocks.first(where: { !$0.isCompleted && !$0.isSkipped }) }
+    public var isComplete: Bool { !blocks.isEmpty && currentBlock == nil }
+
+    public mutating func markStarted(at date: Date = Date()) {
+        if startedAt == nil { startedAt = date }
+    }
+
+    @discardableResult
+    public mutating func completeBlock(_ id: UUID, skipped: Bool = false, at date: Date = Date()) -> Bool {
+        guard let index = blocks.firstIndex(where: { $0.id == id }), !blocks[index].isCompleted, !blocks[index].isSkipped else { return false }
+        blocks[index].isCompleted = !skipped
+        blocks[index].isSkipped = skipped
+        markStarted(at: date)
+        if isComplete { finishedAt = date }
+        return true
+    }
+}
+
+public enum DailyPracticePlanner {
+    public static func makePlan(exercises: [Exercise], attempts: [PracticeAttempt], dueGoals: [CoachingGoal] = [], preferredChallengeExerciseID: String? = nil, targetSeconds: Int = 300, now: Date = Date()) -> DailyPracticePlan? {
+        guard !exercises.isEmpty else { return nil }
+        let eligibleAttempts = attempts.filter { $0.trainingContext.evaluationScope == .fullPattern }
+        let latestByExercise = Dictionary(grouping: eligibleAttempts, by: \.exerciseID).mapValues { $0.max(by: { $0.timestamp < $1.timestamp })! }
+        let knownExercises = exercises.filter { latestByExercise[$0.id]?.score ?? 0 >= CourseLessonCriteria.minimumScore }
+        let warmup = knownExercises.max { lhs, rhs in
+            let left = latestByExercise[lhs.id]?.score ?? 0
+            let right = latestByExercise[rhs.id]?.score ?? 0
+            return left == right ? lhs.level > rhs.level : left < right
+        } ?? exercises.min(by: { $0.level < $1.level })!
+        let dueGoal = dueGoals.filter { $0.state != .confirmed && $0.nextReviewAt <= now }
+            .sorted { $0.nextReviewAt < $1.nextReviewAt }.first
+        let reviewExercise = dueGoal.flatMap { goal in exercises.first(where: { $0.id == goal.exerciseID }) }
+        let practicedIDs = Set(eligibleAttempts.map(\.exerciseID))
+        let challenge = preferredChallengeExerciseID.flatMap { id in exercises.first(where: { $0.id == id && $0.id != warmup.id }) }
+            ?? exercises.filter { $0.id != warmup.id && !practicedIDs.contains($0.id) && $0.level <= warmup.level + 1 }
+                .min(by: { $0.level < $1.level })
+            ?? exercises.first(where: { $0.id != warmup.id && $0.level <= warmup.level + 1 })
+        let integration = knownExercises.first(where: { $0.id == warmup.id }) ?? warmup
+
+        var blocks = [DailyPracticeBlock]()
+        func block(_ kind: DailyPracticeBlockKind, _ exercise: Exercise, _ reason: String, phase: TrainingPhase = .integrate, focusedSound: String? = nil, gap: Int = 0, conditions: PracticeConditions? = nil) -> DailyPracticeBlock {
+            let bpm = conditions?.bpm ?? min(exercise.bpm, kind == .warmup ? 90 : exercise.bpm)
+            let repeats = conditions?.repeats ?? 2
+            let seconds = max(35, Int(ceil(60.0 / Double(bpm) * 4 * Double(exercise.bars * repeats))) + 12)
+            return DailyPracticeBlock(kind: kind, exerciseID: exercise.id, title: exercise.title, reason: reason,
+                                      bpm: bpm, repeats: repeats, phase: phase,
+                                      gapMetronomeLevel: conditions?.gapMetronomeLevel ?? gap,
+                                      metronomeEnabled: conditions?.metronomeEnabled ?? true,
+                                      loopEnabled: conditions?.loopEnabled ?? false,
+                                      loopIdentifier: conditions?.loopIdentifier,
+                                      focusedSound: focusedSound, estimatedSeconds: seconds)
+        }
+        blocks.append(block(.warmup, warmup, latestByExercise[warmup.id] == nil ? "Un patrón sencillo para entrar en ritmo." : "Un ritmo conocido para empezar con confianza."))
+        if let dueGoal, let reviewExercise {
+            blocks.append(block(.review, reviewExercise, "Repaso pendiente: \(dueGoal.recommendation.explanation)", phase: .transfer,
+                                focusedSound: dueGoal.recommendation.sound, conditions: dueGoal.baselineConditions))
+        }
+        if let challenge, challenge.id != warmup.id {
+            blocks.append(block(.challenge, challenge, "Un paso nuevo con una dificultad principal."))
+        }
+        blocks.append(block(.integrate, integration, "Toca el groove completo y cierra la sesión."))
+
+        var remaining = max(90, targetSeconds - 25)
+        for index in blocks.indices {
+            let blockCountAfter = blocks.count - index - 1
+            let available = max(35, remaining - blockCountAfter * 35)
+            let current = blocks[index]
+            if current.estimatedSeconds > available && current.kind != .review {
+                let exercise = exercises.first(where: { $0.id == current.exerciseID })!
+                let oneRepeatSeconds = max(35, Int(ceil(60.0 / Double(current.bpm) * 4 * Double(exercise.bars))) + 12)
+                blocks[index] = DailyPracticeBlock(id: current.id, kind: current.kind, exerciseID: current.exerciseID, title: current.title,
+                    reason: current.reason, bpm: current.bpm, repeats: 1, phase: current.phase, gapMetronomeLevel: current.gapMetronomeLevel,
+                    metronomeEnabled: current.metronomeEnabled, loopEnabled: current.loopEnabled, loopIdentifier: current.loopIdentifier,
+                    focusedSound: current.focusedSound, estimatedSeconds: oneRepeatSeconds)
+            }
+            remaining -= blocks[index].estimatedSeconds
+        }
+        let accurateTarget = max(targetSeconds, blocks.reduce(0) { $0 + $1.estimatedSeconds })
+        return DailyPracticePlan(day: now, targetSeconds: accurateTarget, blocks: blocks)
+    }
+}
+
 /// Estado de la ruta acreditada. `.locked` indica que aún no se ha acreditado
 /// una estación; no impide seleccionar ni practicar su ejercicio.
 public enum CourseLevelStatus: Equatable {
@@ -356,24 +524,66 @@ public enum CourseRecommendationPlanner {
     public static func recommend(exercises: [Exercise], courseLevels: [CourseLevelState], evidence: [CourseAttemptEvidence]) -> CourseRecommendation? {
         let levelStates = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
         let states = levelStates.mapValues(\.status)
-        let ordered = exercises
-            .filter { !($0.metadata?.chapter.hasPrefix("fills-") ?? false) }
-            .sorted { $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level }
+        let ordered = orderedMainExercises(exercises, courseLevels: courseLevels)
         if !ordered.isEmpty,
            ordered.allSatisfy({ levelStates[$0.id]?.chapterAccredited == true }) {
             return nil
         }
-        if let current = ordered.first(where: {
+        // La exploración y los retos avanzados pueden abrir ejercicios futuros,
+        // pero la guía permanece en el primer capítulo sin acreditar.
+        let pending = ordered.filter { levelStates[$0.id]?.chapterAccredited != true }
+        let chapter = pending.first?.metadata?.chapter
+        let candidates = pending.filter { chapter == nil || $0.metadata?.chapter == chapter }
+        if let current = candidates.first(where: {
             (courseLevels.isEmpty || states[$0.id] == .available)
                 && guidedStep(for: $0, evidence: evidence) != nil
         }), let step = guidedStep(for: current, evidence: evidence) {
             return .init(exerciseID: current.id, courseLevel: current.level, tempoStep: step, isCourseCompletion: true)
         }
-        if let review = ordered.first(where: { states[$0.id] == .mastered && guidedStep(for: $0, evidence: evidence) != nil }),
+        if let review = candidates.first(where: { exercise in
+            guard states[exercise.id] == .mastered,
+                  levelStates[exercise.id]?.chapterAccredited != true else { return false }
+            return guidedStep(for: exercise, evidence: evidence) != nil
+        }),
            let step = guidedStep(for: review, evidence: evidence) {
             return .init(exerciseID: review.id, courseLevel: review.level, tempoStep: step, isCourseCompletion: false)
         }
         return nil
+    }
+
+    /// Continuación desde Resultados. Permite explorar dentro del bloque actual,
+    /// pero para cambiar de bloque exige su acreditación y omite los ya cerrados.
+    public static func nextExercise(after exerciseID: String, exercises: [Exercise], courseLevels: [CourseLevelState], evidence: [CourseAttemptEvidence]) -> Exercise? {
+        let ordered = orderedMainExercises(exercises, courseLevels: courseLevels)
+        guard let index = ordered.firstIndex(where: { $0.id == exerciseID }) else { return nil }
+        let states = Dictionary(uniqueKeysWithValues: courseLevels.map { ($0.exerciseID, $0) })
+        let pending = ordered.filter { states[$0.id]?.chapterAccredited != true }
+        guard let firstPending = pending.first else { return nil }
+        let currentChapter = ordered[index].metadata?.chapter
+        if currentChapter == firstPending.metadata?.chapter,
+           let next = ordered.dropFirst(index + 1).first(where: {
+               $0.metadata?.chapter == currentChapter
+                   && states[$0.id]?.chapterAccredited != true
+                   && states[$0.id]?.status != .mastered
+           }) {
+            return next
+        }
+        guard let recommendation = recommend(exercises: exercises, courseLevels: courseLevels, evidence: evidence),
+              recommendation.exerciseID != exerciseID else { return nil }
+        return ordered.first { $0.id == recommendation.exerciseID }
+    }
+
+    private static func orderedMainExercises(_ exercises: [Exercise], courseLevels: [CourseLevelState]) -> [Exercise] {
+        // Los estados de CourseGraph conservan el orden topológico del MIDI.
+        // El nivel numérico histórico no refleja el orden actual de capítulos
+        // (p. ej. Coordinación precede a Subdivisión).
+        let positions = Dictionary(uniqueKeysWithValues: courseLevels.enumerated().map { ($0.element.exerciseID, $0.offset) })
+        return exercises.filter { !($0.metadata?.chapter.hasPrefix("fills-") ?? false) }.sorted {
+            let left = positions[$0.id] ?? Int.max
+            let right = positions[$1.id] ?? Int.max
+            if left != right { return left < right }
+            return $0.level == $1.level ? $0.id < $1.id : $0.level < $1.level
+        }
     }
 
     private static func guidedStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {

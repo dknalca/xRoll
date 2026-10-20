@@ -173,6 +173,9 @@ struct iOSOptionsView: View {
             }
             Text("La calibración se guarda por entrada y salida. Si cambias de ruta, calibra de nuevo antes de puntuar.")
                 .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
+            Text(model.audioConfigurationStatus)
+                .font(.caption2.monospacedDigit()).foregroundStyle(iOSStudioDesign.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -184,7 +187,7 @@ struct iOSOptionsView: View {
                 isOn: Binding(get: { model.predictsVisualFrame }, set: { model.setVisualFramePrediction($0) })
             )
             .font(.subheadline)
-            Text("Ajuste experimental de presentación; no cambia el scoring MIDI.")
+            Text("Desactivado por defecto para alinear la presentación con el reloj de audio. Actívalo para la comparación A/B; no cambia el scoring MIDI.")
                 .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
         }
     }

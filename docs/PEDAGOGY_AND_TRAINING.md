@@ -154,6 +154,12 @@ El flujo diario recomendado dura **18-20 minutos** y se divide en 3 bloques auto
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+La aplicación también ofrece una **sesión breve opcional de unos cinco minutos**
+para los días en que no cabe la rutina completa: ritmo conocido, repaso vencido,
+un reto curricular y vuelta al groove. No sustituye la rutina de 18–20 minutos ni
+acredita objetivos cuando se omite un bloque. Los repasos correctivos se
+reprograman para otro día y solo se consideran resueltos con evidencia suficiente.
+
 ---
 
 ## 6. Sistema de Criterios de Maestría (4 Tiers)

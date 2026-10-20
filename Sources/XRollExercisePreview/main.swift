@@ -32,6 +32,7 @@ do {
             atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: baseHostTime)
         )
     }
+    try audio.flushScheduledSounds()
 
     let duration = Double(exercise.repeats) * timeline.patternDurationMilliseconds + startDelayMilliseconds + 1_000
     print("Vista previa: \(exercise.title) a \(exercise.bpm) BPM. Sin puntuacion.")
