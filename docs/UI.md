@@ -119,12 +119,31 @@ Durante la ejecución solo se muestran nombre, BPM, vuelta y pausa. El score acu
 
 ## Resultado diagnóstico
 
+Al completar una estación nueva, la celebración encabeza Resultado: tren,
+estrellas del intento, siguiente parada y «Siguiente parada». Al finalizar
+la línea ofrece «Ver mi recorrido». Los detalles siguen consultables debajo.
+La celebración usa elementos estáticos y no añade movimiento obligatorio.
+
 Orden:
 1. diagnóstico en lenguaje claro;
 2. precisión, tendencia y consistencia;
 3. microscopio temporal;
 4. resultado por voz/rol/subdivisión;
 5. recomendación y acciones.
+
+## Metro del Ritmo
+
+Los catorce bloques principales son estaciones conectadas por vías. El tren se
+sitúa en la parada actual. Curso destaca «Empezar nivel N» o «Preparar reto final».
+La estación actual queda abierta; las otras se resumen con su estado y contador.
+El reto final de cada estación se señala con una bandera. Los nombres cortos y
+la numeración son locales a la estación.
+
+Abrir otra estación permite explorar sus niveles. Los retos de tempo y sus premios
+pertenecen al ejercicio; no se confunden con el siguiente nivel del recorrido.
+El reto final reúne las habilidades de la estación y usa el tempo de aprendizaje.
+Mapa, premios, acciones y celebraciones se renderizan con las mismas vistas
+compartidas en Mac e iPhone; cada coordinador adapta únicamente la navegación.
 
 ## Layouts
 

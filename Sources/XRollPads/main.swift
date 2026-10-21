@@ -61,6 +61,9 @@ final class Model: ObservableObject {
     @Published var masterySeals = [MasterySeal]()
     @Published var lastHitRecords = [HitRecord](); @Published var whaleMessage = ""; @Published var whaleTargetMessage = ""
     @Published var courseLevels = [CourseLevelState](); @Published private(set) var courseEvidence = [CourseAttemptEvidence]()
+    @Published private(set) var campaignWorlds = [CourseWorld]()
+    @Published private(set) var worldVictory: CourseWorldVictory?
+    @Published private(set) var nextCampaignLevel: CourseWorld.Level?
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
     @Published private(set) var loopOptions = [LoopLibraryOption]()
@@ -257,6 +260,7 @@ final class Model: ObservableObject {
         return nil
     }
     var alternativeProgressTitle: String? {
+        if nextCampaignLevel != nil { return nil }
         switch resultProgressSuggestion {
         case .next where nextTempoLevel != nil: return "Subir nivel"
         case .raise where canOfferNextCourseExercise: return "Siguiente ejercicio"
@@ -278,6 +282,10 @@ final class Model: ObservableObject {
     }
     func openNextCourseExercise() {
         guard canOfferNextCourseExercise, let exercise = nextCourseExercise else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            openCheckpointAssessment(exercise)
+            return
+        }
         chooseExercise(exercise)
         startGuidedLesson()
     }
@@ -326,20 +334,47 @@ final class Model: ObservableObject {
     var currentExerciseTitle: String {
         if calibrating { return "Calibración guiada" }
         if isCheckpointAssessment, let chosen {
-            let chapter = metroChapters.first { $0.id == chosen.metadata?.chapter }?.title ?? "bloque"
-            return "Prueba final · \(chapter)"
+            return CourseWorld.challengeTitle(for: chosen.metadata?.chapter ?? "")
         }
         return courseTitleOverride ?? chosen?.title ?? "Ejercicio"
     }
     var checkpointAssessmentOutcome: String? {
         guard isCheckpointAssessment, let score = lastScorePercentage, let exercise = chosen else { return nil }
         guard score >= CourseLessonCriteria.minimumScore else {
-            return "Prueba no superada: necesitas al menos el 70 % con el patrón completo."
+            return CourseWorld.challengeNeedsRetry
         }
         let chapterAccredited = courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
-        return chapterAccredited
-            ? "Prueba superada: has acreditado este bloque."
-            : "Prueba superada. La evidencia queda guardada y el bloque se acreditará al completar la ruta anterior."
+        if chapterAccredited { return CourseWorld.challengeCompleted }
+        if let pending = pendingCheckpointChapter {
+            let title = metroChapters.first { $0.id == pending.metadata.chapter }?.title ?? pending.metadata.chapter
+            return CourseWorld.pendingStationMessage(title)
+        }
+        return CourseWorld.challengeSaved
+    }
+    var pendingCheckpointChapter: CourseGraph.Node? {
+        guard isCheckpointAssessment, let chosen,
+              (lastScorePercentage ?? 0) >= CourseLessonCriteria.minimumScore,
+              let graph = try? CourseGraph(exercises: bundledExercises),
+              TempoLadder.isCheckpointPassed(chosen, evidence: courseEvidence) else { return nil }
+        return graph.pendingChapter(before: chosen.id, states: courseLevels)
+    }
+    func openPendingCheckpointChapter() {
+        guard let pending = pendingCheckpointChapter else { return }
+        openPreparation(pending.exercise)
+    }
+    func openCampaignLevel(_ exercise: Exercise) {
+        if exercise.metadata?.flags.contains("checkpoint") == true { openCheckpointAssessment(exercise) }
+        else { openPreparation(exercise) }
+    }
+    func continueWorldCampaign() {
+        if let level = campaignWorlds.first(where: \.isCurrent)?.nextLevel {
+            openCampaignLevel(level.exercise)
+        } else { dismissResults() }
+    }
+    private func continueCampaignLevel() {
+        guard let next = nextCampaignLevel else { return }
+        if next.isBoss { openCheckpointAssessment(next.exercise) }
+        else { chooseExercise(next.exercise); startGuidedLesson() }
     }
     var currentPracticeBPM: Int { practice?.bpm ?? selectedBPM }
     var currentPracticeRepeats: Int { calibrating ? 8 : (activePracticeExercise?.repeats ?? selectedRepeats) }
@@ -538,6 +573,7 @@ final class Model: ObservableObject {
         }
     }
     var resultActionTitle: String {
+        if let nextCampaignLevel { return nextCampaignLevel.continuationTitle }
         if microLessonStage == .isolating { return "Volver al groove completo" }
         switch resultProgressSuggestion {
         case .raise: return "Subir nivel"
@@ -565,6 +601,9 @@ final class Model: ObservableObject {
         return plan.coachingCue.replacingOccurrences(of: plan.focusSound, with: displayName(plan.focusSound))
     }
     var resultActionReason: String {
+        if let nextCampaignLevel {
+            return nextCampaignLevel.continuationMessage
+        }
         if microLessonStage == .isolating {
             return "Ya has aislado el momento. Ahora toca el patrón completo para probar cómo encaja en el groove."
         }
@@ -599,6 +638,7 @@ final class Model: ObservableObject {
         resultSummary?.consistencyMilliseconds.map { String(format: "%.0f ms", $0) } ?? "Sin datos"
     }
     func performResultAction() {
+        if nextCampaignLevel != nil { continueCampaignLevel(); return }
         if microLessonStage == .isolating {
             returnToFullGroove()
             return
@@ -629,6 +669,10 @@ final class Model: ObservableObject {
             return
         }
         guard let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            openCheckpointAssessment(exercise)
+            return
+        }
         chooseExercise(exercise)
         if let tier = tempoPracticeOptions.firstIndex(where: { $0.bpm == recommendation.tempoStep.bpm }) {
             selectTempoTier(tier)
@@ -1142,6 +1186,8 @@ final class Model: ObservableObject {
     }
 
     private func beginPractice(calibration: Bool) {
+        worldVictory = nil
+        nextCampaignLevel = nil
         guard !isFinishingPractice else { return }
         cancelResultTransition()
         let fullExercise: Exercise
@@ -2003,7 +2049,15 @@ final class Model: ObservableObject {
         do {
             let soundStatistics = PracticeInsights(score: score).soundStatistics
             let hitRecords = HitRecord.records(from: score)
-            try progressStore?.record(PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
+            let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context)
+            if let progressStore {
+                try progressStore.record(attempt)
+                if let graph = try? CourseGraph(exercises: bundledExercises) {
+                    let evidence = CourseAttemptEvidence(attempt: attempt)
+                    worldVictory = graph.worldVictory(completing: evidence, previousEvidence: courseEvidence)
+                    nextCampaignLevel = graph.campaignContinuation(after: evidence, evidence: courseEvidence + [evidence])
+                }
+            }
             refreshProgress(for: exercise.id)
             refreshRecentAttempts()
             refreshCourseLevels()
@@ -2017,6 +2071,8 @@ final class Model: ObservableObject {
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
     func chooseExercise(_ exercise: Exercise) {
+        worldVictory = nil
+        nextCampaignLevel = nil
         // Cambiar de ejercicio abandona el intento en curso. No lo conviertas
         // en evidencia completa ni permitas que su resultado cambie la selección.
         if practice != nil { leaveActiveScreen() }
@@ -2078,7 +2134,7 @@ final class Model: ObservableObject {
         savePreferences()
         showingPreparation = true
         isCheckpointAssessment = true
-        preview = "Prueba final del bloque · patrón completo a \(selectedBPM) BPM · 70 % para aprobar."
+        preview = "Reto de estación · patrón completo a \(selectedBPM) BPM · 70 % para completar la parada."
     }
     func openNextSession() {
         guard let plan = nextSessionPlan, let exercise = exercises.first(where: { $0.id == plan.exerciseID }) else { return }
@@ -2139,7 +2195,7 @@ final class Model: ObservableObject {
     /// sea una frase de dos, tres o cuatro compases. El selector conserva
     /// potencias de dos para que la duración siga siendo predecible.
     private func defaultRepeats(for exercise: Exercise) -> Int {
-        Model.repeatOptions.last(where: { $0 * exercise.bars <= 8 }) ?? 1
+        PracticeConfiguration.defaultRepeats(forBars: exercise.bars)
     }
     func levelStatus(_ exercise: Exercise) -> String {
         switch courseLevels.first(where: { $0.exerciseID == exercise.id })?.status {
@@ -2158,7 +2214,9 @@ final class Model: ObservableObject {
         courseEvidence = (try? progressStore?.courseEvidence()) ?? []
         if let graph = try? CourseGraph(exercises: bundledExercises) {
             courseLevels = graph.states(evidence: courseEvidence)
+            campaignWorlds = graph.worlds(evidence: courseEvidence)
         } else {
+            campaignWorlds = []
             courseLevels = CourseProgress.states(exercises: bundledExercises, attempts: attempts)
         }
         if let chosen = chosen, !isAvailable(chosen), let first = exercises.first(where: isAvailable) {

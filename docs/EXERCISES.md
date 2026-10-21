@@ -51,8 +51,9 @@ pensar, que es lo que necesita un principiante.
 ## Al escribir ejercicios nuevos
 
 - Una sola dificultad nueva por nivel.
-- El nivel 1 de cada familia tiene que poder completarlo alguien que no ha
-  tocado nunca.
+- Iniciación y el comienzo del tronco común deben poder completarlos personas
+  que no han tocado nunca. Los géneros presuponen los bloques anteriores: su
+  primera lección aplica esas habilidades en un groove, no reinicia el curso.
 - Tempos iniciales entre 70 y 90. Es donde vive el hip hop y donde hay margen
   para pensar.
 - Comprobar que la subdivision mas corta no estrecha las ventanas de juicio mas
@@ -81,6 +82,12 @@ superarlo a su tempo de aprendizaje (`min(BPM del MIDI, 100)`), con ritmo comple
 y al menos 70 %, acredita la estación sin inventar puntuaciones para sus
 ejercicios. El validador rechaza checkpoints ausentes, duplicados o que no estén
 al final.
+
+Al ampliar un bloque, el ID histórico de la prueba final se conserva y su
+`position` se desplaza al cierre. Las lecciones nuevas reciben IDs propios y
+prerrequisitos explícitos; no se ordenan por el número del nombre de archivo.
+Los cierres integrados se revisan para conservar el vocabulario rítmico de las
+lecciones, con un máximo de dos sonidos simultáneos en las rutas de género.
 
 No hay sidecar JSON. Un MIDI comunitario sin estos metadatos sigue siendo válido
 y practicable, pero no se incorpora al recorrido oficial.

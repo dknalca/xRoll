@@ -158,16 +158,25 @@ struct ResultsHome: View {
                 HStack(spacing: 14) {
                     AppMark(size: 52)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(model.isCheckpointAssessment ? "PRUEBA DEL BLOQUE COMPLETADA" : "EJERCICIO TERMINADO")
+                        Text(model.isCheckpointAssessment ? "RETO DE ESTACIÓN TERMINADO" : "EJERCICIO TERMINADO")
                             .font(.studioLabel).foregroundColor(StudioDesign.accent)
                         Text(model.currentExerciseTitle).font(.title.bold()).foregroundColor(.white)
                     }
                 }
-                if let outcome = model.checkpointAssessmentOutcome {
-                    Label(outcome, systemImage: outcome.contains("no superada") ? "arrow.counterclockwise" : "checkmark.seal.fill")
+                if let victory = model.worldVictory {
+                    CourseStationCompletionBanner(completion: victory, stars: model.lastScoreStars,
+                        continueAction: model.continueWorldCampaign)
+                } else if model.nextCampaignLevel != nil {
+                    CourseLevelPassedBanner(reason: model.resultActionReason, actionTitle: model.resultActionTitle,
+                        continueAction: model.performResultAction, returnToMap: model.dismissResults)
+                } else if let outcome = model.checkpointAssessmentOutcome {
+                    Label(outcome, systemImage: outcome.contains("Reto pendiente") ? "arrow.counterclockwise" : "checkmark.seal.fill")
                         .font(.subheadline.weight(.medium))
-                        .foregroundColor(outcome.contains("no superada") ? StudioDesign.regular : StudioDesign.accent)
+                        .foregroundColor(outcome.contains("Reto pendiente") ? StudioDesign.regular : StudioDesign.accent)
                         .fixedSize(horizontal: false, vertical: true)
+                    if model.pendingCheckpointChapter != nil {
+                        ActionButton("Ir a la estación pendiente", prominence: .secondary) { model.openPendingCheckpointChapter() }
+                    }
                 }
                 StagePanel {
                     Text("1 · QUÉ PASÓ").font(.studioLabel).foregroundColor(StudioDesign.accent)
@@ -233,7 +242,7 @@ struct ResultsHome: View {
                     }
                 }
                 }
-                StagePanel {
+                if model.worldVictory == nil, model.nextCampaignLevel == nil { StagePanel {
                     Text("3 · QUÉ HACER AHORA").font(.studioLabel).foregroundColor(StudioDesign.accent)
                     if !model.microLessonFeedback.isEmpty {
                         Label(model.microLessonFeedback, systemImage: "sparkles")
@@ -288,6 +297,7 @@ struct ResultsHome: View {
                             ActionButton("Repetir / avanzar pulso interno", prominence: .secondary) { model.startNextPulseStage() }
                         }
                     }
+                }
                 }
             }.foregroundColor(.white).padding(32).frame(maxWidth: 760, alignment: .leading)
             }.frame(maxWidth: .infinity)
@@ -433,7 +443,7 @@ struct PreparationHome: View {
 
     private var preparationContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(model.isCheckpointAssessment ? "PRUEBA FINAL DEL BLOQUE" : "PREPARACIÓN")
+            Text(model.isCheckpointAssessment ? "RETO DE ESTACIÓN" : "PREPARACIÓN")
                 .font(.studioLabel).foregroundColor(StudioDesign.accent)
             Text(model.currentExerciseTitle).font(.system(size: 30, weight: .bold))
             if model.isCheckpointAssessment {
@@ -490,8 +500,8 @@ struct PreparationHome: View {
     private var checkpointAssessmentPanel: some View {
         let targetBPM = model.chosen.map { CourseLessonCriteria.targetBPM(for: $0) } ?? model.selectedBPM
         return StagePanel {
-            Text("QUÉ DEMUESTRA").font(.studioLabel).foregroundColor(StudioDesign.accent)
-            Text("Resumen del bloque: toca su patrón integrador completo a \(targetBPM) BPM y alcanza el 70 %. Si quedan bloques anteriores pendientes, la prueba queda guardada hasta acreditarlos.")
+            Text("EL RETO").font(.studioLabel).foregroundColor(StudioDesign.accent)
+            Text(CourseWorld.challengeInstructions(bpm: targetBPM))
                 .font(.studioBody).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
             if let exercise = model.chosen {
                 Text(exercise.metadata?.objective ?? "Combina las habilidades practicadas en este bloque.")
@@ -502,9 +512,9 @@ struct PreparationHome: View {
             HStack {
                 StudioStatusPill(title: "Ritmo completo")
                 StudioStatusPill(title: "\(targetBPM) BPM")
-                StudioStatusPill(title: "70 % para aprobar")
+                StudioStatusPill(title: "70 % para completar")
             }
-            ActionButton("Empezar prueba", prominence: .primary) { model.startGuidedLesson() }
+            ActionButton("Empezar reto", prominence: .primary) { model.startGuidedLesson() }
             if !model.hasCalibrationForCurrentProfile {
                 HStack {
                     Text("Calibra esta entrada y salida antes de empezar la prueba.")
@@ -549,6 +559,14 @@ struct PreparationHome: View {
         StagePanel {
             Text("Objetivo").font(.headline)
             Text(model.lessonGoal).font(.studioBody).foregroundColor(StudioDesign.textSecondary)
+            if let exercise = model.chosen {
+                if let best = TempoLadder.highestPassedStep(for: exercise, evidence: model.courseEvidence) {
+                    Text("Mejor nivel superado: \(best.label) · \(best.bpm) BPM · \(best.award.label)")
+                        .font(.caption).foregroundColor(StudioDesign.accent)
+                }
+                Text("Prepara este ritmo con ayuda \(model.practiceHelp.label.lowercased()) · \(exercise.bars * model.selectedRepeats) compases en total.")
+                    .font(.caption).foregroundColor(StudioDesign.textSecondary)
+            }
             HStack { StudioStatusPill(title: "\(model.selectedBPM) BPM"); StudioStatusPill(title: "\(model.selectedRepeats) vueltas"); StudioStatusPill(title: model.status, active: model.status.contains("MIDI")) }
         }
     }

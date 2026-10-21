@@ -10,11 +10,16 @@ public struct PracticeConfiguration: Equatable {
         self.repeats = Self.normalizedRepeats(repeats ?? exercise.repeats)
     }
 
-    /// Practice lengths double each time, making short checks and long focused
-    /// sessions equally quick to choose.
+    /// Longitudes en potencias de dos para elegir sesiones cortas o largas.
     public static func normalizedRepeats(_ value: Int) -> Int {
         let options = [1, 2, 4, 8, 16]
         return options.first(where: { $0 >= value }) ?? 16
+    }
+
+    /// Unos ocho compases de práctica, no ocho vueltas de una frase completa.
+    /// Una forma larga se toca entera una vez; nunca se recorta su transición.
+    public static func defaultRepeats(forBars bars: Int) -> Int {
+        [1, 2, 4, 8].last(where: { $0 <= 8 / max(1, bars) }) ?? 1
     }
 
     public func applying(to exercise: Exercise) -> Exercise {
@@ -122,7 +127,6 @@ public enum TempoLadder {
         evidence.filter {
             $0.exerciseID == exerciseID
                 && $0.bpm == step.bpm
-                && $0.stars >= 2
                 && $0.score >= step.requiredScore
                 && $0.trainingContext.evaluationScope.countsAsCompletePattern
                 && (step.minimumBars == nil || $0.trainingContext.completedBars >= step.minimumBars!)

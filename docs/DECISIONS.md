@@ -416,3 +416,146 @@ de choke a la voz anterior. Las pruebas offline inspeccionan PCM de golpes
 rápidos, corte abierto/cerrado, aislamiento de otros grupos y reinicio. No
 demuestran la causa del fallo observado en iPhone ni sustituyen su comprobación
 acústica con MIDI y pads táctiles.
+
+## D-039 - Ganancia inmutable por evento y caché acotada de PCM preparado
+
+La ganancia solicitada y la mezcla por sonido se fijan al admitir una nota
+programada. El PCM preparado incorpora esa ganancia y el recorte/fade de choke;
+el volumen del nodo reutilizado no representa la intensidad de un evento futuro.
+La claqueta también incorpora la ganancia en cada buffer. Esta ganancia es una
+opción de mezcla/reproducción: no se deriva de velocity MIDI.
+
+Los buffers preparados se reutilizan por fuente, número exacto de frames y
+ganancia. Una caché LRU limita la retención a 64 entradas y 4 MiB por motor; una
+entrada mayor se reproduce sin almacenarse. La recarga de kit o claqueta invalida
+la caché; detener una sesión conserva las entradas reutilizables. Los golpes
+vivos no consultan ni rellenan esta caché.
+
+**Por qué:** cambiar el volumen de un nodo con varias notas futuras alteraba
+también los eventos anteriores. Reutilizar PCM inmutable evita repetir la misma
+copia y el mismo fade en frases repetidas, con un límite explícito de memoria.
+Las pruebas inspeccionan PCM y límites de caché; no se atribuye una mejora de
+latencia física a este cambio sin medirla.
+
+## D-040 - Los géneros aplican el tronco común y las frases no multiplican la sesión
+
+Hip-hop, Rock, Funk, Reggae y Jazz parten de grooves que aplican las habilidades
+anteriores. Se conservan sus voces y síncopas al añadir una variación; no basta
+con cambiar un timbre del esqueleto básico. Un género puede ser menos denso si
+su dificultad está en el espacio o la independencia. Reggae ofrece grooves de
+dos compases desde el primer ejercicio y una integración final de cuatro.
+
+El cargador MIDI propone unos ocho **compases totales** de práctica, redondeando
+las vueltas hacia abajo a 1/2/4/8 sin partir la frase. Las formas más largas se
+tocan una vez. Se conservan la duración manual y el reto de dieciséis compases.
+Así unir patrones no convierte automáticamente ocho vueltas en 16/32/96 compases.
+Se mantienen D-018 y D-028; los géneros tienen un BPM estable dentro de su bloque
+para no sumar velocidad y patrón nuevos en el mismo paso.
+
+## D-041 - La preparación pertenece al ejercicio seleccionado
+
+Al elegir una lección, la preparación muestra su objetivo, nivel preparado,
+mejor nivel superado, ayudas y duración total. Su acción de inicio toca esa
+misma lección. La recomendación global «Tu siguiente paso» permanece en Curso y
+Progreso, pero no compite con el ejercicio elegido en la preparación iOS.
+
+**Por qué:** la tarjeta global llevaba a otro ejercicio y hacía parecer que no
+se guardaba el progreso del que el usuario había seleccionado. No se modifica
+la evidencia histórica ni el criterio de acreditación de D-031/D-036.
+
+## D-042 - Estrellas desde el 70 %
+
+Los intentos nuevos conceden una estrella desde el 70 %, dos desde el 80 % y tres
+desde el 90 %, usando el porcentaje neto sin redondear. Esto sustituye los
+umbrales 50/70/90 de D-009. El curso y los retos de tempo siguen aprobándose con
+70 %: no exigen dos estrellas del intento. Los premios por tempo conservan su
+significado propio y los registros históricos no se reescriben.
+
+## D-043 - El choke vivo no cancela ataques aún sin renderizar
+
+El pool vivo sigue rotando de forma acotada. Se guarda el reloj de muestras de la
+voz al admitir cada golpe; el siguiente solo detiene esa voz si su render ha
+avanzado. El cambio de abierto a cerrado mantiene el corte entre sonidos del
+mismo grupo incluso si aún no se renderizaron. Si dos golpes del mismo sonido se
+admiten antes del siguiente quantum, se conservan sus
+ataques en nodos distintos. El nuevo nodo usa `.interrupts` para no encolarse
+detrás de una cola propia. El pool limita la superposición de ataques pendientes.
+
+Esta revisión matiza el corte incondicional de D-038 ante cortes persistentes de
+charles vivo por MIDI con salida Bluetooth en iOS. Se prueba el caso de dos
+golpes anteriores al render, además de ráfagas y alternancia abierto/cerrado con
+WAV a 44,1 kHz y salida a 48 kHz. La prueba no reproduce el dispositivo del usuario
+ni demuestra que el fallo físico esté resuelto: debe repetirse allí.
+
+## D-044 - Géneros desarrollados y cierres representativos
+
+El catálogo se amplía de 77 a 117 MIDI: 40 lecciones nuevas. Hip-hop tiene doce
+posiciones y los demás géneros ocho cada uno. Las primeras lecciones de género
+aplican el tronco común; no requieren reiniciar pulso, corcheas o coordinación.
+Esto precisa la antigua regla de autoría que pedía una primera lección para un
+principiante absoluto en cada familia: ese acceso corresponde a Iniciación.
+
+Cada variación tiene un objetivo y una dificultad identificables: orquestación,
+síncopa, aperturas, diálogo o transición. El BPM del bloque permanece fijo.
+Las voces simultáneas se limitan a dos en todas las rutas de género; el motor de
+platos cede cuando coincide la pareja principal. La forma de doce compases del
+blues tiene secciones distintas; la duración por defecto sigue D-040.
+
+Se conservan IDs y registros existentes. La prueba final mantiene su ID y ocupa
+la última `position`; los nuevos prerrequisitos insertan las lecciones antes de
+ella sin depender de la numeración histórica del archivo. Las acreditaciones
+anteriores no se borran; no se crean intentos individuales para lecciones nuevas.
+El patrón de cada cierre se amplía para incluir las voces y posiciones rítmicas
+trabajadas, comprobadas automáticamente además de la estructura curricular.
+
+## D-045 - Campaña de mundos y jefes finales
+
+El curso se presenta como catorce mundos con niveles locales y un jefe final:
+el checkpoint MIDI de cada bloque. El mundo actual se muestra abierto y los
+demás resumidos; una tarjeta principal propone jugar el nivel recomendado o
+retar al jefe cuando corresponde. La numeración sale de `position`, no del
+nivel histórico del archivo. La exploración sigue disponible al abrir un mundo.
+
+La campaña es una proyección de `CourseGraph` y del historial existente. Conserva
+las acreditaciones, el 70 %, los prerrequisitos y los premios de tempo; Redobles
+sigue como ruta técnica independiente. El jefe usa la preparación de checkpoint
+y su tempo de aprendizaje, también al llegar desde Resultados.
+
+Al aprobar un nivel del mundo actual con patrón completo y al menos 70 %, el
+resultado prioriza «Continuar» o «Retar al jefe», incluso con una sola estrella.
+Los retos de tempo siguen accesibles desde Preparación. Esta prioridad revisa
+las acciones de D-032/D-036 para que el recorrido guiado no sugiera acelerar en
+vez de avanzar. Un nivel explorado en otro mundo no redirige a uno distinto.
+
+Al acreditar un mundo nuevo aparece una celebración con trofeo, las estrellas
+del intento y una sola acción principal: «Continuar aventura» hacia el primer
+mundo pendiente. Si termina la campaña, ofrece «Ver mis mundos». Repetir un
+mundo conocido no anuncia otro desbloqueo; un jefe futuro aprobado conserva la
+evidencia hasta completar la ruta previa. La celebración se calcula después de
+guardar el intento y no se genera para práctica parcial o interrumpida.
+
+**Por qué:** el usuario pide una experiencia guiada que se sienta como un juego.
+El mapa de campaña sustituye las tarjetas de rutinas y atajos del antiguo metro
+en Curso. El cierre del mundo prioriza la victoria y la continuación sobre los
+controles avanzados del resultado. Esto revisa la presentación de D-031/D-036
+sin cambiar sus reglas de evidencia.
+
+## D-046 - Metro del Ritmo coherente en macOS e iOS
+
+Se recupera la metáfora ferroviaria acordada: una línea de catorce estaciones,
+el tren en la parada actual y niveles dentro de cada estación. El checkpoint es
+su «Reto de estación». Al terminarla, «Siguiente parada» abre la primera estación
+pendiente; al completar la línea se ofrece «Ver mi recorrido».
+
+Esta decisión sustituye los mundos y jefes de D-045. La petición de una
+experiencia más guiada y lúdica debía mejorar el metro existente, no cambiar su
+identidad. Se conserva lo añadido en D-045: progreso al 70 %, una acción principal,
+estación actual abierta, otras paradas resumidas y celebraciones basadas en la
+evidencia guardada. Los nombres históricos de las API de proyección no cambian
+el formato de datos ni los IDs MIDI.
+
+`CourseRailwayMap.swift` contiene el mapa, marcadores, vías, acciones, premios y
+paneles de nivel/estación superados usados por ambas apps. Los textos y las
+instrucciones del reto proceden del núcleo. Los coordinadores solo adaptan las
+acciones a su navegación; el proyecto iOS incluye explícitamente este archivo
+compartido. Así una mejora visual o de lenguaje no diverge entre Mac e iPhone.

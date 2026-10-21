@@ -25,6 +25,15 @@ alternativa sigue respetando el orden entre capítulos; un checkpoint futuro
 superado se conserva y se acredita al completar la ruta anterior. Redobles es
 una ruta técnica transversal y no bloquea el curso principal.
 
+El catálogo completo contiene **117 MIDI**: 33 del tronco común, 76 de géneros
+y 8 de Redobles. La ampliación de octubre añade 40 lecciones: Hip-hop tiene 12
+y cada uno de los otros ocho géneros tiene 8, incluida su prueba final.
+
+En la app, cada bloque principal es una **estación** y su checkpoint es el
+**reto final de estación**. El mapa ferroviario muestra el tren en la parada
+actual, niveles numerados y una celebración al completarla. El recorrido conserva los mismos
+prerrequisitos y el historial; los ocho ejercicios de Redobles siguen aparte.
+
 ## Regla didáctica
 
 Cada nivel introduce una dificultad principal:
@@ -121,12 +130,29 @@ menos 16 compases.
 ## Secuencia de rutas por género
 
 ### Hip-hop
-Boom bap, bombos sincopados, silencios, palmada/aro, half-time, dos compases, charles de semicorcheas y fill de cierre.
+Parte de corcheas y bombo sincopado ya aprendidos. La secuencia a 72 BPM conserva
+la base al introducir cada variación:
+
+| Lección | Aplicación nueva |
+|---|---|
+| 1 | Boom bap con aro en el backbeat |
+| 2 | Bombo de semicorchea que anticipa el segundo aro |
+| 3 | Huecos de charles sin retirar el bombo anticipado |
+| 4 | Respuesta de palmada al aro |
+| 5 | Colocación half-time con respuesta |
+| 6 | Pregunta y respuesta de bombo en dos compases |
+| 7 | Ráfagas de charles sobre la misma frase |
+| 8 | Aperturas sobre las ráfagas sin retirar el bombo sincopado |
+| 9 | Caja de respuesta al aro del primer compás |
+| 10 | Palmada anticipada antes del cuarto pulso |
+| 11 | Dos frases conocidas con retorno y fill |
+| 12 | Integración de cuatro compases con aro, caja, palmada, aperturas y toms |
 
 ### Orden posterior a Hip-hop
 
 Rock, Disco, Funk, Reggae, Dembow, Blues/Shuffle, Jazz y Clave/Bossa se abren
-en ese orden. Todas incluyen rutas cortas de patrones esenciales en 4/4.
+en ese orden. Cada ruta tiene ocho lecciones en 4/4: aplicación de la base,
+variaciones graduales, frase con transición y prueba musical integradora.
 Blues/Shuffle y Jazz usan una rejilla ternaria nativa de 12 pasos; las
 miniaturas y el generador curricular conservan esa subdivisión.
 
@@ -136,32 +162,131 @@ sigue siendo independiente de la dinámica para no castigar el aprendizaje
 inicial; velocity queda disponible para la siguiente etapa de articulación.
 
 ### Rock
-Backbeat sólido, charles o ride constante, crash de entrada, fills de toms, tempos mayores y frases de ocho compases.
+Frase de dos compases con bombos anticipados a 78 BPM. El crash sustituye el
+primer charles; después se añade un descenso de toms que sustituye el último
+pulso. La secuencia completa es:
+
+1. Backbeat con anticipación en dos compases.
+2. Entrada con crash sin añadir una tercera voz.
+3. Fill de toms al final de la frase.
+4. Groove de ride sobre las mismas anticipaciones.
+5. Bombo doble de respuesta en el segundo compás.
+6. Aperturas de charles alternadas con el ride.
+7. Cuatro compases con contraste entre frases y fill final.
+8. Prueba de ocho compases con desarrollo, no ocho copias del mismo patrón.
 
 ### Funk
-Semicorcheas, silencios, síncopas, independencia y futuros ejercicios de ghost notes con velocity. Debe desarrollarse antes que jazz completo.
+Semicorcheas sobre bombos anticipados a 68 BPM; después huecos en dos y cuatro,
+caja desplazada y respuesta de palmada. Se mantienen las síncopas al añadir cada
+variación:
+
+1. Semicorcheas sobre bombos anticipados.
+2. Huecos en el backbeat.
+3. Caja a contratiempo.
+4. Palmada a contratiempo.
+5. Charles abierto entre semicorcheas.
+6. Respuesta de aro.
+7. Cierre lineal de bombo, caja y toms en contexto.
+8. Frase completa de cuatro compases que integra todas las voces y células.
+
+Ghost notes y velocity quedan para una etapa posterior.
 
 ### Blues y shuffle
-Requiere rejilla ternaria validada: tresillos, shuffle, fills ternarios y forma de doce compases.
+Rejilla ternaria de 12 pasos a 66 BPM. La forma final de doce compases conserva
+tres grupos diferentes de cuatro; no se alarga la práctica repitiendo una base:
+
+1. Shuffle de charles con bombo y caja.
+2. Respuesta ternaria de bombo y tom grave.
+3. Shuffle de ride con cierre de cuatro compases.
+4. Bombo en tresillo bajo el ride.
+5. Aro en el segundo backbeat.
+6. Pregunta y respuesta ternaria de dos compases.
+7. Fill de caja y toms en el último pulso.
+8. Forma de doce compases con las tres secciones y sus cierres.
 
 ### Introducción al jazz
-Ride ternario, dos y cuatro, comping sencillo, independencia y fraseo. Sin velocity enseña estructura rítmica; dinámica y articulación quedan para una fase posterior.
+Ride ternario con espacios (figura larga-corta en dos y cuatro), distinto del
+shuffle continuo. La secuencia a 64 BPM desarrolla independencia sin evaluar
+todavía dinámica ni articulación:
+
+1. Ride con espacios y caja en dos y cuatro.
+2. Bombo en uno y tres bajo el ride.
+3. Comping de caja anticipada.
+4. Bombo de respuesta al final del compás.
+5. Comping alternado entre caja y aro.
+6. Dos compases dialogados de caja.
+7. Cierre ternario con ride y toms.
+8. Frase jazz completa de cuatro compases.
 
 ### Disco
-Bombo a negras, backbeat y charles abierto. Consolida un pulso continuo antes de
-extenderlo a una frase de cuatro compases.
+Bombo a negras a 80 BPM. El charles cede en dos y cuatro para que la caja y el
+bombo no exijan una tercera voz simultánea:
+
+1. Bombo a negras con backbeat y motor de charles.
+2. Apertura del último contratiempo.
+3. Aperturas en los cuatro contratiempos.
+4. Palmada de respuesta en cuatro.
+5. Bombo de semicorchea para enlazar el siguiente compás.
+6. Dos compases con respiración del charles y bombo continuo.
+7. Fill sobre el pulso, sin retirar el bombo de cuatro.
+8. Frase disco completa con aperturas, palmada, enlace y fill.
 
 ### Reggae
-One drop, skank a contratiempo y silencios del bombo. El patrón se enseña como
-estructura rítmica simplificada para pads, no como sustituto de una batería reggae completa.
+Los ocho ejercicios son grooves completos a 68 BPM, no gestos introductorios.
+El primero tiene dos compases: charles a corcheas con hueco en el tercer pulso,
+bombo y aro juntos en tres, aro a contratiempo y respuesta en semicorchea al final
+del segundo compás. El silencio de bombo en uno es parte del one drop, no una
+reducción accidental de dificultad. La progresión mantiene las demás voces
+cuando cambia la figura de bombo:
+
+1. One drop con respuesta de dos compases.
+2. Aperturas a contratiempo.
+3. Respuesta de aro en semicorcheas.
+4. One drop con palmada en el segundo compás.
+5. Tom agudo de respuesta.
+6. Rockers: añadir bombo en uno al one drop.
+7. Steppers: completar las cuatro negras del bombo.
+8. Frase completa de cuatro compases con los tres apoyos y cierre de toms.
 
 ### Dembow
-Patrón base de bombo y caja, después charles a corcheas y frase de cuatro compases.
+Dos compases desde el inicio a 88 BPM. La célula de bombo/caja no desaparece al
+añadir voces y las semicorcheas se introducen por separado:
+
+1. Base de dembow con respuesta de bombo al final del segundo compás.
+2. Motor de charles a corcheas sobre la misma frase.
+3. Palmada de respuesta en el segundo compás.
+4. Aperturas al cierre de cada compás.
+5. Bombo intercalado de semicorchea que anticipa la caja.
+6. Ráfaga de respuesta alrededor de la última apertura.
+7. Redoble lineal de caja, bombo y toms.
+8. Frase completa de cuatro compases con el vocabulario anterior.
 
 ### Clave y bossa
-Clave de son 3-2 y 2-3 en dos compases, seguida de una bossa básica. Se nombra el
-patrón concreto y se mantiene 4/4; no se agrupan tradiciones distintas bajo una
-etiqueta genérica.
+La clave tiene acompañamiento desde el principio, en frases de dos compases a
+72 BPM. Son y bossa se identifican por sus patrones concretos:
+
+1. Son 3-2 sobre bombo y charles.
+2. Son 2-3 conservando el acompañamiento.
+3. Clave 2-3 sobre ride.
+4. Bossa de aro con bombo y motor de corcheas.
+5. Bossa con aperturas al final de ambos compases.
+6. Bombo anticipado de semicorchea bajo el mismo aro.
+7. Turnaround de aro y toms que conserva el último bombo.
+8. Integración de seis compases: son 3-2, son 2-3 sobre ride y bossa con cierre.
+
+## Longitud y autoría de la práctica
+
+La duración inicial se calcula en **compases totales**, no en ocho repeticiones
+de cualquier archivo: 1 compás × 8 vueltas, 2 × 4, 3 × 2, 4 × 2, 6 × 1 y 8 × 1.
+Una forma de doce compases se interpreta completa una sola vez. El usuario puede
+ampliar la duración y Nivel dios conserva el mínimo opcional de dieciséis compases.
+
+Los IDs existentes se conservan. El número histórico del archivo no determina
+la posición curricular: `position` y `prerequisite` del MIDI sitúan las lecciones
+nuevas antes del checkpoint del bloque. Los generadores son
+`scripts/generate_hiphop_route.swift` y `scripts/generate_genre_routes.swift`.
+La prueba final conserva las voces y posiciones rítmicas enseñadas; las
+regresiones comprueban ese vocabulario además de la validez técnica del MIDI.
 
 ## Retirada de ayudas
 

@@ -128,7 +128,7 @@ quiera revisar. Los datos permanecen locales en
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 77 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 117 ejercicios MIDI progresivos
 - Curso libre con ruta recomendada y checkpoints por capítulo
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida

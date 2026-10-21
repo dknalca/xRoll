@@ -22,9 +22,36 @@ swift scripts/render_ios_app_icon.swift \
 
 ## Comprobación local
 
-La app y el framework compilan para simulador y destino genérico iOS con `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'platform=iOS Simulator,name=iPhone 14' build` y `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`. CI ejecuta el segundo comando en cada push a `main` y pull request. `simctl install` y `simctl launch` funcionan en simuladores iOS 16.2, donde la pantalla Curso carga los 77 ejercicios. La comprobación de aprendizaje y puntuación con el M‑Vave sigue pendiente en hardware.
+La app y el framework compilan para simulador y destino genérico iOS con `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'platform=iOS Simulator,name=iPhone 14' build` y `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`. CI ejecuta el segundo comando en cada push a `main` y pull request. `simctl install` y `simctl launch` funcionan en simuladores iOS 16.2. El catálogo integrado actual contiene 117 ejercicios; los recursos se copian desde `data/exercises/`. La comprobación de aprendizaje y puntuación con el M‑Vave sigue pendiente en hardware.
 
 El scoring iOS usa un acumulador incremental y `PracticeSessionIngress` serializa los eventos fuera de SwiftUI. La escena consume el feedback en su ciclo de frame y la traza esquema 4 separa procesamiento, actualización visual y consumo del evento. El audio usa pools acotados de `AVAudioPlayerNode`; las pruebas offline no sustituyen la comprobación acústica en iPhone/iPad con una ruta de audio fija.
+
+### Pruebas de navegación iOS
+
+El scheme compartido `xRoll` incluye `XRollUITests`. Con un simulador instalado:
+
+```sh
+xcodebuild -project xRoll.xcodeproj -scheme xRoll \
+  -destination 'platform=iOS Simulator,name=iPhone 14' \
+  -derivedDataPath dist/ios-ui-tests -parallel-testing-enabled NO \
+  CODE_SIGNING_ALLOWED=NO test
+```
+
+Se comprueban diez rutas: siguiente ejercicio, continuar tras aprobar con una
+estrella sin opciones de tempo, volver a Curso,
+volver a Redobles, preparar/empezar la prueba final y abrir el bloque anterior
+pendiente tras una prueba aprobada, y preparar/empezar exactamente la lección
+elegida sin una recomendación global competidora. El recorrido añade mapa de la
+estación actual, preparación del reto final y celebración con continuación a la
+siguiente parada. `CourseRailwayMap.swift` es compartido con macOS. CI elige un iPhone disponible y conserva
+el `.xcresult`.
+
+Las fixtures `XROLL_UI_TEST_SCENARIO` solo se compilan con `DEBUG` **y** destino
+simulador. Preparan resultados con el scorer real y usan SQLite y perfiles de
+calibración en un directorio temporal separado del historial normal. El perfil
+sintético permite probar navegación sin hardware: estas pruebas no validan el
+procedimiento de calibración, el onset acústico ni la precisión MIDI/táctil.
+El IPA Release no incluye esas fixtures.
 
 ### Generar un IPA universal para sideloading
 
@@ -45,6 +72,9 @@ desarrollo. AltStore, SideStore o Sideloadly deben volver a firmarlo al instalar
 El script comprueba firma, arquitectura, integridad ZIP, identificador, familias
 de dispositivo y recursos antes de reemplazar el IPA anterior; imprime SHA-256.
 El IPA de desarrollo firmado por USB se guarda aparte como `xRoll.ipa`.
+
+El flujo de pruebas del usuario es generar este IPA y entregarlo para instalar
+manualmente con Sideloadly. No se intenta instalar directamente en el iPhone.
 
 ### Compilar e instalar en un iPad
 

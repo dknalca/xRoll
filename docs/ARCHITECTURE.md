@@ -39,9 +39,17 @@ SwiftUI y SpriteKit.
   activa por sonido o grupo y corta solo la anterior. El nodo elegido para el
   ataque nuevo no pasa por `stop()` en esa llamada. Las pruebas de PCM usan el
   mismo motor con renderizado manual, sin conectar una salida física.
+- La ganancia de cada evento programado queda incorporada en PCM inmutable;
+  los nodos de su pool no cambian de volumen por nota. Una caché LRU de 64
+  entradas/4 MiB reutiliza segmentos por fuente, frames y ganancia; no participa
+  en golpes vivos y se invalida al recargar las fuentes.
 - Los golpes vivos se reproducen inmediatamente; `hostTime` conserva su
   procedencia temporal y no se usa para programar un buffer en un instante ya
   pasado. Preview, loop y metrónomo sí se programan contra host time futuro.
+- El choke entre repeticiones vivas del mismo sonido consulta el reloj de
+  muestras del nodo: no cancela un ataque admitido que aún no llegó al render.
+  Abierto/cerrado siguen cortándose entre sí; los relojes inválidos anteriores
+  al primer render no se entregan a `playerTime(forNodeTime:)`.
 
 Para añadir un kit, crea `Resources/Kits/<id>/kit.json`, declara cada WAV y
 anota licencia y autor. Para añadir un ejercicio, genera un MIDI consecutivo en
@@ -98,3 +106,22 @@ La continuación de Resultados y la recomendación curricular pertenecen a
 Los coordinadores de macOS e iOS seleccionan esa tarea y arrancan directamente
 la práctica guiada. La preparación de una prueba final es una acción distinta:
 presenta el objetivo y el patrón integrador antes de empezar.
+Un checkpoint adelantado conserva su evidencia y `CourseGraph.pendingChapter`
+identifica el primer bloque anterior pendiente. Las dos interfaces explican su
+nombre y permiten abrir una lección pendiente de ese bloque.
+
+`CourseGraph.worlds(evidence:)` proyecta el recorrido de catorce estaciones sobre
+esos mismos estados; `CourseWorld` conserva su nombre histórico y describe los
+niveles locales, reto final y tarea recomendada de cada estación.
+Los coordinadores conservan la proyección tras refrescar el historial. La
+victoria nueva se obtiene con `worldVictory(completing:previousEvidence:)` después
+de guardar el intento. No requiere otra tabla de progreso. Las vistas presentan
+el mapa y la celebración; las acreditaciones continúan en el núcleo.
+`campaignContinuation(after:evidence:)` decide la continuación de un intento
+aprobado de la estación actual, con el mismo 70 % y sin depender de dos estrellas.
+
+`Sources/XRollPads/CourseRailwayMap.swift` se compila tanto en SwiftPM como en el
+target iOS. Contiene el mapa ferroviario, los marcadores, los premios y los paneles
+de nivel/estación completados. `RhythmMetroView` y `iOSHomeView` aportan los mismos
+datos del núcleo y adaptan sus acciones. Los textos de reto y continuación son
+compartidos; el historial y el catálogo permanecen en los servicios existentes.

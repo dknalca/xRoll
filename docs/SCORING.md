@@ -80,11 +80,13 @@ una puntuacion negativa.
 | Estrellas | Umbral |
 |---|---|
 | 3 | 90 % o mas |
-| 2 | 70 % o mas |
-| 1 | 50 % o mas |
+| 2 | 80 % o mas |
+| 1 | 70 % o mas |
 
-Una estrella al 50 y no al 60 es deliberado: el principiante honesto se lleva
-algo.
+Por debajo del 70 % no se concede ninguna estrella. Los umbrales se aplican al
+porcentaje neto, antes del redondeo visual. La aprobación curricular y de un reto
+de tempo sigue requiriendo el 70 %; las estrellas del intento no elevan ese mínimo.
+Los resultados históricos conservan las estrellas que se guardaron entonces.
 
 ## Adelantado o atrasado
 

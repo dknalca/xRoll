@@ -141,24 +141,7 @@ struct iOSCourseChapter: Identifiable {
     let exercises: [Exercise]
     var checkpointExercise: Exercise? { exercises.first { $0.metadata?.flags.contains("checkpoint") == true } }
     var title: String {
-        switch id {
-        case "initiation": return "Iniciación"
-        case "fundamentals": return "Fundamentos"
-        case "subdivision": return "Subdivisión"
-        case "coordination": return "Coordinación"
-        case "groove": return "Groove y fraseo"
-        case "hiphop": return "Hip-hop"
-        case "rock": return "Rock"
-        case "disco": return "Disco"
-        case "funk": return "Funk"
-        case "reggae": return "Reggae"
-        case "dembow": return "Dembow"
-        case "blues": return "Blues / Shuffle"
-        case "jazz": return "Jazz"
-        case "clave-bossa": return "Clave / Bossa"
-        case "fills": return "Redobles y transiciones"
-        default: return id.capitalized
-        }
+        CourseWorld.title(for: id)
     }
 }
 
@@ -244,6 +227,9 @@ final class iOSPracticeModel: ObservableObject {
     @Published private(set) var mappingMessage = ""
     @Published private(set) var courseLevels = [CourseLevelState]()
     @Published private(set) var courseEvidence = [CourseAttemptEvidence]()
+    @Published private(set) var campaignWorlds = [CourseWorld]()
+    @Published private(set) var worldVictory: CourseWorldVictory?
+    @Published private(set) var nextCampaignLevel: CourseWorld.Level?
     @Published private(set) var recentAttempts = [PracticeAttempt]()
     @Published var selectedProgressExerciseID = ""
     @Published var minimumProgressScore = 0.0
@@ -364,8 +350,33 @@ final class iOSPracticeModel: ObservableObject {
     var selectedExercise: Exercise? { exercises.first { $0.id == selectedExerciseID } }
     var selectedPracticeTitle: String {
         guard isCheckpointAssessment, let exercise = selectedExercise else { return selectedExercise?.title ?? "Práctica" }
-        let chapter = courseChapters.first { $0.id == exercise.metadata?.chapter }?.title ?? "bloque"
-        return "Prueba final · \(chapter)"
+        return CourseWorld.challengeTitle(for: exercise.metadata?.chapter ?? "")
+    }
+    var pendingCheckpointChapter: CourseGraph.Node? {
+        guard isCheckpointAssessment, !resultIsPartial, activeEvaluationScope == .fullPattern,
+              (completedScore?.percentage ?? 0) >= CourseLessonCriteria.minimumScore,
+              let exercise = selectedExercise,
+              TempoLadder.isCheckpointPassed(exercise, evidence: courseEvidence) else { return nil }
+        return courseGraph?.pendingChapter(before: exercise.id, states: courseLevels)
+    }
+    var checkpointAssessmentOutcome: String? {
+        guard isCheckpointAssessment, !resultIsPartial, let score = completedScore else { return nil }
+        guard score.percentage >= CourseLessonCriteria.minimumScore, activeEvaluationScope == .fullPattern else {
+            return CourseWorld.challengeNeedsRetry
+        }
+        if let pending = pendingCheckpointChapter {
+            let title = courseChapters.first { $0.id == pending.metadata.chapter }?.title ?? pending.metadata.chapter
+            return CourseWorld.pendingStationMessage(title)
+        }
+        if let exercise = selectedExercise, courseLevelState(for: exercise)?.chapterAccredited == true {
+            return CourseWorld.challengeCompleted
+        }
+        return CourseWorld.challengeSaved
+    }
+    func openPendingCheckpointChapter() {
+        guard let pending = pendingCheckpointChapter else { return }
+        showsResult = false
+        selectExerciseForPractice(pending.exercise.id, returnTo: .course)
     }
     var hasDailyPracticePlanForToday: Bool { dailyPracticePlan.map { Calendar.current.isDateInToday($0.day) } ?? false }
     var dailyPracticeCompletedToday: Bool { hasDailyPracticePlanForToday && dailyPracticePlan?.isComplete == true }
@@ -424,6 +435,7 @@ final class iOSPracticeModel: ObservableObject {
         return nil
     }
     var alternativeProgressTitle: String? {
+        if nextCampaignLevel != nil { return nil }
         switch resultProgressSuggestion {
         case .next where nextTempoLevel != nil: return "Subir nivel"
         case .raise where canOfferNextCourseExercise: return "Siguiente ejercicio"
@@ -431,6 +443,9 @@ final class iOSPracticeModel: ObservableObject {
         }
     }
     var displayedResultActionReason: String {
+        if let nextCampaignLevel {
+            return nextCampaignLevel.continuationMessage
+        }
         switch resultProgressSuggestion {
         case .raise(let level):
             return "Prepara el siguiente escalón: \(level.label), \(level.bpm) BPM. Es un reto opcional."
@@ -440,6 +455,7 @@ final class iOSPracticeModel: ObservableObject {
         }
     }
     var resultActionTitle: String {
+        if let nextCampaignLevel { return nextCampaignLevel.continuationTitle }
         switch resultProgressSuggestion {
         case .raise: return "Subir nivel"
         case .next: return "Siguiente ejercicio"
@@ -478,6 +494,10 @@ final class iOSPracticeModel: ObservableObject {
     }
     func startNextCourseExercise() {
         guard canOfferNextCourseExercise, let exercise = nextCourseExercise else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            selectCourseCheckpoint(exercise.id)
+            return
+        }
         selectExerciseForPractice(exercise.id, returnTo: .course)
         showsResult = false
         startGuidedLesson()
@@ -551,7 +571,116 @@ final class iOSPracticeModel: ObservableObject {
         return PadLayoutFactory.applying(preset, to: base).pads
     }
 
-    init() { load() }
+    #if DEBUG && targetEnvironment(simulator)
+    private var uiTestingDirectory: URL?
+    #endif
+
+    init() {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.environment["XROLL_UI_TEST_SCENARIO"] != nil {
+            uiTestingDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("ui-tests-\(UUID().uuidString)")
+        }
+        #endif
+        load()
+        #if DEBUG && targetEnvironment(simulator)
+        if let scenario = ProcessInfo.processInfo.environment["XROLL_UI_TEST_SCENARIO"] {
+            do { try prepareUITestScenario(scenario) }
+            catch { status = "No se pudo preparar el escenario UI: \(error.localizedDescription)" }
+        }
+        #endif
+    }
+
+    #if DEBUG && targetEnvironment(simulator)
+    /// Fixtures de navegación: generan resultados con el scorer real y guardan
+    /// evidencia aislada. No simulan mediciones físicas ni prueban calibración.
+    private func prepareUITestScenario(_ scenario: String) throws {
+        midiInput = nil
+        connectedMIDISourceID = nil
+        connectedMIDISourceEndpoint = nil
+        selectedMIDISourceID = nil
+        hasExplicitMIDISourceSelection = true
+        selectedLayoutPreset = .core
+        padMap = touchPhysicalMap
+        liveMIDI?.setPadRouter(padMap.map(PadMapV2Router.init))
+        loopEnabled = false
+        metronomeEnabled = false
+        gapMetronomeLevel = 0
+        trainingPhase = .integrate
+        practiceHelp = .full
+        selectedPracticeSounds = []
+        practiceFragment = 0
+        correctiveStepRange = nil
+        let profile = CalibrationProfile(key: currentCalibrationProfileKey(), estimate: .init(
+            offsetMilliseconds: 0, medianAbsoluteDeviationMilliseconds: 0, acceptedHitCount: 32))
+        if let calibrationURL {
+            try FileManager.default.createDirectory(at: calibrationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try CalibrationProfileStore.save([profile], to: calibrationURL)
+        }
+        calibrationProfile = profile
+        calibrationOffsetMilliseconds = 0
+        if scenario == "campaign-map" || scenario == "campaign-boss-ready" {
+            if scenario == "campaign-boss-ready" {
+                for node in courseGraph?.nodes.filter({ $0.metadata.chapter == "initiation" && !$0.metadata.flags.contains("checkpoint") }) ?? [] {
+                    try progressStore?.record(.init(exerciseID: node.exercise.id, timestamp: Date(),
+                        bpm: CourseLessonCriteria.targetBPM(for: node.exercise), score: 80, stars: 2,
+                        perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0,
+                        trainingContext: .init(evaluationScope: .fullPattern, completedBars: node.exercise.bars)))
+                }
+            }
+            refreshCourseProgress()
+            selectedTab = .course
+            return
+        }
+        let exercise: Exercise?
+        switch scenario {
+        case "checkpoint-result", "checkpoint-preparation":
+            exercise = courseGraph?.checkpoint(for: "fundamentals")?.exercise
+        case "fill-result":
+            exercise = bundledExercises.first { $0.metadata?.chapter.hasPrefix("fills-") == true }
+        case "exercise-preparation":
+            exercise = bundledExercises.first { $0.id == "25_reggae_02_skank" }
+        case "campaign-victory":
+            exercise = courseGraph?.checkpoint(for: "initiation")?.exercise
+        default:
+            exercise = bundledExercises.first
+        }
+        guard let exercise else { throw AppError.resourcesMissing }
+        if scenario == "checkpoint-preparation" {
+            selectCourseCheckpoint(exercise.id)
+            return
+        }
+        if scenario == "exercise-preparation" {
+            selectCourseExercise(exercise.id)
+            return
+        }
+        selectedExerciseID = exercise.id
+        selectedBPM = ["checkpoint-result", "campaign-victory"].contains(scenario) ? CourseLessonCriteria.targetBPM(for: exercise) : 70
+        selectedRepeats = 1
+        isCheckpointAssessment = ["checkpoint-result", "campaign-victory"].contains(scenario)
+        let configured = PracticeConfiguration(exercise: exercise, bpm: selectedBPM, repeats: 1).applying(to: exercise)
+        let timeline = ExerciseTimeline(exercise: configured)
+        let score = RhythmScorer.score(timeline: timeline, bpm: selectedBPM, grid: exercise.grid,
+            hits: timeline.notes.map { .init(sound: $0.sound, timeMilliseconds: $0.timeMilliseconds + (scenario == "one-star-result" ? 80 : 0)) })
+        let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: selectedBPM,
+            score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: 0, regular: 0,
+            miss: 0, extra: 0, meanOffsetMilliseconds: 0,
+            trainingContext: .init(evaluationScope: .fullPattern, completedBars: exercise.bars))
+        try progressStore?.record(attempt)
+        worldVictory = courseGraph?.worldVictory(completing: CourseAttemptEvidence(attempt: attempt), previousEvidence: courseEvidence)
+        nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
+            evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+        refreshCourseProgress()
+        activeEvaluationScope = .fullPattern
+        completedScore = score
+        resultInsights = PracticeInsights(score: score)
+        resultSummary = PracticeResultAnalyzer.summarize(score: score, insights: PracticeInsights(score: score),
+            hasCorrectivePlan: false, canAdvance: true)
+        resultDiagnosisText = "Ritmo completado."
+        lastCompletedExerciseTitle = selectedPracticeTitle
+        resultIsPartial = false
+        showsResult = true
+    }
+    #endif
 
     private func load() {
         do {
@@ -578,12 +707,15 @@ final class iOSPracticeModel: ObservableObject {
             kit = loadedKit
             audio = engine
             liveMIDI = LiveMIDIProcessor(audio: engine, kitRouter: router, padRouter: touchRouter)
-            let supportDirectory = try FileManager.default.url(
+            var supportDirectory = try FileManager.default.url(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask,
                 appropriateFor: nil,
                 create: true
             ).appendingPathComponent("xRoll", isDirectory: true)
+            #if DEBUG && targetEnvironment(simulator)
+            if let uiTestingDirectory { supportDirectory = uiTestingDirectory }
+            #endif
             progressStore = try ProgressStore(url: supportDirectory.appendingPathComponent("progress.sqlite"))
             coachingGoals = (try? progressStore?.loadTrainingState([CoachingGoal].self, forKey: "coaching-goals")) ?? []
             dailyPracticePlan = try? progressStore?.loadTrainingState(DailyPracticePlan.self, forKey: "daily-practice-plan")
@@ -1189,7 +1321,15 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     func selectCourseExercise(_ exerciseID: String) {
-        selectExerciseForPractice(exerciseID, returnTo: .course)
+        if courseGraph?.node(for: exerciseID)?.metadata.flags.contains("checkpoint") == true {
+            selectCourseCheckpoint(exerciseID)
+        } else { selectExerciseForPractice(exerciseID, returnTo: .course) }
+    }
+
+    func continueWorldCampaign() {
+        if let level = campaignWorlds.first(where: \.isCurrent)?.nextLevel {
+            selectCourseExercise(level.id)
+        } else { returnToCourseMenu() }
     }
 
     func selectFillExercise(_ exerciseID: String) {
@@ -1217,6 +1357,10 @@ final class iOSPracticeModel: ObservableObject {
 
     private func selectExerciseForPractice(_ exerciseID: String, returnTo tab: iOSMainTab) {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return }
+        cancelResultTransition()
+        showsResult = false
+        worldVictory = nil
+        nextCampaignLevel = nil
         isCheckpointAssessment = false
         activeDailyBlockID = nil
         coachingFlowStage = .none
@@ -1295,6 +1439,10 @@ final class iOSPracticeModel: ObservableObject {
     func startRecommendedSession() {
         guard let recommendation = courseRecommendation,
               let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            selectCourseCheckpoint(exercise.id)
+            return
+        }
         selectExerciseForPractice(exercise.id, returnTo: .course)
         selectedBPM = recommendation.tempoStep.bpm
         selectedRepeats = TempoLadder.repeats(for: recommendation.tempoStep, exercise: exercise)
@@ -2074,6 +2222,11 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     func performResultAction() {
+        if let next = nextCampaignLevel {
+            selectCourseExercise(next.id)
+            if !next.isBoss { startGuidedLesson() }
+            return
+        }
         switch resultProgressSuggestion {
         case .raise: raiseTempoLevel(); return
         case .next: startNextCourseExercise(); return
@@ -2348,6 +2501,8 @@ final class iOSPracticeModel: ObservableObject {
         guard presentedSessionGeneration == generation,
               let session,
               let exercise = activeExercise else { return }
+        worldVictory = nil
+        nextCampaignLevel = nil
         let elapsedMilliseconds = AudioClock.milliseconds(from: startHostTime, to: finishHostTime)
         let completion = PracticeCompletion(exercise: exercise, elapsedMilliseconds: elapsedMilliseconds)
         let totalBars = completion.totalBars
@@ -2386,7 +2541,15 @@ final class iOSPracticeModel: ObservableObject {
                     practiceConditions: activePracticeConditions
                 )
             )
-            do { try progressStore?.record(attempt) }
+            do {
+                if let progressStore {
+                    try progressStore.record(attempt)
+                    worldVictory = courseGraph?.worldVictory(completing: CourseAttemptEvidence(attempt: attempt),
+                        previousEvidence: courseEvidence)
+                    nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
+                        evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+                }
+            }
             catch { status = "Sesión finalizada; no se pudo guardar el progreso: \(error.localizedDescription)" }
             refreshCourseProgress()
             let insights = PracticeInsights(score: score)
@@ -2707,7 +2870,10 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     private var calibrationURL: URL? {
-        try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        #if DEBUG && targetEnvironment(simulator)
+        if let uiTestingDirectory { return uiTestingDirectory.appendingPathComponent("calibration.json") }
+        #endif
+        return try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("xRoll", isDirectory: true)
             .appendingPathComponent("calibration.json")
     }
@@ -2996,6 +3162,7 @@ final class iOSPracticeModel: ObservableObject {
             recentAttempts = try progressStore.attempts(filter: .init(), limit: 1_000)
             courseEvidence = try progressStore.courseEvidence()
             courseLevels = courseGraph?.states(evidence: courseEvidence) ?? []
+            campaignWorlds = courseGraph?.worlds(evidence: courseEvidence) ?? []
             if let exercise = selectedExercise, !isExerciseAvailable(exercise),
              let next = courseGraph?.nodes.first(where: { isExerciseAvailable($0.exercise) })?.exercise {
                 selectedExerciseID = next.id
@@ -3291,11 +3458,11 @@ struct iOSHomeView: View {
                 }
                 if usesWideCards {
                     HStack(alignment: .top, spacing: 16) {
-                        if !model.isCheckpointAssessment { recommendationCard }
+                        if !model.isCheckpointAssessment { selectedExercisePreparationCard }
                         exercisePreparation
                     }
                 } else {
-                    if !model.isCheckpointAssessment { recommendationCard }
+                    if !model.isCheckpointAssessment { selectedExercisePreparationCard }
                     exercisePreparation
                 }
                 iOSStudioPanel {
@@ -3351,6 +3518,32 @@ struct iOSHomeView: View {
     }
 
     @ViewBuilder
+    private var selectedExercisePreparationCard: some View {
+        iOSStudioPanel {
+            Text("PREPARA ESTE EJERCICIO")
+                .font(.system(size: 11, weight: .bold, design: .rounded)).tracking(0.9).foregroundStyle(iOSStudioDesign.accent)
+            if let exercise = model.selectedExercise {
+                Text(exercise.title).font(.headline).foregroundStyle(iOSStudioDesign.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("preparation.guidance.exercise")
+                if let best = TempoLadder.highestPassedStep(for: exercise, evidence: model.courseEvidence) {
+                    Text("Mejor nivel superado: \(best.label) · \(best.bpm) BPM · \(best.award.label)")
+                        .font(.subheadline).foregroundStyle(iOSStudioDesign.accent)
+                }
+                if let step = model.tempoSteps.first(where: { $0.bpm == model.selectedBPM }) {
+                    Text("Nivel preparado: \(step.label) · \(step.bpm) BPM")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(iOSStudioDesign.primary)
+                    Text(TempoLadder.isPassed(step, exerciseID: exercise.id, evidence: model.courseEvidence)
+                         ? "Este nivel ya está superado. Puedes repasarlo o elegir otro nivel de este ritmo."
+                         : "Completa este ritmo con al menos el 70 % para superar este nivel.")
+                        .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
+                }
+                Text("Escucha y coloca los sonidos antes de empezar. Ayuda \(model.practiceHelp.label.lowercased()) · \(exercise.bars * model.selectedRepeats) compases en total.")
+                    .font(.caption).foregroundStyle(iOSStudioDesign.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private var recommendationCard: some View {
         iOSStudioPanel {
             HStack(spacing: 7) {
@@ -3410,29 +3603,14 @@ struct iOSHomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 brandHeader
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("RUTA DE APRENDIZAJE").font(.system(size: 11, weight: .bold, design: .rounded)).tracking(1.2).foregroundStyle(iOSStudioDesign.accent)
-                    Text("Curso").font(.system(size: 27, weight: .bold, design: .rounded)).foregroundStyle(iOSStudioDesign.primary)
-                    Text("Puedes practicar cualquier ritmo. Supera cada lección a su tempo de referencia o demuestra el bloque completo.")
-                        .font(.subheadline).foregroundStyle(iOSStudioDesign.secondary)
+                CourseRailwayMap(stations: model.campaignWorlds, evidence: model.courseEvidence) {
+                    model.selectCourseExercise($0.id)
                 }
-                recommendationCard
                 if !model.courseStatus.isEmpty {
                     iOSStudioPanel {
                         Label(model.courseStatus, systemImage: "info.circle")
                             .font(.subheadline).foregroundStyle(iOSStudioDesign.regular).fixedSize(horizontal: false, vertical: true)
                     }
-                }
-                ForEach(model.courseChapters) { chapter in
-                    iOSCourseChapterPanel(
-                        chapter: chapter,
-                        states: Dictionary(uniqueKeysWithValues: model.courseLevels.map { ($0.exerciseID, $0) }),
-                        evidence: model.courseEvidence,
-                        selectedExerciseID: model.selectedExerciseID,
-                        expandsInitially: chapter.exercises.contains(where: { model.courseState(for: $0) == .available }),
-                        selectExercise: { model.selectCourseExercise($0) },
-                        selectCheckpoint: { model.selectCourseCheckpoint($0) }
-                    )
                 }
                 iOSStudioPanel {
                     Text("MIDI IMPORTADOS").font(.system(size: 11, weight: .bold, design: .rounded)).tracking(1).foregroundStyle(iOSStudioDesign.accent)
@@ -3881,12 +4059,13 @@ struct iOSHomeView: View {
 
     private var exercisePreparation: some View {
         iOSStudioPanel {
-            Text(model.isCheckpointAssessment ? "PRUEBA FINAL DEL BLOQUE" : "PREPARACIÓN").font(.system(size: 11, weight: .bold, design: .rounded)).tracking(1).foregroundStyle(iOSStudioDesign.accent)
+            Text(model.isCheckpointAssessment ? "RETO DE ESTACIÓN" : "PREPARACIÓN").font(.system(size: 11, weight: .bold, design: .rounded)).tracking(1).foregroundStyle(iOSStudioDesign.accent)
             if let exercise = model.selectedExercise {
                 VStack(alignment: .leading, spacing: 9) {
                     Text(model.selectedPracticeTitle).font(.title3.bold()).foregroundStyle(iOSStudioDesign.primary).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("preparation.title")
                     if model.isCheckpointAssessment {
-                        Text("Resumen del bloque: combina sus habilidades en un patrón completo. Consigue al menos el 70 % al tempo de aprendizaje para acreditarlo. Si quedan bloques anteriores pendientes, el resultado se conserva hasta completarlos.")
+                        Text(CourseWorld.challengeInstructions(bpm: model.selectedBPM))
                             .font(.subheadline).foregroundStyle(iOSStudioDesign.secondary).fixedSize(horizontal: false, vertical: true)
                         Text("Patrón integrador: \(exercise.title)")
                             .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
@@ -3928,7 +4107,7 @@ struct iOSHomeView: View {
             Button {
                 model.startPractice()
             } label: {
-                Label(model.isCheckpointAssessment ? "Empezar prueba final" : "Empezar práctica", systemImage: model.canScoreSelectedExercise ? "play.fill" : "lock.fill")
+                Label(model.isCheckpointAssessment ? "Empezar reto" : "Empezar práctica", systemImage: model.canScoreSelectedExercise ? "play.fill" : "lock.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
@@ -3938,6 +4117,7 @@ struct iOSHomeView: View {
             }
             .buttonStyle(.plain)
             .disabled(!canStartSelectedActivity)
+            .accessibilityIdentifier("preparation.start")
 
             if model.needsEquipmentSetup {
                 Button("Configurar controlador en Equipo") { model.selectedTab = .layouts }
@@ -4316,6 +4496,23 @@ struct iOSHomeView: View {
                     Text(model.resultIsPartial ? "SESIÓN INTERRUMPIDA" : "SESIÓN TERMINADA").font(.system(size: 11, weight: .bold, design: .rounded)).tracking(1.2).foregroundStyle(model.resultIsPartial ? iOSStudioDesign.regular : iOSStudioDesign.accent)
                     Text(model.lastCompletedExerciseTitle).font(.title2.bold()).foregroundStyle(iOSStudioDesign.primary).fixedSize(horizontal: false, vertical: true)
                 }
+                if let victory = model.worldVictory {
+                    CourseStationCompletionBanner(completion: victory, stars: model.completedScore?.stars ?? 0,
+                        continueAction: { model.continueWorldCampaign() })
+                } else if model.nextCampaignLevel != nil {
+                    CourseLevelPassedBanner(reason: model.displayedResultActionReason, actionTitle: model.resultActionTitle,
+                        continueAction: { model.performResultAction() }, returnToMap: { model.returnToCourseMenu() })
+                } else if let outcome = model.checkpointAssessmentOutcome {
+                    iOSStudioPanel {
+                        Text(outcome).font(.subheadline).foregroundStyle(iOSStudioDesign.primary)
+                            .accessibilityIdentifier("checkpoint.outcome")
+                        if model.pendingCheckpointChapter != nil {
+                            Button("Ir a la estación pendiente") { model.openPendingCheckpointChapter() }
+                                .buttonStyle(.borderedProminent).tint(iOSStudioDesign.accent)
+                                .accessibilityIdentifier("checkpoint.openPending")
+                        }
+                    }
+                }
                 if model.resultIsPartial {
                     iOSStudioPanel {
                         Label("\(model.resultCompletedBars) compases completados", systemImage: "pause.circle")
@@ -4385,7 +4582,7 @@ struct iOSHomeView: View {
                         }
                     }
                 }
-                if !model.resultIsPartial, model.resultSummary != nil {
+                if !model.resultIsPartial, model.resultSummary != nil, model.worldVictory == nil, model.nextCampaignLevel == nil {
                     resultActionPanel
                 } else if model.resultIsPartial {
                     iOSStudioPanel {
@@ -4458,6 +4655,7 @@ struct iOSHomeView: View {
                 .buttonStyle(.bordered).tint(iOSStudioDesign.primary)
             Button("Volver al menú") { model.returnToCourseMenu() }
                 .buttonStyle(.bordered).tint(iOSStudioDesign.primary)
+                .accessibilityIdentifier("result.menu")
         }
     }
 
@@ -4507,8 +4705,11 @@ struct iOSHomeView: View {
             HStack(spacing: 8) {
                 Text(model.isCalibrating ? "Calibración" : model.selectedPracticeTitle)
                     .font(.subheadline.bold()).foregroundStyle(iOSStudioDesign.primary).lineLimit(1).minimumScaleFactor(0.78)
+                    .accessibilityIdentifier("practice.title")
                 Spacer(minLength: 3)
-                if model.selectedExercise != nil { metricPill("\(model.activeBPM) BPM") }
+                if model.selectedExercise != nil {
+                    metricPill("\(model.activeBPM) BPM").accessibilityIdentifier("practice.bpm")
+                }
                 if !model.isCalibrating {
                     Button { model.pausePractice() } label: {
                         Image(systemName: "pause.fill").frame(width: 34, height: 32)
@@ -4723,83 +4924,6 @@ private struct iOSPadMapGrid: View {
     }
 }
 
-private struct iOSCourseChapterPanel: View {
-    let chapter: iOSCourseChapter
-    let states: [String: CourseLevelState]
-    let evidence: [CourseAttemptEvidence]
-    let selectedExerciseID: String
-    let selectExercise: (String) -> Void
-    let selectCheckpoint: (String) -> Void
-    @State private var isExpanded: Bool
-
-    init(chapter: iOSCourseChapter, states: [String: CourseLevelState], evidence: [CourseAttemptEvidence], selectedExerciseID: String, expandsInitially: Bool, selectExercise: @escaping (String) -> Void, selectCheckpoint: @escaping (String) -> Void) {
-        self.chapter = chapter
-        self.states = states
-        self.evidence = evidence
-        self.selectedExerciseID = selectedExerciseID
-        self.selectExercise = selectExercise
-        self.selectCheckpoint = selectCheckpoint
-        _isExpanded = State(initialValue: expandsInitially)
-    }
-
-    private var masteredCount: Int {
-        chapter.exercises.filter { states[$0.id]?.status == .mastered }.count
-    }
-
-    private var isAccredited: Bool {
-        chapter.exercises.allSatisfy { states[$0.id]?.chapterAccredited == true }
-    }
-
-    var body: some View {
-        iOSStudioPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                DisclosureGroup(isExpanded: $isExpanded) {
-                    VStack(spacing: 8) {
-                        ForEach(chapter.exercises, id: \.id) { exercise in
-                            iOSCourseExerciseRow(
-                                exercise: exercise,
-                                state: states[exercise.id],
-                                evidence: evidence,
-                                isSelected: selectedExerciseID == exercise.id,
-                                selectExercise: selectExercise
-                            )
-                        }
-                    }
-                    .padding(.top, 10)
-                } label: {
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack {
-                            Text(chapter.title).font(.headline).foregroundStyle(iOSStudioDesign.primary)
-                            Spacer()
-                            Text(isAccredited ? "Acreditado" : "\(masteredCount) / \(chapter.exercises.count)")
-                                .font(.caption.bold().monospacedDigit()).foregroundStyle(iOSStudioDesign.secondary)
-                        }
-                        ProgressView(value: Double(masteredCount), total: Double(max(1, chapter.exercises.count)))
-                            .tint(iOSStudioDesign.accent)
-                    }
-                }
-                if let checkpoint = chapter.checkpointExercise {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Prueba del bloque · tempo de aprendizaje · ritmo completo · 70 %")
-                                .font(.caption.bold()).foregroundStyle(iOSStudioDesign.accent)
-                            Text("Acredita el capítulo sin completar cada ejercicio básico. Los checkpoints futuros guardan su resultado y se activan al acreditar la ruta previa.")
-                                .font(.caption2).foregroundStyle(iOSStudioDesign.secondary)
-                        }
-                        Spacer(minLength: 4)
-                        Button { selectCheckpoint(checkpoint.id) } label: {
-                            Label("Hacer prueba", systemImage: "forward.fill")
-                                .font(.caption.bold()).padding(.vertical, 7)
-                        }
-                        .buttonStyle(.borderedProminent).tint(iOSStudioDesign.accent).foregroundStyle(iOSStudioDesign.canvas)
-                    }
-                    .padding(10).background(iOSStudioDesign.raised, in: RoundedRectangle(cornerRadius: 9))
-                }
-            }
-        }
-    }
-}
-
 private struct iOSCourseExerciseRow: View {
     let exercise: Exercise
     let state: CourseLevelState?
@@ -4860,22 +4984,7 @@ private struct iOSCourseAwardBadge: View {
     let award: TempoAward
 
     var body: some View {
-        HStack(spacing: 3) {
-            switch award {
-            case .stars(let count):
-                Text(String(repeating: "★", count: count))
-            case .trophies(let count):
-                Text(String(repeating: "🏆", count: count))
-            }
-        }
-        .font(.caption.bold())
-        .foregroundStyle(isTrophy ? iOSStudioDesign.regular : .yellow)
-        .accessibilityLabel(award.label)
-    }
-
-    private var isTrophy: Bool {
-        if case .trophies = award { return true }
-        return false
+        TempoAwardBadge(award: award)
     }
 }
 

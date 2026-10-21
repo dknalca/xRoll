@@ -20,9 +20,22 @@ un dispositivo concreto.
 2. Conecta el M-Vave antes de abrir la aplicación. Si no aparece, usa
    **Pads y layout** para elegir la entrada y asignar los sonidos que
    tenga tu controlador; puedes omitir los que no uses.
-3. En **Curso**, elige un bloque y un ejercicio. Ajusta BPM y vueltas si hace falta.
+3. En **Curso**, pulsa **Empezar nivel** en la estación actual. El tren marca tu
+   parada y las demás estaciones quedan resumidas.
 4. Usa **Escuchar y colocar** para oír el patrón. Después pulsa
    **Empezar práctica**. Hay dos compases para prepararse.
+
+## Estaciones y retos finales
+
+El curso tiene catorce estaciones. Cada una contiene niveles y un reto final que
+reúne sus ritmos. Al aprobar un nivel de la estación actual con patrón completo y al
+menos 70 %, pulsa **Continuar**; al llegar al reto, pulsa **Preparar reto final**.
+Su preparación usa el tempo de aprendizaje y el ritmo completo.
+
+Al completar una estación aparece una celebración con las estrellas del intento y
+**Siguiente parada**, que abre la primera estación pendiente. El progreso anterior
+se conserva. Puedes abrir otra estación para explorar o repetir un nivel conocido.
+El mapa, los textos y las acciones son comunes en Mac e iPhone.
 
 ## Redobles y transiciones
 
@@ -62,8 +75,8 @@ y alcanza el 70 %. Los retos de velocidad son opcionales. Si ya conoces un
 bloque, puedes hacer su prueba de ritmo completo sin tocar cada ejercicio básico;
 una prueba adelantada queda guardada y cuenta cuando la ruta previa esté
 superada. Los intentos por voces, fragmento o corrección no acreditan el curso.
-Tras un buen resultado completo, Resultado también permite explorar el siguiente
-ejercicio sin conceder acreditación curricular.
+En el recorrido, aprobar con una estrella al 70 % ya permite continuar; los retos
+de velocidad permanecen disponibles en Preparación.
 
 En cada ejercicio se muestra el premio de tempo más alto conseguido. Cuando ya
 se han ganado trofeos, estos sustituyen a las estrellas en la fila. Los ejercicios

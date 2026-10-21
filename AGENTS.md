@@ -5,14 +5,16 @@
 - Antes de tocar código, lee `CLAUDE.md` y consulta `docs/IMPLEMENTATION_ROADMAP.md`, `docs/RELEASE_CHECKLIST.md` y `docs/DECISIONS.md`; no rodees una decisión sin explicar por qué dejó de aplicar.
 - Revisa las decisiones posteriores que sustituyan reglas antiguas: D-033/D-034 cambian el gameplay a una pista por sonido, sin indicación de manos; la rejilla física de Equipo conserva sus 16 posiciones.
 - Documentación y comentarios en castellano; identificadores en inglés.
+- El curso conserva la metáfora ferroviaria: línea, estaciones y reto final de estación. Mapa, acciones y celebraciones deben usar las vistas compartidas de `CourseRailwayMap.swift` en macOS e iOS; consulta D-046 antes de cambiar esta presentación.
 
 ## Build y pruebas (desde la raíz)
 
 - SwiftPM requiere macOS 12+ y no tiene dependencias externas. CI ejecuta `swift build`, `swift test` y `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`, en ese orden.
-- Solo hay un target de pruebas, `XRollCoreTests`: `swift test --filter XRollCoreTests`. Para un caso concreto: `swift test --filter ResourceModelsTests/testLoadsTheBundledMIDIExerciseCatalog`.
+- SwiftPM tiene un target de pruebas, `XRollCoreTests`: `swift test --filter XRollCoreTests`. Para un caso concreto: `swift test --filter ResourceModelsTests/testLoadsTheBundledMIDIExerciseCatalog`. El proyecto Xcode añade `XRollUITests` para navegación en simulador; comando y fixtures en `docs/IOS_BUILD.md`.
 - Tras cambiar `Resources/` o `data/exercises/`, ejecuta `swift run xroll-preflight` antes de probar la app.
 - Ejecuta las CLI y `swift run xroll-pads` desde la raíz: buscan `Resources/` y `data/` en el directorio de ejecución, no en recursos SwiftPM. `scripts/build-app.sh` reconstruye `dist/xRoll.app` y reemplaza sus recursos empaquetados.
 - iOS usa `xRoll.xcodeproj`, scheme `xRoll` y deployment target 16.2 (SwiftPM declara 16). Comandos de simulador, firma e instalación: `docs/IOS_BUILD.md`.
+- Para probar en iPhone, genera y verifica `dist/ios-device/xRoll-unsigned.ipa` con `scripts/build-ios-ipa.sh`; el usuario lo instala con Sideloadly. No intentes instalar directamente en el iPhone ni ejecutar el script de despliegue USB.
 - Las opciones de las CLI están en `README.md`. Las pruebas automatizadas no requieren hardware; los diagnósticos MIDI físicos sí.
 
 ## Límites que afectan cambios

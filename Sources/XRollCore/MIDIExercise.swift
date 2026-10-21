@@ -125,7 +125,7 @@ public enum MIDIExerciseLoader {
         let exercise = Exercise(
             format: 1, id: metadata?.id ?? fileID, title: title ?? fileID.replacingOccurrences(of: "_", with: " ").capitalized,
             family: "midi", level: level, bpm: bpm, meter: [4, 4], bars: barCount,
-            grid: grid, repeats: 8, kit: kit.id, loop: nil, offset: 0, notes: notes, metadata: metadata
+            grid: grid, repeats: PracticeConfiguration.defaultRepeats(forBars: barCount), kit: kit.id, loop: nil, offset: 0, notes: notes, metadata: metadata
         )
         try exercise.validate(availableSounds: Set(kit.sounds.map(\.id)))
         return exercise

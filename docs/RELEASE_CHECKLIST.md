@@ -14,6 +14,19 @@
   choke abierto/cerrado, aislamiento de otros sonidos y reinicio del motor.
 - `zsh scripts/build-ios-ipa.sh` compila Release universal iPhone/iPad y verifica
   estructura ZIP, firma ad-hoc, arquitectura arm64, familias y recursos del IPA.
+- Las pruebas de PCM programado comprueban ganancia por golpe/claqueta, ataques
+  tras reutilizar nodos, choke, cancelación y límites/reutilización de la caché.
+- Regresiones de contenido: las nueve rutas de género conservan en el cierre
+  sus voces y posiciones rítmicas, y no exigen tres golpes simultáneos. Hip-hop
+  tiene 12 lecciones y las demás rutas 8; Reggae contiene grooves en todos sus compases.
+  Las frases no multiplican la duración inicial. Los umbrales de estrellas se
+  comprueban antes del redondeo y después de penalizar golpes extra.
+- `XRollUITests` comprueba diez rutas de navegación en simulador; CI conserva su
+  resultado. Los resultados sintéticos no validan calibración ni latencia física.
+- El recorrido se comprueba con una única estación actual y un reto final por
+  estación; solo celebra acreditaciones nuevas de patrón completo y se reconstruye
+  al reabrir SQLite. Las pruebas UI cubren mapa ferroviario, preparación del reto
+  y celebración → siguiente parada. Ambas apps compilan la misma vista compartida.
 
 ## Completado en hardware
 
@@ -47,8 +60,16 @@
 
 ## Validación pendiente de producto
 
+- Comprobar el recorrido en Mac e iPhone/iPad: vías, tren, legibilidad de las
+  estaciones y niveles, reto final y continuación a la parada correcta con el
+  historial real. El lenguaje y las acciones deben coincidir entre plataformas.
 - Repetir en iPhone/iPad las rutas de Resultados y la preparación de checkpoint
   indicadas en `docs/IOS_HARDWARE_TESTS.md`; la compilación no verifica su interacción.
+- Seleccionar una lección posterior desde Curso y confirmar que Preparación
+  muestra su nivel y arranca ese mismo ritmo, sin ofrecer «Empezar siguiente paso».
+- Repetir charles vivo por MIDI con la salida Bluetooth del caso reportado:
+  comprobar semicorcheas, golpes agrupados y abierto/cerrado con el nuevo choke
+  que protege ataques pendientes. PCM offline no confirma esa ruta física.
 - Medir 60 FPS con la escena de máxima densidad durante diez minutos.
 - En el ejercicio de semicorcheas de charles cerrado, confirmar a 160 BPM y
   también al tempo máximo que cada ataque se reproduce de inmediato, corta la

@@ -416,7 +416,7 @@ public enum RhythmScorer {
         let percentage = possible == 0 ? 0 : min(100, max(0, (earned - penalty) / possible * 100))
         let offsets = results.compactMap(\.offsetMilliseconds)
         let meanOffset = offsets.isEmpty ? nil : offsets.reduce(0, +) / Double(offsets.count)
-        let stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 50 ? 1 : 0
+        let stars = percentage >= 90 ? 3 : percentage >= 80 ? 2 : percentage >= 70 ? 1 : 0
         return ExerciseScore(
             hits: results,
             misses: misses,

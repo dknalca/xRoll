@@ -8,12 +8,24 @@ Xcode 14.2 detecta el iPad, pero no tiene el developer disk image para depurarlo
 
 La conexión de los pads mediante un cable Lightning–USB‑C directo no los hizo aparecer en CoreMIDI. En iPad con Lightning, repetir la prueba con un adaptador Lightning a USB para cámara; algunos controladores requieren además alimentación externa.
 
+## Verificación automática del 21/10/2026
+
+Se ejecutaron seis pruebas `XRollUITests` en iPhone 14 simulado con iOS 16.2:
+continuación directa, subida de tempo, regreso a Curso/Redobles, preparación de
+checkpoint y acceso al bloque previo pendiente. Todas pasaron. Las fixtures de
+resultado y calibración son sintéticas y solo existen en Debug para simulador;
+no sustituyen ninguna de las comprobaciones físicas siguientes.
+
 ## Pendientes
 
-- [ ] En la versión 1.0 (build 2), completar y repetir una prueba final: preparación identificada por bloque, objetivo y miniatura del patrón integrador, tempo de aprendizaje y ritmo completo.
+- [ ] En la versión 1.0 (build 5), comparar el mapa ferroviario con macOS: estaciones conectadas por vías, tren en la parada actual, reto de estación y mismas acciones y premios.
+- [ ] Preparar el reto final y comprobar objetivo, miniatura, tempo de aprendizaje y ritmo completo en ambas plataformas.
+- [ ] Aprobar un nivel con una estrella al 70 % y comprobar «Continuar» hacia el siguiente nivel, sin ofrecer una subida de tempo como siguiente tarea.
+- [ ] Completar una estación: comprobar celebración con tren, estrellas y «Siguiente parada». Repetir una estación conocida no debe anunciar otra acreditación nueva.
+- [ ] Aprobar una prueba adelantada y comprobar el mensaje con el nombre de la primera estación pendiente, el botón «Ir a la estación pendiente» y la acreditación posterior sin repetir la prueba aprobada.
 - [ ] Tras aprobar un checkpoint, comprobar que Inicio y Resultados sugieren el siguiente bloque pendiente; tras repasar un bloque cerrado, no deben regresar a sus lecciones.
 - [ ] Completar el último ejercicio de un bloque sin acreditarlo y comprobar que «Siguiente ejercicio» no salta al siguiente bloque. La exploración manual desde Curso sigue disponible.
-- [ ] Desde Resultados, usar «Siguiente ejercicio» y «Subir nivel»: deben entrar directamente en la cuenta atrás. «Ajustar práctica» abre preparación; «Volver al menú» regresa a Curso o Redobles según el ejercicio.
+- [ ] Desde Resultados, «Continuar» entra en el siguiente nivel y «Preparar reto final» abre su preparación. «Volver al mapa» regresa a Curso; Redobles conserva su navegación propia.
 - [ ] En la compilación actual, anotar en cada ruta el buffer de E/S solicitado y el efectivo que muestra Opciones y guarda la traza; repetir con altavoz y auriculares.
 - [ ] Con salida física, grabar 100 golpes aislados y comparar el inicio acústico de la claqueta neutra, la claqueta con tono alterado y los samples; conservar el audio original y resumir mediana y percentil 95.
 - [ ] Hacer redobles rápidos del mismo sonido y alternar charles abierto/cerrado; verificar que el re-disparo no acumula colas, no hace clics audibles y el acompañamiento conserva sus notas futuras.

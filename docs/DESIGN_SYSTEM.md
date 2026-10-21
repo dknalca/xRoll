@@ -78,9 +78,11 @@ EQUIPO
 Responde «¿qué debería practicar ahora?». Incluye recomendación principal, motivo, duración, continuidad del curso y problema que necesita atención.
 
 ### Curso
-Ruta por capítulos. La cabecera muestra nivel actual y niveles dominados; cada
-bloque muestra su progreso, el siguiente escalón y una puerta al ritmo
-completo. Las voces aisladas viven dentro de Preparación.
+Metro del Ritmo de catorce estaciones conectadas por vías. El tren identifica la
+parada actual. La cabecera destaca «Empezar nivel N» o «Preparar reto final»; la
+estación actual se abre y las demás quedan resumidas. Los niveles tienen numeración
+local y el reto de estación se señala con una bandera. Mapa, premios y acciones
+se presentan con la misma vista compartida en macOS e iOS.
 
 ### Preparación
 Objetivo, tempo, vueltas, ayudas, duración y estado compacto del equipo. Una acción principal.
@@ -93,14 +95,17 @@ Los tokens, la proyección y los efectos SpriteKit viven en `Sources/XRollPads/G
 La marca `XRollBrandMark` representa dos baquetas cruzadas sobre el impacto. Al abrir la app, `XRollLaunchView` presenta brevemente esa marca y atenúa su salida; `Reduce Motion` evita la escala animada. En Inicio se muestra una de las diez citas registradas con fuentes en `docs/DRUMMER_QUOTES.md`.
 
 ### Resultado
-Jerarquía: diagnóstico, precisión, tendencia, consistencia, microscopio temporal y recomendación. Las estrellas son secundarias.
+Al completar una estación nueva, jerarquía de celebración: tren, parada completada,
+estrellas y «Siguiente parada» hacia la primera estación pendiente. Al terminar
+la línea se ofrece «Ver mi recorrido». El diagnóstico y los detalles permanecen
+debajo de la celebración.
 
-Al completar un ritmo completo con dos estrellas, la acción siguiente ofrece
-«Subir nivel» para iniciar inmediatamente el siguiente escalón de BPM aún
-pendiente o «Siguiente ejercicio» para preparar la lección siguiente. Si ambas
-opciones existen, una aparece como acción secundaria. Al entrar en Preparación
-se preselecciona el primer escalón todavía no superado con al menos dos estrellas
-y ritmo completo; no se acreditan automáticamente otros requisitos.
+Al aprobar un nivel de la estación actual con ritmo completo y 70 %, aparece
+«Continuar» o «Preparar reto final», con «Volver al mapa» como salida secundaria.
+La continuación normal arranca el siguiente nivel; el reto abre su preparación.
+Los retos de velocidad se eligen desde Preparación. Fuera de esta continuación
+del recorrido se mantiene el resultado diagnóstico con precisión, tendencia,
+consistencia y herramientas de práctica opcionales.
 
 ### Progreso
 Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y gráficos superpuestos.
