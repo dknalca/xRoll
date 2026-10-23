@@ -8,17 +8,27 @@ Xcode 14.2 detecta el iPad, pero no tiene el developer disk image para depurarlo
 
 La conexión de los pads mediante un cable Lightning–USB‑C directo no los hizo aparecer en CoreMIDI. En iPad con Lightning, repetir la prueba con un adaptador Lightning a USB para cámara; algunos controladores requieren además alimentación externa.
 
-## Verificación automática del 21/10/2026
+## Verificación automática del 23/10/2026
 
-Se ejecutaron seis pruebas `XRollUITests` en iPhone 14 simulado con iOS 16.2:
+Se ejecutaron catorce pruebas `XRollUITests` en iPhone 14 simulado con iOS 16.2:
 continuación directa, subida de tempo, regreso a Curso/Redobles, preparación de
-checkpoint y acceso al bloque previo pendiente. Todas pasaron. Las fixtures de
-resultado y calibración son sintéticas y solo existen en Debug para simulador;
-no sustituyen ninguna de las comprobaciones físicas siguientes.
+checkpoint y acceso al bloque previo pendiente, además de tempo de aprendizaje,
+recuperación gradual, mapa ferroviario y pads táctiles compactos (rotación y
+frase de ocho sonidos). Todas pasaron. Las fixtures de resultado y calibración
+son sintéticas y solo existen en Debug para simulador; no sustituyen ninguna de
+las comprobaciones físicas siguientes.
 
 ## Pendientes
 
-- [ ] En la versión 1.0 (build 5), comparar el mapa ferroviario con macOS: estaciones conectadas por vías, tren en la parada actual, reto de estación y mismas acciones y premios.
+- [ ] En la versión 1.0 (build 12), comparar el mapa ferroviario con macOS: quince estaciones conectadas por vías, tren en la parada actual, Jazz básico/intermedio, reto de estación y mismas acciones y premios.
+- [ ] Pausar una práctica y cambiar la ruta/frecuencia/buffer: reanudar no debe reutilizar una compensación de la ruta anterior, tampoco si el cambio efectivo ocurre al activar audio.
+- [ ] Exportar el historial JSON y volver a importarlo en la misma instalación: no debe añadir otra copia de los intentos recién exportados. Probar también un archivo inválido y confirmar que no guarda un lote parcial.
+- [ ] En una frase con silencios y entradas a mitad de compás, comprobar que «Entra …» solo anuncia sonidos nuevos y que la banda llega al primer golpe real. En Transferir no debe mostrar entradas ni nombres de sonido.
+- [ ] Aprobar a 160 BPM durante menos de 16 compases y reabrir la lección: Nivel dios debe seguir pendiente y preparar al menos 16 compases, sin anunciar todos los premios como completados.
+- [ ] Abrir una lección pendiente y comprobar el tempo de aprendizaje real y el criterio visible de avance. Los retos de velocidad deben quedar como opciones plegadas.
+- [ ] Fallar un patrón completo: «Reintentar» debe mantener el ejercicio, activar la guía y bajar cuatro BPM. Tras mejorarlo, «Continuar» debe subir 2–4 BPM hasta el objetivo, sin acreditar el intento lento ni saltar de ejercicio.
+- [ ] Sin MIDI, practicar bombo/caja y una frase de ocho sonidos: mostrar solo los pads necesarios, comprobar nombres, tamaños, todos los toques y giro sin cerrar ni reiniciar la sesión.
+- [ ] Calibrar con el pad único de charles. En Equipo, confirmar que la rejilla sigue teniendo 16 posiciones.
 - [ ] Preparar el reto final y comprobar objetivo, miniatura, tempo de aprendizaje y ritmo completo en ambas plataformas.
 - [ ] Aprobar un nivel con una estrella al 70 % y comprobar «Continuar» hacia el siguiente nivel, sin ofrecer una subida de tempo como siguiente tarea.
 - [ ] Completar una estación: comprobar celebración con tren, estrellas y «Siguiente parada». Repetir una estación conocida no debe anunciar otra acreditación nueva.

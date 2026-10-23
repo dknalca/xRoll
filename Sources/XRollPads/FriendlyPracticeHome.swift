@@ -166,6 +166,9 @@ struct ResultsHome: View {
                 if let victory = model.worldVictory {
                     CourseStationCompletionBanner(completion: victory, stars: model.lastScoreStars,
                         continueAction: model.continueWorldCampaign)
+                } else if let recovery = model.learningRecovery {
+                    CourseLevelPassedBanner(title: recovery.title, reason: recovery.message, actionTitle: recovery.actionTitle,
+                        continueAction: model.performResultAction, returnToMap: model.dismissResults)
                 } else if model.nextCampaignLevel != nil {
                     CourseLevelPassedBanner(reason: model.resultActionReason, actionTitle: model.resultActionTitle,
                         continueAction: model.performResultAction, returnToMap: model.dismissResults)
@@ -242,7 +245,7 @@ struct ResultsHome: View {
                     }
                 }
                 }
-                if model.worldVictory == nil, model.nextCampaignLevel == nil { StagePanel {
+                if model.worldVictory == nil, model.nextCampaignLevel == nil, model.learningRecovery == nil { StagePanel {
                     Text("3 · QUÉ HACER AHORA").font(.studioLabel).foregroundColor(StudioDesign.accent)
                     if !model.microLessonFeedback.isEmpty {
                         Label(model.microLessonFeedback, systemImage: "sparkles")
@@ -450,7 +453,6 @@ struct PreparationHome: View {
                 checkpointAssessmentPanel
             } else {
                 objectivePanel
-                tempoLevelSelector
                 VStack(alignment: .leading, spacing: 10) {
                     Text(model.trainingPhase == .discover
                          ? "Escucha una vuelta sin puntuación; después vuelve aquí para tocar."
@@ -560,6 +562,13 @@ struct PreparationHome: View {
             Text("Objetivo").font(.headline)
             Text(model.lessonGoal).font(.studioBody).foregroundColor(StudioDesign.textSecondary)
             if let exercise = model.chosen {
+                if CourseLessonCriteria.isPassed(exercise, evidence: model.courseEvidence) {
+                    Text("Lección superada. Los tempos superiores son retos opcionales.")
+                        .font(.subheadline.weight(.semibold)).foregroundColor(StudioDesign.accent)
+                } else {
+                    Text("Para avanzar: ritmo completo a \(CourseLessonCriteria.targetBPM(for: exercise)) BPM y al menos 70 %.")
+                        .font(.subheadline.weight(.semibold)).foregroundColor(StudioDesign.accent)
+                }
                 if let best = TempoLadder.highestPassedStep(for: exercise, evidence: model.courseEvidence) {
                     Text("Mejor nivel superado: \(best.label) · \(best.bpm) BPM · \(best.award.label)")
                         .font(.caption).foregroundColor(StudioDesign.accent)
@@ -568,32 +577,6 @@ struct PreparationHome: View {
                     .font(.caption).foregroundColor(StudioDesign.textSecondary)
             }
             HStack { StudioStatusPill(title: "\(model.selectedBPM) BPM"); StudioStatusPill(title: "\(model.selectedRepeats) vueltas"); StudioStatusPill(title: model.status, active: model.status.contains("MIDI")) }
-        }
-    }
-
-    private var tempoLevelSelector: some View {
-        StagePanel {
-            Text("NIVEL DE TEMPO").font(.studioLabel).foregroundColor(StudioDesign.accent)
-            ScrollView(.horizontal) {
-                HStack(spacing: 7) {
-                    ForEach(Array(model.tempoPracticeOptions.enumerated()), id: \.offset) { index, step in
-                        let selected = model.selectedBPM == step.bpm
-                        Button { model.selectTempoTier(index) } label: {
-                            VStack(spacing: 2) {
-                                Text(step.label).font(.caption.bold()).lineLimit(1)
-                                Text("\(step.bpm) BPM").font(.caption2.monospacedDigit())
-                            }
-                            .frame(minWidth: 78).padding(.horizontal, 5).padding(.vertical, 8)
-                            .foregroundColor(selected ? StudioDesign.canvas : StudioDesign.textPrimary)
-                            .background(selected ? StudioDesign.accent : StudioDesign.surfaceRaised, in: RoundedRectangle(cornerRadius: 9))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Seleccionar nivel \(step.label), \(step.bpm) BPM")
-                    }
-                }
-            }
-            Text("El tempo de aprendizaje basta para avanzar; los niveles más rápidos son retos opcionales.")
-                .font(.caption2).foregroundColor(StudioDesign.textSecondary)
         }
     }
 
@@ -1109,8 +1092,8 @@ private enum CourseBlock: CaseIterable {
         case .rock: return exercise.id.hasPrefix("20_rock_")
         case .funk: return exercise.id.hasPrefix("21_funk_")
         case .blues: return exercise.id.hasPrefix("22_blues_")
-        case .jazz: return exercise.id.hasPrefix("23_jazz_")
-        case .extra: return !exercise.id.hasPrefix("00_i_") && !exercise.id.hasPrefix("01_fund_") && !exercise.id.hasPrefix("02_sub_") && !exercise.id.hasPrefix("03_coord_") && !exercise.id.hasPrefix("04_groove_") && !exercise.id.hasPrefix("10_hh_") && !exercise.id.hasPrefix("hh_") && !exercise.id.hasPrefix("20_rock_") && !exercise.id.hasPrefix("21_funk_") && !exercise.id.hasPrefix("22_blues_") && !exercise.id.hasPrefix("23_jazz_") && !exercise.id.hasPrefix("30_fill_")
+        case .jazz: return exercise.metadata?.chapter.hasPrefix("jazz") == true || exercise.id.hasPrefix("23_jazz_")
+        case .extra: return !exercise.id.hasPrefix("00_i_") && !exercise.id.hasPrefix("01_fund_") && !exercise.id.hasPrefix("02_sub_") && !exercise.id.hasPrefix("03_coord_") && !exercise.id.hasPrefix("04_groove_") && !exercise.id.hasPrefix("10_hh_") && !exercise.id.hasPrefix("hh_") && !exercise.id.hasPrefix("20_rock_") && !exercise.id.hasPrefix("21_funk_") && !exercise.id.hasPrefix("22_blues_") && !exercise.id.hasPrefix("23_jazz_") && !exercise.id.hasPrefix("28_jazz_") && !exercise.id.hasPrefix("30_fill_")
         }
     }
 }

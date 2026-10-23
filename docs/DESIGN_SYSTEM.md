@@ -78,7 +78,7 @@ EQUIPO
 Responde «¿qué debería practicar ahora?». Incluye recomendación principal, motivo, duración, continuidad del curso y problema que necesita atención.
 
 ### Curso
-Metro del Ritmo de catorce estaciones conectadas por vías. El tren identifica la
+Metro del Ritmo de quince estaciones conectadas por vías. El tren identifica la
 parada actual. La cabecera destaca «Empezar nivel N» o «Preparar reto final»; la
 estación actual se abre y las demás quedan resumidas. Los niveles tienen numeración
 local y el reto de estación se señala con una bandera. Mapa, premios y acciones
@@ -86,6 +86,9 @@ se presentan con la misma vista compartida en macOS e iOS.
 
 ### Preparación
 Objetivo, tempo, vueltas, ayudas, duración y estado compacto del equipo. Una acción principal.
+Una lección pendiente se abre a su tempo de aprendizaje, con el criterio visible
+de ritmo completo y 70 %. Los seis retos de velocidad quedan dentro de las
+opciones plegadas; no compiten con empezar el ritmo.
 
 ### Práctica
 Solo nombre, BPM, vuelta y pausa; tras cinco aciertos aparece una racha compacta. Sin score cambiante ni estrellas. La escena SpriteKit ocupa el escenario principal: autopista trapezoidal de profundidad suave, slots físicos fijos, receptores en el plano de impacto y feedback en una banda separada debajo de los pads. El acompañamiento se selecciona por estilo/BPM y puede cambiarse en Preparación. El movimiento temporal sigue gobernado por el reloj de audio.
@@ -106,6 +109,12 @@ La continuación normal arranca el siguiente nivel; el reto abre su preparación
 Los retos de velocidad se eligen desde Preparación. Fuera de esta continuación
 del recorrido se mantiene el resultado diagnóstico con precisión, tendencia,
 consistencia y herramientas de práctica opcionales.
+
+Si un patrón completo pendiente necesita apoyo, el panel compartido ofrece
+«Reintentar» con guía completa y un tempo algo menor. Tras un buen intento lento,
+«Continuar» aumenta 2–4 BPM hacia el objetivo conservando el mismo ejercicio.
+El título es «Vamos paso a paso» o «¡Buen ritmo!», sin anunciar un nivel superado
+hasta que se cumpla su criterio real. La acción no pide configurar un rescate.
 
 ### Progreso
 Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y gráficos superpuestos.

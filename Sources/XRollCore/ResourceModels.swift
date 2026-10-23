@@ -15,6 +15,7 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case invalidHand(String)
     case duplicateNoteNumber(Int)
     case missingSampleFiles([String])
+    case emptyExerciseCatalog
 
     public var errorDescription: String? {
         switch self {
@@ -46,6 +47,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "La nota MIDI \(note) esta asignada a mas de un sonido."
         case .missingSampleFiles(let files):
             return "Faltan \(files.count) samples obligatorios: \(files.joined(separator: ", "))."
+        case .emptyExerciseCatalog:
+            return "El catálogo no contiene ejercicios MIDI."
         }
     }
 }
@@ -199,6 +202,8 @@ public struct ResourceCatalog {
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         ).filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+        guard !urls.isEmpty else { throw ResourceValidationError.emptyExerciseCatalog }
 
         let availableSounds = Set(kit.sounds.map(\.id))
         let exercises = try urls.enumerated().map { index, url -> Exercise in

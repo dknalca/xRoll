@@ -6,6 +6,8 @@
 - Revisa las decisiones posteriores que sustituyan reglas antiguas: D-033/D-034 cambian el gameplay a una pista por sonido, sin indicación de manos; la rejilla física de Equipo conserva sus 16 posiciones.
 - Documentación y comentarios en castellano; identificadores en inglés.
 - El curso conserva la metáfora ferroviaria: línea, estaciones y reto final de estación. Mapa, acciones y celebraciones deben usar las vistas compartidas de `CourseRailwayMap.swift` en macOS e iOS; consulta D-046 antes de cambiar esta presentación.
+- La práctica táctil iOS usa solo los sonidos activos del ejercicio en una rejilla virtual compacta (D-048). Equipo y el mapeo MIDI conservan las 16 posiciones físicas; no apliques la compactación al controlador real.
+- La autopista de práctica también dibuja solo los sonidos presentes en la timeline y añade avisos de entrada, cierre y última vuelta (D-052); no reserva carriles para sonidos ausentes.
 
 ## Build y pruebas (desde la raíz)
 

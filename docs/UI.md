@@ -19,22 +19,53 @@ después del tercer tiempo" sin estimar píxeles.
 
 ## Carriles
 
-La ejecución usa dieciséis posiciones, una por pad físico. Los diez sonidos
-ocupan su posición y los seis pads libres se ven como huecos apagados. No se
-comprimen, porque hacerlo cambiaria las distancias relativas del controlador.
+La autopista muestra un carril por sonido presente en la sesión. Los sonidos que
+no participan no ocupan espacio: al haber menos carriles son más anchos y las
+notas se leen antes. La distribución se fija al preparar la práctica y se
+mantiene durante toda la frase, incluidos los compases en los que un sonido
+guarda silencio.
 
-En los 1280 puntos de ancho logico de la maquina objetivo quedan unos 80 por
-posicion. La vista de ejecucion ocupa la pantalla completa y no muestra paneles
-laterales; los controles se presentan antes y despues del ejercicio.
+La pista permanece centrada y tiene un ancho máximo según sus voces, medido en
+la línea de golpe: 320/400 pt para una/dos, 600/720 pt para tres/cuatro y
+800/880/960/1.000 pt para cinco a ocho. Nunca supera el 92 % del ancho disponible.
+Ampliar la ventana por encima de ese límite añade márgenes oscuros, no estira los
+carriles. La altura y la anticipación temporal no cambian.
+
+Notas y receptores usan la misma proyección: los receptores se estrechan con la
+pista, mientras las notas tienen un tamaño base máximo de 44 × 34 pt y se reducen
+si falta espacio en el carril. La decoración lateral ocupa solo una franja tenue
+de hasta 96 pt junto a la autopista; con margen suficiente el indicador de vuelta
+queda fuera de los carriles.
 
 **El orden lo dicta el mapeo de pads, no este documento.** La rejilla fisica de
 4x4 se aplana asi: fila inferior de izquierda a derecha, luego la siguiente
 hacia arriba. Si el usuario remapea, los carriles se reordenan solos.
 
-**Los sonidos que no participan en el ejercicio se muestran apagados, no se
-retiran.** Los pads libres tambien conservan su hueco. Retirarlos recolocaria los
-demas y cada ejercicio tendria una geometria distinta, que es lo que destruye la
-memoria espacial.
+Los receptores mantienen el nombre del sonido junto a la línea de golpe. Si el
+carril es ancho se usa el nombre completo del kit; en frases con muchas voces se
+abrevia para conservar la legibilidad.
+
+Esto solo afecta a la escena de práctica. La rejilla física de Equipo conserva
+sus 16 posiciones y el mapeo MIDI no cambia (D-033, D-048). Un golpe extra en un
+pad fuera de la frase sigue mostrando el juicio, aunque no tenga carril.
+
+## Avisos de cambio
+
+Antes de una variación importante aparece un aviso breve sobre la autopista y
+una banda de color cruza la rejilla en el momento del cambio:
+
+- «Entra …» cuando aparece por primera vez un sonido nuevo tras el compás inicial;
+  la banda apunta a su primer golpe real, no al comienzo del compás.
+- «Se acerca el cierre» antes del último compás de la última vuelta.
+- «Última vuelta» al empezar la repetición final.
+
+Solo se muestra un aviso a la vez: primero el cambio más próximo y, si coincide
+en el tiempo, la entrada de un sonido tiene prioridad sobre el cierre.
+El aviso anticipa como máximo 2,4 segundos y nunca repite la
+misma indicación en cada vuelta. Es una ayuda visual: no altera notas, matching
+ni puntuación. Un sonido que regresa tras un silencio no genera otra entrada.
+En Transferir se ocultan las entradas y sus nombres; se mantienen los avisos
+de cierre y última vuelta.
 
 ## Identidad visual de las notas
 
@@ -123,6 +154,11 @@ Al completar una estación nueva, la celebración encabeza Resultado: tren,
 estrellas del intento, siguiente parada y «Siguiente parada». Al finalizar
 la línea ofrece «Ver mi recorrido». Los detalles siguen consultables debajo.
 La celebración usa elementos estáticos y no añade movimiento obligatorio.
+Una lección completa pendiente que cuesta ofrece apoyo automático del mismo
+patrón con guía completa, menos repeticiones y cuatro BPM menos. Un buen intento
+lento propone acercarse al objetivo en pasos de 2–4 BPM; no se sustituye por un
+salto al siguiente premio de velocidad. La acreditación sigue ligada al tempo
+objetivo y al 70 %, y las prácticas parciales conservan su flujo específico.
 
 Orden:
 1. diagnóstico en lenguaje claro;
@@ -133,7 +169,7 @@ Orden:
 
 ## Metro del Ritmo
 
-Los catorce bloques principales son estaciones conectadas por vías. El tren se
+Los quince bloques principales son estaciones conectadas por vías. El tren se
 sitúa en la parada actual. Curso destaca «Empezar nivel N» o «Preparar reto final».
 La estación actual queda abierta; las otras se resumen con su estado y contador.
 El reto final de cada estación se señala con una bandera. Los nombres cortos y
@@ -145,7 +181,32 @@ El reto final reúne las habilidades de la estación y usa el tempo de aprendiza
 Mapa, premios, acciones y celebraciones se renderizan con las mismas vistas
 compartidas en Mac e iPhone; cada coordinador adapta únicamente la navegación.
 
+### Ilustraciones ferroviarias
+
+La tarjeta del siguiente nivel incluye una escena vectorial de dos vagones,
+ciudad, vías y andén con el número de estación. Cada parada tiene un pequeño
+distintivo musical; al completarla, la escena usa acentos dorados y destellos.
+Los paneles destacados añaden un degradado suave para separar sus planos.
+
+Los dibujos viven en `RailwayArtwork.swift`, compartido entre macOS e iOS.
+Son estáticos, no reciben toques y se ocultan a VoiceOver: nombre, progreso y
+acciones siguen siendo texto accesible. No añaden controles ni aparecen sobre
+la escena de práctica.
+
 ## Layouts
+
+### Práctica táctil iOS
+
+Sin controlador MIDI se muestran solo los botones de los sonidos que debe tocar
+el usuario. Cada sonido ocupa un botón salvo objetivos explícitos por rol/pad.
+La selección incluye todos los compases de la sesión y permanece fija al tocar;
+en calibración se muestra solo el charles. Los nombres salen del kit.
+
+La rejilla es virtual y compacta: ajusta filas y columnas, amplía la última fila
+incompleta y reduce la altura del panel cuando hay pocas voces. En horizontal,
+una a tres voces usan una columna lateral más estrecha para devolver anchura al
+escenario. Dibujo, toques y marcos de VoiceOver comparten la misma geometría.
+Esto no transforma el mapa físico de Equipo ni la entrada MIDI (D-048).
 
 `Equipo → Pads y layout` permite elegir Core, Drum Kit o Mirror. Cada preset
 conserva las notas MIDI físicas aprendidas y actualiza la vista 4×4.

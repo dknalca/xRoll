@@ -20,6 +20,7 @@ struct CourseRailwayMap: View {
 
             if let station = stations.first(where: \.isCurrent), let level = station.nextLevel {
                 RailwayPanel(highlighted: true) {
+                    RailwayJourneyArtwork(stationNumber: station.number).frame(height: 112)
                     Text("ESTACIÓN \(station.number) · \(station.title.uppercased())")
                         .font(.caption.bold()).foregroundColor(RailwayColors.accent)
                     Label(level.label, systemImage: level.isBoss ? "flag.checkered" : "tram.fill").font(.title2.bold())
@@ -31,6 +32,7 @@ struct CourseRailwayMap: View {
                 }
             } else if !stations.isEmpty {
                 RailwayPanel {
+                    RailwayJourneyArtwork(stationNumber: stations.count, completed: true).frame(height: 112)
                     Label("¡Has llegado al final de la línea!", systemImage: "tram.fill").font(.title2.bold())
                     Text("Todas las estaciones completadas. Puedes volver a tus ritmos favoritos.")
                         .foregroundColor(RailwayColors.secondary)
@@ -90,7 +92,8 @@ private struct RailwayStationCard: View {
                 }.padding(.top, 12)
             } label: {
                 VStack(alignment: .leading, spacing: 7) {
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(alignment: .center, spacing: 8) {
+                        RailwayStationEmblem(chapter: station.id, completed: station.isCompleted)
                         Text("\(station.number) · \(station.title)").font(.headline)
                         Spacer(minLength: 4)
                         Text("\(station.completedLevelCount)/\(station.levels.count)").font(.caption.bold().monospacedDigit())
@@ -161,8 +164,7 @@ struct CourseStationCompletionBanner: View {
 
     var body: some View {
         RailwayPanel(highlighted: true) {
-            Image(systemName: "tram.fill").font(.system(size: 52)).foregroundColor(RailwayColors.accent)
-                .frame(maxWidth: .infinity).accessibilityHidden(true)
+            RailwayJourneyArtwork(stationNumber: completion.worldNumber, completed: true).frame(height: 112)
             Text(completion.title).font(.largeTitle.bold()).accessibilityIdentifier("course.arrival.title")
             Text(completion.message).font(.headline).foregroundColor(RailwayColors.secondary)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("course.arrival.message")
@@ -175,6 +177,7 @@ struct CourseStationCompletionBanner: View {
 }
 
 struct CourseLevelPassedBanner: View {
+    var title = "¡Nivel superado!"
     let reason: String
     let actionTitle: String
     let continueAction: () -> Void
@@ -182,7 +185,7 @@ struct CourseLevelPassedBanner: View {
 
     var body: some View {
         RailwayPanel {
-            Label("¡Nivel superado!", systemImage: "star.circle.fill").font(.title2.bold()).foregroundColor(RailwayColors.accent)
+            Label(title, systemImage: "star.circle.fill").font(.title2.bold()).foregroundColor(RailwayColors.accent)
             Text(reason).font(.subheadline).foregroundColor(RailwayColors.secondary)
             RailwayPrimaryButton(title: actionTitle, symbol: "arrow.right.circle.fill", identifier: "course.continue", action: continueAction)
             Button("Volver al mapa", action: returnToMap)
@@ -230,7 +233,9 @@ private struct RailwayPanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12, content: content)
             .frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            .background(RoundedRectangle(cornerRadius: 14).fill(RailwayColors.panel))
+            .background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(
+                colors: [highlighted ? RailwayColors.raised : RailwayColors.panel, RailwayColors.panel],
+                startPoint: .topLeading, endPoint: .bottomTrailing)))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(highlighted ? RailwayColors.accent : RailwayColors.track, lineWidth: 1))
     }
 }

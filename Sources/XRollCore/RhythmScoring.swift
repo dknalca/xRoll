@@ -69,6 +69,106 @@ public struct ExerciseTimeline: Equatable {
     }
 }
 
+/// Aviso breve previo a un cambio relevante del ejercicio. Es una ayuda de
+/// presentación: no altera notas, matching ni puntuación.
+public struct PracticeTransitionCue: Equatable {
+    public enum Kind: Equatable {
+        case soundEnters(String)
+        case closing
+        case lastRound
+    }
+
+    public let kind: Kind
+    /// Momento en el que ocurre el cambio, relativo al inicio de la frase.
+    public let timeMilliseconds: Double
+    /// Ventana durante la que se muestra el aviso.
+    public let leadMilliseconds: Double
+
+    public init(kind: Kind, timeMilliseconds: Double, leadMilliseconds: Double) {
+        self.kind = kind
+        self.timeMilliseconds = timeMilliseconds
+        self.leadMilliseconds = leadMilliseconds
+    }
+}
+
+/// Calcula los cambios importantes de una frase ya programada. Solo anuncia la
+/// primera aparición del patrón: repetir el aviso en cada vuelta distraería más
+/// de lo que ayuda.
+public enum PracticeTransitionCuePlanner {
+    public static func cues(for timeline: ExerciseTimeline) -> [PracticeTransitionCue] {
+        let bar = timeline.barDurationMilliseconds
+        let pattern = timeline.patternDurationMilliseconds
+        guard bar > 0, pattern > 0, timeline.bars > 0, !timeline.notes.isEmpty else { return [] }
+        let lead = min(bar, 2_400)
+        let firstPatternNotes = timeline.notes.prefix { $0.timeMilliseconds < pattern }
+        var soundsByBar = Array(repeating: Set<String>(), count: timeline.bars)
+        var firstTimeByBar = Array(repeating: [String: Double](), count: timeline.bars)
+        for note in firstPatternNotes {
+            let barIndex = min(timeline.bars - 1, max(0, Int(note.timeMilliseconds / bar)))
+            soundsByBar[barIndex].insert(note.sound)
+            let previous = firstTimeByBar[barIndex][note.sound] ?? note.timeMilliseconds
+            firstTimeByBar[barIndex][note.sound] = min(previous, note.timeMilliseconds)
+        }
+
+        var cues = [PracticeTransitionCue]()
+        // Las voces del primer compás forman el groove inicial. Un silencio
+        // posterior no convierte su regreso en la entrada de un sonido nuevo.
+        var seenSounds = soundsByBar[0]
+        if timeline.bars > 1 {
+            for barIndex in 1..<timeline.bars {
+                let entering = soundsByBar[barIndex].subtracting(seenSounds)
+                seenSounds.formUnion(soundsByBar[barIndex])
+                if let sound = entering.min(by: {
+                    let left = firstTimeByBar[barIndex][$0] ?? .greatestFiniteMagnitude
+                    let right = firstTimeByBar[barIndex][$1] ?? .greatestFiniteMagnitude
+                    return left == right ? $0 < $1 : left < right
+                }) {
+                    cues.append(PracticeTransitionCue(
+                        kind: .soundEnters(sound),
+                        timeMilliseconds: firstTimeByBar[barIndex][sound] ?? Double(barIndex) * bar,
+                        leadMilliseconds: lead
+                    ))
+                }
+            }
+        }
+
+        let repeats = max(1, Int(((timeline.notes.last?.timeMilliseconds ?? 0) / pattern).rounded(.down)) + 1)
+        if repeats > 1 {
+            cues.append(PracticeTransitionCue(
+                kind: .lastRound,
+                timeMilliseconds: Double(repeats - 1) * pattern,
+                leadMilliseconds: lead
+            ))
+        }
+        if timeline.bars > 1 {
+            cues.append(PracticeTransitionCue(
+                kind: .closing,
+                timeMilliseconds: Double(repeats - 1) * pattern + Double(timeline.bars - 1) * bar,
+                leadMilliseconds: lead
+            ))
+        }
+
+        var result = [PracticeTransitionCue]()
+        for cue in cues.sorted(by: {
+            $0.timeMilliseconds == $1.timeMilliseconds
+                ? priority($0.kind) < priority($1.kind)
+                : $0.timeMilliseconds < $1.timeMilliseconds
+        }) {
+            if let last = result.last, abs(last.timeMilliseconds - cue.timeMilliseconds) < 0.001 { continue }
+            result.append(cue)
+        }
+        return result
+    }
+
+    private static func priority(_ kind: PracticeTransitionCue.Kind) -> Int {
+        switch kind {
+        case .lastRound: return 0
+        case .soundEnters: return 1
+        case .closing: return 2
+        }
+    }
+}
+
 public struct ScoringWindows: Equatable {
     public let perfectMilliseconds: Double
     public let goodMilliseconds: Double

@@ -4,6 +4,193 @@ import AVFoundation
 @testable import XRollCore
 
 final class ResourceModelsTests: XCTestCase {
+    func testEveryPendingLessonPreparesAtATempoThatActuallyAllowsCourseProgress() throws {
+        for node in try campaignGraph().nodes {
+            let lesson = node.exercise
+            let prepared = CourseLessonCriteria.preparationStep(for: lesson, evidence: [])
+            XCTAssertEqual(prepared.bpm, CourseLessonCriteria.targetBPM(for: lesson), lesson.id)
+            let attempt = CourseAttemptEvidence(exerciseID: lesson.id, bpm: prepared.bpm, score: 70, stars: 1,
+                trainingContext: .init(evaluationScope: .fullPattern, completedBars: lesson.bars))
+            XCTAssertTrue(CourseLessonCriteria.isPassed(lesson, evidence: [attempt]), lesson.id)
+            let optional = CourseLessonCriteria.preparationStep(for: lesson, evidence: [attempt])
+            XCTAssertGreaterThan(optional.bpm, prepared.bpm,
+                "Una lección superada no debe volver a un tempo inferior: \(lesson.id)")
+            XCTAssertFalse(TempoLadder.isPassed(optional, exerciseID: lesson.id, evidence: [attempt]), lesson.id)
+        }
+    }
+
+    func testPassedLessonPreparesTheNextHigherChallengeInsteadOfRepeatingALowerStep() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "02_sub_03_groove")).exercise
+        let attempt = CourseAttemptEvidence(exerciseID: lesson.id, bpm: 72, score: 70, stars: 1,
+            trainingContext: .init(evaluationScope: .fullPattern, completedBars: lesson.bars))
+        let next = CourseLessonCriteria.preparationStep(for: lesson, evidence: [attempt])
+        XCTAssertEqual(next.bpm, 85, "Superar 72 BPM no debe proponer el escalón inferior de 70 BPM")
+        XCTAssertEqual(next.label, "Base")
+    }
+
+    func testOptionalTempoChallengeKeepsUnmetDurationWithoutGrantingOtherTempoAwards() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "02_sub_03_groove")).exercise
+        func attempt(bpm: Int, bars: Int, scope: EvaluationScope = .fullPattern) -> CourseAttemptEvidence {
+            .init(exerciseID: lesson.id, bpm: bpm, score: 90, stars: 3,
+                trainingContext: .init(evaluationScope: scope, completedBars: bars))
+        }
+        let short = attempt(bpm: 160, bars: 4)
+        let pending = try XCTUnwrap(CourseLessonCriteria.optionalTempoStep(for: lesson, evidence: [short]))
+        XCTAssertEqual(pending.bpm, 160, "Faltan los 16 compases, no más velocidad")
+        XCTAssertEqual(pending.minimumBars, 16)
+        XCTAssertEqual(CourseLessonCriteria.preparationStep(for: lesson, evidence: [short]), pending)
+        XCTAssertGreaterThanOrEqual((TempoLadder.repeats(for: pending, exercise: lesson) ?? 1) * lesson.bars, 16)
+        XCTAssertFalse(TempoLadder.isPassed(pending, exerciseID: lesson.id, evidence: [short]))
+        let complete = attempt(bpm: 160, bars: 16)
+        XCTAssertNil(CourseLessonCriteria.optionalTempoStep(for: lesson, evidence: [complete]))
+        XCTAssertNil(CourseLessonCriteria.optionalTempoStep(for: lesson, evidence: [attempt(bpm: 180, bars: 16)]))
+        XCTAssertFalse(TempoLadder.isPassed(pending, exerciseID: lesson.id, evidence: [attempt(bpm: 180, bars: 16)]),
+            "Tocar a 180 no acredita el premio de 160")
+        let partial = attempt(bpm: 160, bars: 16, scope: .selectedVoices)
+        XCTAssertEqual(CourseLessonCriteria.optionalTempoStep(for: lesson, evidence: [partial])?.bpm, 85)
+        for node in try campaignGraph().nodes {
+            XCTAssertGreaterThan(try XCTUnwrap(CourseLessonCriteria.optionalTempoStep(for: node.exercise, evidence: [])).bpm,
+                CourseLessonCriteria.targetBPM(for: node.exercise), node.exercise.id)
+        }
+    }
+
+    func testLearningRecoveryUsesSmallTempoStepsWithoutAccreditingSlowOrPartialAttempts() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "02_sub_03_groove")).exercise
+        func attempt(bpm: Int, score: Double, scope: EvaluationScope = .fullPattern, phase: TrainingPhase = .integrate) -> CourseAttemptEvidence {
+            .init(exerciseID: lesson.id, bpm: bpm, score: score, stars: score >= 70 ? 1 : 0,
+                trainingContext: .init(phase: phase, evaluationScope: scope, completedBars: 8))
+        }
+        let failed = attempt(bpm: 72, score: 50)
+        let support = try XCTUnwrap(CourseLessonCriteria.recovery(for: lesson, attempt: failed, evidence: []))
+        XCTAssertEqual(support.bpm, 68)
+        XCTAssertEqual(support.repeats, 4)
+        XCTAssertEqual(support.actionTitle, "Reintentar")
+        let slow = attempt(bpm: 68, score: 90)
+        XCTAssertFalse(CourseLessonCriteria.isPassed(lesson, evidence: [failed,slow]))
+        XCTAssertEqual(CourseLessonCriteria.recovery(for: lesson, attempt: slow, evidence: [failed])?.bpm, 72)
+        XCTAssertEqual(CourseLessonCriteria.recovery(for: lesson, attempt: attempt(bpm: 68, score: 75), evidence: [])?.bpm, 70)
+        XCTAssertEqual(CourseLessonCriteria.recovery(for: lesson, attempt: attempt(bpm: 71, score: 90), evidence: [])?.bpm, 72)
+        XCTAssertEqual(CourseLessonCriteria.recovery(for: lesson, attempt: attempt(bpm: 40, score: 10), evidence: [])?.bpm, 40)
+        for scope in [EvaluationScope.selectedVoices, .fragment, .corrective, .legacyUnknown] {
+            XCTAssertNil(CourseLessonCriteria.recovery(for: lesson, attempt: attempt(bpm: 68, score: 90, scope: scope), evidence: []))
+        }
+        XCTAssertNil(CourseLessonCriteria.recovery(for: lesson, attempt: attempt(bpm: 68, score: 90, phase: .transfer), evidence: []))
+        let passed = attempt(bpm: 72, score: 70)
+        XCTAssertNil(CourseLessonCriteria.recovery(for: lesson, attempt: passed, evidence: []))
+        XCTAssertNil(CourseLessonCriteria.recovery(for: lesson, attempt: failed, evidence: [passed]))
+        let longLesson = try XCTUnwrap(try campaignGraph().checkpoint(for: "jazz-intermediate")).exercise
+        let longAttempt = CourseAttemptEvidence(exerciseID: longLesson.id, bpm: 72, score: 30,
+            trainingContext: .init(evaluationScope: .fullPattern, completedBars: 8))
+        XCTAssertEqual(CourseLessonCriteria.recovery(for: longLesson, attempt: longAttempt, evidence: [])?.repeats, 1,
+            "El apoyo conserva la frase completa de ocho compases")
+    }
+
+    func testCommonTrunkKeepsGroovesAndItsCheckpointsOnlyUsePreviouslyTaughtVocabulary() throws {
+        let graph = try campaignGraph()
+        let initiation = try XCTUnwrap(graph.checkpoint(for: "initiation")).exercise
+        let firstFoundation = try XCTUnwrap(graph.node(for: "01_fund_01_pulso")).exercise
+        func cells(_ exercise: Exercise) -> Set<String> {
+            Set(exercise.notes.map { "\($0.sound):\($0.step % exercise.grid)" })
+        }
+        XCTAssertTrue(cells(firstFoundation).isSuperset(of: cells(initiation)), "Fundamentos no retira el motor ya aprendido")
+        for chapter in ["fundamentals", "coordination", "subdivision", "groove"] {
+            let lessons = graph.nodes.filter { $0.metadata.chapter == chapter }.map(\.exercise)
+            XCTAssertEqual(Set(lessons.map(\.bpm)).count, 1, chapter)
+            for lesson in lessons {
+                XCTAssertTrue(Set(lesson.notes.map(\.sound)).isSuperset(of: ["kick", "snare", "hihat_closed"]), lesson.id)
+                XCTAssertGreaterThanOrEqual(lesson.notes.count, 8, lesson.id)
+                XCTAssertTrue(Dictionary(grouping: lesson.notes, by: \.step).values.allSatisfy { $0.count <= 2 }, lesson.id)
+            }
+            let learned = lessons.dropLast().reduce(into: Set<String>()) { $0.formUnion(cells($1)) }
+            let final = try XCTUnwrap(lessons.last)
+            XCTAssertEqual(cells(final), learned, "El cierre integra lo aprendido sin introducir células nuevas: \(chapter)")
+        }
+    }
+
+    func testCalibrationStillUsesOnlyRegularHiHatWhenItsSourceLessonIsACompleteGroove() throws {
+        let source = try XCTUnwrap(try campaignGraph().node(for: "02_sub_02_corcheas")).exercise
+        XCTAssertGreaterThan(Set(source.notes.map(\.sound)).count, 1)
+        let calibration = PracticeConfiguration.calibrationExercise(from: source)
+        XCTAssertEqual(Set(calibration.notes.map(\.sound)), ["hihat_closed"])
+        XCTAssertEqual(calibration.notes.map(\.step), Array(stride(from: 0, to: 16, by: 2)))
+        XCTAssertEqual(calibration.repeats, 8)
+        XCTAssertEqual(ExerciseTimeline(exercise: calibration).notes.count, 64)
+        XCTAssertEqual(calibration.bpm, source.bpm)
+    }
+
+    func testTouchPracticeProjectionUsesOnlyRequiredSoundsInStableMapOrder() {
+        for preset in [PadLayoutPreset.core, .drumKit, .mirror] {
+            let map = PadLayoutFactory.make(preset, device: .init(name: "Táctil", uid: 0))
+            let notes: [Exercise.Note] = [.init(step: 8, sound: "snare"), .init(step: 0, sound: "kick"),
+                .init(step: 1, sound: "hihat_closed"), .init(step: 2, sound: "kick")]
+            let compact = map.practicePads(for: notes)
+            XCTAssertEqual(compact.count, 3)
+            XCTAssertEqual(Set(compact.map(\.sound)), ["kick", "snare", "hihat_closed"])
+            XCTAssertEqual(compact, map.practicePads(for: Array(notes.reversed())))
+            XCTAssertTrue(compact.allSatisfy { map.pads.contains($0) }, "Debe conservar ID, rol, nota y canal del pad original")
+            XCTAssertEqual(map.pads.count, 16, "Equipo conserva su rejilla completa")
+            XCTAssertTrue(map.practicePads(for: []).isEmpty)
+            XCTAssertEqual(map.practicePads(for: [.init(step: 0, sound: "hihat_closed")]).count, 1,
+                "La calibración de charles solo necesita un botón")
+        }
+    }
+
+    func testTouchPracticeProjectionPreservesExactPadAndRoleTargets() throws {
+        let map = PadLayoutFactory.make(.drumKit, device: .init(name: "Táctil", uid: 0))
+        let left = try XCTUnwrap(map.pads.first { $0.role == "kick_left" })
+        let right = try XCTUnwrap(map.pads.first { $0.role == "kick_right" })
+        let notes: [Exercise.Note] = [
+            .init(step: 0, sound: "kick", target: .init(type: .role, value: "kick_left")),
+            .init(step: 2, sound: "kick", target: .init(type: .pad, value: right.id)),
+            .init(step: 4, sound: "kick")
+        ]
+        XCTAssertEqual(Set(map.practicePads(for: notes).map(\.id)), [left.id, right.id])
+        XCTAssertTrue(map.practicePads(for: [.init(step: 0, sound: "snare", target: .init(type: .pad, value: left.id))]).isEmpty,
+            "Un ID de bombo no sirve para una caja")
+        XCTAssertTrue(map.practicePads(for: [.init(step: 0, sound: "kick", target: .init(type: .role, value: "unknown"))]).isEmpty)
+    }
+
+    func testEveryBundledExerciseHasACompactProjectionOfItsMappedSounds() throws {
+        let exercises = try campaignGraph().nodes.map(\.exercise)
+        for preset in [PadLayoutPreset.core, .drumKit, .mirror] {
+            let map = PadLayoutFactory.make(preset, device: .init(name: "Táctil", uid: 0))
+            let mappedSounds = Set(map.pads.map(\.sound))
+            for exercise in exercises {
+                let projected = map.practicePads(for: exercise.notes)
+                let sounds = Set(exercise.notes.map(\.sound)).intersection(mappedSounds)
+                XCTAssertEqual(projected.count, sounds.count, exercise.id)
+                XCTAssertEqual(Set(projected.map(\.sound)), sounds, exercise.id)
+            }
+        }
+    }
+
+    func testJazzCoursesHaveDistinctProgressionAndConsecutiveFinalChallenges() throws {
+        let graph = try campaignGraph()
+        let basic = graph.nodes.filter { $0.metadata.chapter == "jazz" }
+        let intermediate = graph.nodes.filter { $0.metadata.chapter == "jazz-intermediate" }
+        XCTAssertEqual(basic.count, 8)
+        XCTAssertEqual(intermediate.count, 12)
+        XCTAssertEqual(Set(basic.map { $0.exercise.bpm }), [64])
+        XCTAssertEqual(Set(intermediate.map { $0.exercise.bpm }), [72])
+        XCTAssertTrue((basic + intermediate).allSatisfy { $0.exercise.grid == 12 && $0.exercise.meter == [4,4] })
+        let basicChallenge = try XCTUnwrap(graph.checkpoint(for: "jazz"))
+        let intermediateChallenge = try XCTUnwrap(graph.checkpoint(for: "jazz-intermediate"))
+        XCTAssertEqual(basicChallenge.exercise.id, "23_jazz_04_frase", "Conserva los registros del curso básico existente")
+        XCTAssertEqual(intermediate.first?.metadata.prerequisites, [basicChallenge.exercise.id])
+        XCTAssertEqual(intermediateChallenge.metadata.position, 12)
+        XCTAssertEqual(intermediateChallenge.exercise.bars, 8)
+        let basicIndex = try XCTUnwrap(graph.mainChapterIDs.firstIndex(of: "jazz"))
+        XCTAssertEqual(graph.mainChapterIDs[basicIndex + 1], "jazz-intermediate")
+        XCTAssertEqual(graph.mainChapterIDs[basicIndex + 2], "clave-bossa")
+        XCTAssertEqual(graph.worlds(evidence: []).first { $0.id == "jazz" }?.title, "Jazz básico")
+        XCTAssertEqual(graph.worlds(evidence: []).first { $0.id == "jazz-intermediate" }?.title, "Jazz intermedio")
+        for node in intermediate.dropFirst() {
+            XCTAssertTrue(node.exercise.notes.contains { $0.sound == "hihat_closed" && $0.step % 12 == 3 },
+                "Mantiene la referencia de dos al añadir comping y fills: \(node.exercise.id)")
+        }
+        XCTAssertEqual(Set(intermediate.compactMap { $0.metadata.newDifficulty }).count, 12)
+    }
+
     private func campaignGraph() throws -> CourseGraph {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let catalog = ResourceCatalog()
@@ -19,9 +206,9 @@ final class ResourceModelsTests: XCTestCase {
     func testCampaignHasOneCurrentWorldOneNextLevelAndOneFinalBossPerWorld() throws {
         let graph = try campaignGraph()
         let worlds = graph.worlds(evidence: [])
-        XCTAssertEqual(worlds.count, 14)
+        XCTAssertEqual(worlds.count, 15)
         XCTAssertEqual(worlds.map(\.id), graph.mainChapterIDs)
-        XCTAssertEqual(worlds.flatMap(\.levels).count, 109)
+        XCTAssertEqual(worlds.flatMap(\.levels).count, 121)
         XCTAssertEqual(worlds.filter(\.isCurrent).map(\.id), ["initiation"])
         XCTAssertEqual(worlds.flatMap(\.levels).filter(\.isNext).count, 1)
         XCTAssertEqual(worlds.first?.nextLevel?.number, 1)
@@ -861,7 +1048,7 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(router.soundID(for: 48), "tom_high")
         XCTAssertEqual(router.soundID(for: 51), "ride")
         let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
-        XCTAssertEqual(exercises.count, 117)
+        XCTAssertEqual(exercises.count, 129)
         XCTAssertNoThrow(try CurriculumValidator.validateIntegratedExercises(exercises))
         XCTAssertTrue(exercises.allSatisfy { $0.metadata != nil })
         let graph = try CourseGraph(exercises: exercises)
@@ -883,12 +1070,12 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(exercises.first?.title, "I-01 · Bombo y caja")
         XCTAssertEqual(exercises.first?.metadata?.objective, "Sigue cuatro pulsos: bombo en uno y tres, caja en dos y cuatro.")
         XCTAssertEqual(exercises.first?.notes.map(\.sound), ["kick", "snare", "kick", "snare"])
-        let ternaryExercises = exercises.filter { $0.id.hasPrefix("22_") || $0.id.hasPrefix("23_") }
-        XCTAssertEqual(ternaryExercises.count, 16)
+        let ternaryExercises = exercises.filter { $0.id.hasPrefix("22_") || $0.id.hasPrefix("23_") || $0.id.hasPrefix("28_") }
+        XCTAssertEqual(ternaryExercises.count, 28)
         XCTAssertTrue(ternaryExercises.allSatisfy { $0.grid == 12 })
         let phrase = try XCTUnwrap(exercises.first { $0.id == "02_sub_09_frase_integrada" })
         XCTAssertEqual(phrase.bars, 4)
-        XCTAssertEqual(phrase.bpm, 78)
+        XCTAssertEqual(phrase.bpm, 72)
         XCTAssertTrue(phrase.notes.contains { $0.sound == "hihat_closed" && $0.step.isMultiple(of: 16) == false && $0.step % 2 == 1 })
         XCTAssertTrue(phrase.notes.contains { $0.sound == "kick" && $0.step % 16 == 6 })
         let coordinationCheckpoint = try XCTUnwrap(exercises.first { $0.id == "03_coord_08_independencia" })
@@ -929,9 +1116,9 @@ final class ResourceModelsTests: XCTestCase {
         let catalog = ResourceCatalog()
         let kit = try catalog.loadKit(at: root.appendingPathComponent("Resources/Kits/hiphop_basic/kit.json"))
         let exercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: kit)
-        for chapter in ["hiphop", "rock", "disco", "funk", "reggae", "dembow", "blues", "jazz", "clave-bossa"] {
+        for chapter in ["hiphop", "rock", "disco", "funk", "reggae", "dembow", "blues", "jazz", "jazz-intermediate", "clave-bossa"] {
             let lessons = exercises.filter { $0.metadata?.chapter == chapter }.sorted { $0.metadata!.position < $1.metadata!.position }
-            XCTAssertEqual(lessons.count, chapter == "hiphop" ? 12 : 8)
+            XCTAssertEqual(lessons.count, ["hiphop", "jazz-intermediate"].contains(chapter) ? 12 : 8)
             XCTAssertEqual(Set(lessons.map(\.bpm)).count, 1, "No sumar tempo a una variación de patrón: \(chapter)")
             for lesson in lessons {
                 let simultaneous = Dictionary(grouping: lesson.notes, by: \.step)
@@ -1216,6 +1403,21 @@ final class ResourceModelsTests: XCTestCase {
         let drifting = PulseDriftAnalyzer.analyze(records: driftingRecords, barDurationMilliseconds: 2_000, gapLevel: 2)
         XCTAssertEqual(drifting.trend, .late)
         XCTAssertGreaterThan(drifting.silentGapDriftMilliseconds ?? 0, 5)
+    }
+
+    func testPulseDriftKeepsOffbeatsInTheirActualMetronomeBeat() {
+        let records = [5_750.0, 6_500.0].enumerated().map { index, time in
+            HitRecord(sequence: index, judgement: .perfect, expectedSound: "kick", expectedStep: index,
+                expectedTimeMilliseconds: time, expectedVelocity: nil, hand: nil, target: nil,
+                actualSound: "kick", actualTimeMilliseconds: time + 12, actualVelocity: nil,
+                role: nil, padID: nil, offsetMilliseconds: 12)
+        }
+        let report = PulseDriftAnalyzer.analyze(records: records, barDurationMilliseconds: 2_000, gapLevel: 1)
+        XCTAssertEqual(report.points.map(\.pulseIndex), [11, 13])
+        XCTAssertEqual(report.points.map(\.metronomeAudible), [true, false],
+            "El contratiempo anterior al silencio todavía pertenece al compás audible")
+        XCTAssertEqual(report.trend, .insufficientEvidence,
+            "Un solo pulso durante el silencio no permite acreditar estabilidad")
     }
 
     func testMasteryRequiresAllFourTrainingContexts() {
@@ -1595,6 +1797,10 @@ final class ResourceModelsTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let exportedAttempts = try decoder.decode([PracticeAttempt].self, from: Data(contentsOf: json))
 
+        XCTAssertEqual(exportedAttempts.first?.timestamp, attempt.timestamp,
+            "La exportación conserva la fracción de segundo del historial")
+        XCTAssertEqual(try sourceStore.importAttempts(exportedAttempts), 0,
+            "Restaurar el propio archivo no debe duplicar intentos existentes")
         XCTAssertEqual(try destinationStore.importAttempts(exportedAttempts + exportedAttempts), 1)
         XCTAssertEqual(try destinationStore.importAttempts(exportedAttempts), 0)
         XCTAssertEqual(try destinationStore.attempts(limit: 10), exportedAttempts)
@@ -1625,6 +1831,36 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(attempts.count, 1)
         XCTAssertTrue(attempts[0].hitRecords.isEmpty)
         XCTAssertEqual(attempts[0].trainingContext.evaluationScope, .legacyUnknown)
+    }
+
+    func testInvalidImportedAttemptThrowsAndRollsBackTheWholeBatch() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-invalid-import-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ProgressStore(url: directory.appendingPathComponent("progress.sqlite"))
+        func attempt(id: String, bpm: Int = 80, score: Double = 90, perfect: Int = 4) -> PracticeAttempt {
+            .init(exerciseID: id, timestamp: Date(timeIntervalSince1970: 1_728_000_000.125), bpm: bpm, score: score, stars: 3,
+                perfect: perfect, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        }
+        let original = attempt(id: "saved")
+        try store.record(original)
+        for invalid in [attempt(id: "overflow-bpm", bpm: Int.max),
+                        attempt(id: "overflow-count", perfect: Int.max),
+                        attempt(id: "negative-count", perfect: -1),
+                        attempt(id: "invalid-score", score: 101),
+                        attempt(id: "nonfinite-score", score: .nan)] {
+            XCTAssertThrowsError(try store.importAttempts([attempt(id: "rolled-back"), invalid]))
+            XCTAssertEqual(try store.attempts(limit: Int.max), [original])
+        }
+        XCTAssertEqual(try store.scores(for: "saved", limit: Int.max), [90])
+    }
+
+    func testEmptyExerciseCatalogProducesARecoverableError() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-empty-catalog-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertThrowsError(try ResourceCatalog().loadExercises(in: directory, kit: communityKit())) { error in
+            XCTAssertEqual(error as? ResourceValidationError, .emptyExerciseCatalog)
+        }
     }
 
     func testProgressFilterAndJSONExport() throws {

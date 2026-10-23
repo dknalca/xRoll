@@ -311,7 +311,8 @@ public struct CourseWorld: Equatable, Identifiable {
         case "reggae": return "Reggae"
         case "dembow": return "Dembow"
         case "blues": return "Blues / Shuffle"
-        case "jazz": return "Jazz"
+        case "jazz": return "Jazz básico"
+        case "jazz-intermediate": return "Jazz intermedio"
         case "clave-bossa": return "Clave / Bossa"
         case "fills": return "Redobles y transiciones"
         default: return chapter.replacingOccurrences(of: "-", with: " ").capitalized

@@ -326,7 +326,9 @@ public enum PulseDriftAnalyzer {
         let beatDuration = barDurationMilliseconds / 4
         let grouped = Dictionary(grouping: records.compactMap { record -> (Int, Double)? in
             guard let expected = record.expectedTimeMilliseconds, let offset = record.offsetMilliseconds else { return nil }
-            let pulseIndex = max(0, Int((expected / beatDuration).rounded()))
+            // Un contratiempo pertenece al pulso que ya comenzó, no al más
+            // cercano. La tolerancia absorbe el redondeo de una frontera exacta.
+            let pulseIndex = max(0, Int(floor(expected / beatDuration + 1e-9)))
             return (pulseIndex, offset)
         }, by: { $0.0 })
         let points = grouped.keys.sorted().compactMap { pulseIndex -> PulseDriftPoint? in

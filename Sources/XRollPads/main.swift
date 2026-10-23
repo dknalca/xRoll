@@ -64,6 +64,7 @@ final class Model: ObservableObject {
     @Published private(set) var campaignWorlds = [CourseWorld]()
     @Published private(set) var worldVictory: CourseWorldVictory?
     @Published private(set) var nextCampaignLevel: CourseWorld.Level?
+    @Published private(set) var learningRecovery: CourseLearningRecovery?
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
     @Published private(set) var loopOptions = [LoopLibraryOption]()
@@ -242,9 +243,9 @@ final class Model: ObservableObject {
     }
     private var nextTempoLevel: TempoPracticeStep? {
         guard canSuggestProgress, let chosen else { return nil }
-        return TempoLadder.steps(for: chosen).first {
-            $0.bpm > selectedBPM && !TempoLadder.isPassed($0, exerciseID: chosen.id, evidence: courseEvidence)
-        }
+        guard let step = CourseLessonCriteria.optionalTempoStep(for: chosen, evidence: courseEvidence),
+              step.bpm >= selectedBPM else { return nil }
+        return step
     }
     private enum ResultProgressSuggestion {
         case raise(TempoPracticeStep)
@@ -260,7 +261,7 @@ final class Model: ObservableObject {
         return nil
     }
     var alternativeProgressTitle: String? {
-        if nextCampaignLevel != nil { return nil }
+        if nextCampaignLevel != nil || learningRecovery != nil { return nil }
         switch resultProgressSuggestion {
         case .next where nextTempoLevel != nil: return "Subir nivel"
         case .raise where canOfferNextCourseExercise: return "Siguiente ejercicio"
@@ -426,8 +427,8 @@ final class Model: ObservableObject {
     }
     var tempoGuidance: String {
         guard let chosen else { return "Elige un ritmo para ver sus retos opcionales de tempo." }
-        guard let step = tempoPracticeOptions.first(where: { !TempoLadder.isPassed($0, exerciseID: chosen.id, evidence: courseEvidence) }) else {
-            return "Has completado los retos de tempo disponibles para este ritmo."
+        guard let step = CourseLessonCriteria.optionalTempoStep(for: chosen, evidence: courseEvidence) else {
+            return "No quedan retos por encima de tu mejor tempo. Puedes repasar otros niveles; cada premio exige su tempo y duración propios."
         }
         return "Reto opcional: \(step.label) a \(step.bpm) BPM. No necesitas superarlo para avanzar en el curso."
     }
@@ -573,6 +574,7 @@ final class Model: ObservableObject {
         }
     }
     var resultActionTitle: String {
+        if let learningRecovery { return learningRecovery.actionTitle }
         if let nextCampaignLevel { return nextCampaignLevel.continuationTitle }
         if microLessonStage == .isolating { return "Volver al groove completo" }
         switch resultProgressSuggestion {
@@ -601,6 +603,7 @@ final class Model: ObservableObject {
         return plan.coachingCue.replacingOccurrences(of: plan.focusSound, with: displayName(plan.focusSound))
     }
     var resultActionReason: String {
+        if let learningRecovery { return learningRecovery.message }
         if let nextCampaignLevel {
             return nextCampaignLevel.continuationMessage
         }
@@ -638,6 +641,16 @@ final class Model: ObservableObject {
         resultSummary?.consistencyMilliseconds.map { String(format: "%.0f ms", $0) } ?? "Sin datos"
     }
     func performResultAction() {
+        if let recovery = learningRecovery, let chosen {
+            selectedBPM = recovery.bpm
+            selectedRepeats = recovery.repeats
+            practiceHelp = .full
+            gapMetronomeLevel = 0
+            updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM)
+            savePreferences()
+            repeatPractice()
+            return
+        }
         if nextCampaignLevel != nil { continueCampaignLevel(); return }
         if microLessonStage == .isolating {
             returnToFullGroove()
@@ -995,13 +1008,17 @@ final class Model: ObservableObject {
     @discardableResult
     func startPractice() -> Bool {
         guard !isFinishingPractice else { return false }
+        guard requireCurrentCalibration() else { return false }
+        beginPractice(calibration: false)
+        return practice != nil
+    }
+    private func requireCurrentCalibration() -> Bool {
         guard hasCalibrationForCurrentProfile else {
             calibrationMessage = "Calibra esta entrada y salida antes de puntuar."
             showingCalibrationWarning = true
             return false
         }
-        beginPractice(calibration: false)
-        return practice != nil
+        return true
     }
     func startGuidedLesson() {
         trainingPhase = .integrate
@@ -1014,7 +1031,9 @@ final class Model: ObservableObject {
             showingResults = false
         }
     }
-    func repeatPractice() { cancelResultTransition(); showingResults = false; beginPractice(calibration: false) }
+    func repeatPractice() {
+        if startPractice() { cancelResultTransition(); showingResults = false }
+    }
     func setRepeats(_ repeats: Int) {
         selectedRepeats = PracticeConfiguration.normalizedRepeats(repeats)
         savePreferences()
@@ -1186,9 +1205,11 @@ final class Model: ObservableObject {
     }
 
     private func beginPractice(calibration: Bool) {
+        guard !isFinishingPractice else { return }
+        guard calibration || requireCurrentCalibration() else { return }
+        learningRecovery = nil
         worldVictory = nil
         nextCampaignLevel = nil
-        guard !isFinishingPractice else { return }
         cancelResultTransition()
         let fullExercise: Exercise
         if calibration {
@@ -1198,7 +1219,7 @@ final class Model: ObservableObject {
                 calibrationMessage = "No se encontró el ejercicio de calibración."
                 return
             }
-            fullExercise = PracticeConfiguration(exercise: exercise, bpm: exercise.bpm, repeats: 8).applying(to: exercise)
+            fullExercise = PracticeConfiguration.calibrationExercise(from: exercise)
         } else {
             guard let exercise = configuredExercise, !exercise.notes.isEmpty else {
                 status = "La configuración actual no contiene notas para puntuar."
@@ -1208,6 +1229,9 @@ final class Model: ObservableObject {
         }
         do { try audio?.start() }
         catch { status = "No se pudo iniciar el audio: \(error.localizedDescription)"; return }
+        // El arranque puede cambiar frecuencia o buffer. Repetir, reiniciar y
+        // reanudar deben cumplir la misma calibración que el inicio normal.
+        guard calibration || requireCurrentCalibration() else { return }
         let exercise: Exercise
         let playerSelection = selectedPlayerSounds
         if calibration || (isFullRhythmSelection && !transferCheck) { exercise = fullExercise }
@@ -2056,6 +2080,9 @@ final class Model: ObservableObject {
                     let evidence = CourseAttemptEvidence(attempt: attempt)
                     worldVictory = graph.worldVictory(completing: evidence, previousEvidence: courseEvidence)
                     nextCampaignLevel = graph.campaignContinuation(after: evidence, evidence: courseEvidence + [evidence])
+                    if let lesson = graph.node(for: exercise.id)?.exercise {
+                        learningRecovery = CourseLessonCriteria.recovery(for: lesson, attempt: evidence, evidence: courseEvidence)
+                    }
                 }
             }
             refreshProgress(for: exercise.id)
@@ -2071,6 +2098,7 @@ final class Model: ObservableObject {
         } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
     }
     func chooseExercise(_ exercise: Exercise) {
+        learningRecovery = nil
         worldVictory = nil
         nextCampaignLevel = nil
         // Cambiar de ejercicio abandona el intento en curso. No lo conviertas
@@ -2088,11 +2116,11 @@ final class Model: ObservableObject {
         practiceStepRange = nil; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id)
     }
-    /// Un escalón exige el mismo alcance y la misma duración que su premio;
-    /// dos estrellas en una práctica parcial no lo dan por terminado.
+    /// La lección pendiente usa su objetivo de aprendizaje. Los retos opcionales
+    /// de un ritmo ya superado conservan su alcance y duración propios.
     private func selectPendingTempo(for exercise: Exercise) {
         let steps = TempoLadder.steps(for: exercise)
-        guard let step = TempoLadder.nextStep(for: exercise, evidence: courseEvidence) ?? steps.last else { return }
+        let step = CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence)
         selectedBPM = step.bpm
         selectedTempoTier = steps.firstIndex(where: { $0.bpm == step.bpm }) ?? 0
         selectedRepeats = TempoLadder.repeats(for: step, exercise: exercise) ?? defaultRepeats(for: exercise)
@@ -2100,8 +2128,7 @@ final class Model: ObservableObject {
     }
     func pendingTempoBPM(for exerciseID: String) -> Int? {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return nil }
-        return (TempoLadder.nextStep(for: exercise, evidence: courseEvidence)
-            ?? TempoLadder.steps(for: exercise).last)?.bpm
+        return CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence).bpm
     }
     func pendingRepeats(for plan: NextSessionPlan) -> Int {
         guard let exercise = exercises.first(where: { $0.id == plan.exerciseID }),

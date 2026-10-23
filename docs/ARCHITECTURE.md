@@ -110,7 +110,7 @@ Un checkpoint adelantado conserva su evidencia y `CourseGraph.pendingChapter`
 identifica el primer bloque anterior pendiente. Las dos interfaces explican su
 nombre y permiten abrir una lección pendiente de ese bloque.
 
-`CourseGraph.worlds(evidence:)` proyecta el recorrido de catorce estaciones sobre
+`CourseGraph.worlds(evidence:)` proyecta el recorrido de quince estaciones sobre
 esos mismos estados; `CourseWorld` conserva su nombre histórico y describe los
 niveles locales, reto final y tarea recomendada de cada estación.
 Los coordinadores conservan la proyección tras refrescar el historial. La
@@ -125,3 +125,21 @@ target iOS. Contiene el mapa ferroviario, los marcadores, los premios y los pane
 de nivel/estación completados. `RhythmMetroView` y `iOSHomeView` aportan los mismos
 datos del núcleo y adaptan sus acciones. Los textos de reto y continuación son
 compartidos; el historial y el catálogo permanecen en los servicios existentes.
+
+`CourseLessonCriteria.preparationStep` comparte el tempo inicial: una lección
+pendiente usa el tempo que acredita su objetivo. `recovery(for:attempt:evidence:)`
+describe el apoyo automático del mismo patrón con guía completa, prácticas breves
+y retorno de 2–4 BPM al objetivo. Los coordinadores conservan esa sugerencia solo
+para el resultado actual y aplican la misma acción en ambas apps. La recuperación
+se calcula sobre la lección MIDI original, no sobre su copia ralentizada.
+`PracticeConfiguration.calibrationExercise(from:)` aísla el charles del MIDI de
+corcheas sin mantener una lección curricular de una sola voz.
+
+La selección de pads táctiles se deriva de los objetivos con
+`PadMapV2.practicePads(for:)`, conservando los pads originales y los destinos
+exactos por rol/pad. iOS guarda esa selección al comenzar cada sesión, por lo que
+no cambia al avanzar de compás. `TouchPadGridLayout` comparte las celdas virtuales
+entre dibujo, toques y accesibilidad; no altera las coordenadas físicas de Equipo.
+El tamaño del panel depende de las voces y la orientación. Al reconstruir la
+escena tras un giro, la etiqueta de racha se desliga de su panel anterior antes
+de volver a insertarse, conservando la sesión y evitando un segundo padre SpriteKit.

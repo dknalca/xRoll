@@ -2,14 +2,35 @@
 
 ## Completado en código
 
-- Metro del Ritmo de catorce estaciones en Curso de macOS/iOS: vías y tren en la
+- Progresión continua del tronco común: treinta lecciones revisadas para conservar
+  el groove aprendido, añadir una dificultad principal y cerrar con figuras conocidas.
+  Sin pasos curriculares de una sola voz ni tres golpes simultáneos.
+- Preparación pendiente al tempo de aprendizaje real en ambas apps. Apoyo
+  automático de patrón completo con guía, menos repeticiones y pasos de 2–4 BPM
+  hacia el objetivo; conserva los premios de velocidad como retos opcionales.
+- Calibración de una voz aislada del MIDI de corcheas, aunque su lección sea ahora
+  un groove completo; misma proyección y cadencia en macOS/iOS.
+- Metro del Ritmo de quince estaciones en Curso de macOS/iOS: vías y tren en la
   parada actual, niveles locales y reto final de estación. El checkpoint usa
   su preparación y tempo de aprendizaje desde el mapa y desde Resultados.
 - Mapa, acciones, premios y celebraciones compartidos en `CourseRailwayMap.swift`
   entre ambas apps. Una estación recién completada muestra tren, estrellas y
   «Siguiente parada». La proyección conserva el historial y está cubierta por
   pruebas de 70 %, práctica parcial, retos futuros, repetición y reapertura.
-- Catálogo activo MIDI con 117 ejercicios sin patrones duplicados;
+- Ilustraciones vectoriales ferroviarias compartidas: dos vagones, ciudad y
+  andén numerado, distintivos musicales por estación y llegada con acentos dorados.
+  Gráficos estáticos y decorativos, sin nuevos controles ni movimiento obligatorio.
+- Práctica táctil iOS con pads compactos de sonidos activos, sin duplicados por
+  sonido; objetivos exactos conservados. Se fija la selección por sesión y se
+  comparten celdas entre dibujo, toques y accesibilidad en vertical/horizontal.
+- Reconstrucción de escena al girar sin añadir por segunda vez la etiqueta de
+  racha a un padre SpriteKit; cubierta por una prueba de giro y toques reales.
+- Autopista centrada con ancho acotado por sonidos activos: tres carriles usan
+  hasta 600 pt, con notas más presentes, receptores proporcionados y decoración
+  lateral tenue. La altura y la anticipación se conservan en ambas plataformas.
+- Jazz básico con 8 lecciones a 64 BPM y Jazz intermedio con 12 a 72 BPM:
+  swing, comping, independencia, fills y trading fours, con retos propios.
+- Catálogo activo MIDI con 129 ejercicios sin patrones duplicados;
   la versión archivada se conserva fuera del catálogo activo.
 - Revisión de géneros: Hip-hop, Rock y Funk conservan las habilidades al añadir
   variaciones; Jazz diferencia su ride del shuffle y Reggae ofrece grooves
@@ -68,7 +89,7 @@
   recortados reutilizables en caché LRU de 64 entradas/4 MiB y pruebas de PCM
   para ráfagas, alternancia de charles, cancelación y reutilización de nodos.
 - Los resultados de checkpoint adelantado identifican el primer bloque pendiente
-  y permiten abrirlo conservando la evidencia. Diez pruebas UI cubren las rutas
+  y permiten abrirlo conservando la evidencia. Catorce pruebas UI cubren las rutas
   de Resultados, preparación y recorrido ferroviario en el simulador iOS.
 - Resultado ofrece una vía opcional al siguiente ejercicio tras dos estrellas en
   ritmo completo, sin acreditar ni saltar requisitos del curso. Las filas del

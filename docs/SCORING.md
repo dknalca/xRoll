@@ -163,6 +163,12 @@ Los compases completados se calculan con el host time de cierre y la duración
 real de la sesión. Un abandono no se registra como intento completo ni concede
 premios de duración, aunque su porcentaje de aciertos ya supere el umbral.
 
+El historial JSON conserva la fecha ISO legible y el campo adicional
+`timestampUnixSeconds` para mantener la precisión subsegundo de SQLite y evitar
+duplicados al restaurar el propio archivo. Los archivos antiguos, sin ese campo,
+siguen siendo legibles. La importación valida los campos escalares antes de
+guardarlos y revierte el lote entero si un intento no es válido.
+
 ## Diagnóstico robusto
 
 Además de `mean_offset_ms`, las nuevas sesiones guardan el resultado por sonido.

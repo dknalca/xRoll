@@ -73,6 +73,7 @@ final class PracticeScene: SKScene {
     private let slotBySound: [String: Int]
     private let slotByNoteIndex: [Int: Int]
     private let targetSlotsBySound: [String: [Int]]
+    private let transitionCues: [PracticeTransitionCue]
     private let soundLabels: [String: String]
     private let showsSoundLabels: Bool
     private let showsNotes: Bool
@@ -132,6 +133,10 @@ final class PracticeScene: SKScene {
     private var streakBackgroundActive = false
     private var lastSeparatorStreakPhase: Int?
     private var lastSeparatorStreakIntensity: CGFloat?
+    private let cuePanel = SKShapeNode()
+    private let cueLabel = SKLabelNode()
+    private let cueMarker = SKSpriteNode(color: .clear, size: .zero)
+    private var currentCue: PracticeTransitionCue?
 
     private var projection: GameplayProjection {
         GameplayProjection(size: size, hitLineY: hitY, laneCount: max(1, slotBySound.count))
@@ -142,19 +147,28 @@ final class PracticeScene: SKScene {
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
         self.noteByIndex = Dictionary(uniqueKeysWithValues: timeline.notes.map { ($0.index, $0) })
-        // Conserva el orden del mapa completo entre ejercicios, pero elimina los
-        // huecos de pads duplicados. Nota, receptor y feedback comparten carril.
-        let orderedSounds = slotBySound.keys.sorted {
-            let left = slotBySound[$0] ?? 0
-            let right = slotBySound[$1] ?? 0
-            return left == right ? $0 < $1 : left < right
-        }
+        // Solo ocupa la autopista lo que suena en la frase: los carriles ganan
+        // anchura y su orden físico se conserva durante toda la práctica.
+        let soundsInTimeline = Set(timeline.notes.map(\.sound))
+        let orderedSounds = slotBySound.keys
+            .filter { soundsInTimeline.contains($0) }
+            .sorted {
+                let left = slotBySound[$0] ?? 0
+                let right = slotBySound[$1] ?? 0
+                return left == right ? $0 < $1 : left < right
+            }
         let compactSlots = Dictionary(uniqueKeysWithValues: orderedSounds.enumerated().map { ($0.element, $0.offset) })
         self.slotBySound = compactSlots
         self.slotByNoteIndex = Dictionary(uniqueKeysWithValues: timeline.notes.compactMap { note in
             compactSlots[note.sound].map { (note.index, $0) }
         })
         self.targetSlotsBySound = compactSlots.mapValues { [$0] }
+        self.transitionCues = PracticeTransitionCuePlanner.cues(for: timeline).filter {
+            // Transferir conserva los avisos de sesión, pero no revela las
+            // entradas que el usuario debe recordar sin guía visual.
+            if case .soundEnters = $0.kind { return showsNotes }
+            return true
+        }
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
         self.showsNotes = showsNotes
@@ -199,6 +213,7 @@ final class PracticeScene: SKScene {
         view.allowsTransparency = false
         if staticLayer.parent == nil { addChild(staticLayer) }
         if effectsRenderer.node.parent == nil { addChild(effectsRenderer.node) }
+        if cueMarker.parent == nil { addChild(cueMarker) }
         rebuildStaticLayer()
         rebuildPulseLines()
     }
@@ -216,6 +231,9 @@ final class PracticeScene: SKScene {
     }
 
     private func rebuildStaticLayer() {
+        // La etiqueta se reutiliza dentro de un panel anidado: retirar los hijos
+        // de staticLayer no la desliga de ese panel al cambiar de orientación.
+        streakLabel.removeFromParent()
         staticLayer.removeAllChildren()
         targetBySound.removeAll()
         targetBaseFills.removeAll()
@@ -226,6 +244,7 @@ final class PracticeScene: SKScene {
         streakBackgroundActive = false
         lastSeparatorStreakPhase = nil
         lastSeparatorStreakIntensity = nil
+        currentCue = nil
         let soundsInTimeline = Set(timeline.notes.map(\.sound))
         let activeSounds = Set(soundsInTimeline.filter { playerSounds?.contains($0) ?? true })
         let activeSlots = Set(activeSounds.flatMap { sound in
@@ -394,6 +413,7 @@ final class PracticeScene: SKScene {
         streakLabel.zPosition = 1
         streakPanel.addChild(streakLabel)
         refreshStreakHUD(animated: false)
+        prepareTransitionCueNodes()
         for (sound, slots) in targetSlotsBySound {
             let isPlayerSound = activeSounds.contains(sound)
             for slot in slots {
@@ -436,19 +456,105 @@ final class PracticeScene: SKScene {
                 target.addChild(symbol)
 
                 if showsSoundLabels {
-                    let label = SKLabelNode(text: compactSoundLabel(for: sound))
+                    let wideLane = padGeometry.backWidth >= 54
+                    let label = SKLabelNode(text: wideLane ? (soundLabels[sound] ?? sound) : compactSoundLabel(for: sound))
                     label.fontName = GameplayVisualTheme.labelFont
-                    label.fontSize = 9
+                    label.fontSize = wideLane ? 10 : 9
                     label.fontColor = GameplayVisualTheme.text.withAlphaComponent(isPlayerSound ? (isRecommended ? 1 : 0.72) : 0.40)
                     label.verticalAlignmentMode = .center
                     label.horizontalAlignmentMode = .center
                     label.position = CGPoint(x: padGeometry.centerOffset(atY: -11), y: -11)
                     label.zPosition = 3
-                    label.xScale = min(1, max(1, padWidth - 10) / max(1, label.frame.width))
+                    label.xScale = min(1, max(0.55, (padWidth - 6) / max(1, label.frame.width)))
                     target.addChild(label)
                 }
             }
         }
+    }
+
+    private func prepareTransitionCueNodes() {
+        cuePanel.removeFromParent()
+        cueLabel.removeFromParent()
+        cueLabel.text = ""
+        cueLabel.fontName = GameplayVisualTheme.labelFont
+        cueLabel.fontSize = 12
+        cueLabel.fontColor = GameplayVisualTheme.text
+        cueLabel.verticalAlignmentMode = .center
+        cueLabel.horizontalAlignmentMode = .center
+        cueLabel.position = .zero
+        cueLabel.zPosition = 1
+        cueLabel.xScale = 1
+        cuePanel.addChild(cueLabel)
+        cuePanel.position = CGPoint(x: size.width / 2, y: size.height - 76)
+        cuePanel.zPosition = 32
+        cuePanel.fillColor = GameplayVisualTheme.deck.withAlphaComponent(0.94)
+        cuePanel.strokeColor = .clear
+        cuePanel.lineWidth = 1
+        cuePanel.isHidden = true
+        staticLayer.addChild(cuePanel)
+        cueMarker.color = .clear
+        cueMarker.size = .zero
+        cueMarker.zPosition = 3
+        cueMarker.isHidden = true
+    }
+
+    private func updateTransitionCue(now: Double, displayLeadMilliseconds: Double, projection: GameplayProjection) {
+        // Una entrada dentro del compás puede solaparse con el aviso de cierre.
+        // Mantén primero el cambio más próximo, hasta que llegue su instante.
+        let activeCue = transitionCues.first {
+            now >= $0.timeMilliseconds - $0.leadMilliseconds && now < $0.timeMilliseconds
+        }
+        guard let activeCue else {
+            cuePanel.isHidden = true
+            cueMarker.isHidden = true
+            currentCue = nil
+            return
+        }
+        if currentCue != activeCue {
+            currentCue = activeCue
+            applyTransitionCue(activeCue)
+        }
+        cuePanel.isHidden = false
+        let remaining = activeCue.timeMilliseconds - now
+        guard remaining <= displayLeadMilliseconds else {
+            cueMarker.isHidden = true
+            return
+        }
+        let depth = projection.depth(for: remaining, displayLeadMilliseconds: displayLeadMilliseconds)
+        cueMarker.isHidden = false
+        cueMarker.position = CGPoint(x: size.width / 2, y: projection.y(at: depth))
+        cueMarker.size = CGSize(width: projection.trackWidth(at: depth) * 0.94, height: 3)
+        cueMarker.alpha = 0.42 + 0.38 * (1 - depth)
+    }
+
+    private func applyTransitionCue(_ cue: PracticeTransitionCue) {
+        let text: String
+        let accent: SKColor
+        switch cue.kind {
+        case .soundEnters(let sound):
+            text = "Entra \(soundLabels[sound] ?? sound)"
+            accent = color(forSound: sound)
+        case .closing:
+            text = "Se acerca el cierre"
+            accent = GameplayVisualTheme.perfect
+        case .lastRound:
+            text = "Última vuelta"
+            accent = GameplayVisualTheme.good
+        }
+        cueLabel.text = text
+        cueLabel.fontColor = accent
+        cueLabel.xScale = 1
+        let maximumWidth = max(1, size.width - 24)
+        let width = min(maximumWidth, max(150, cueLabel.frame.width + 28))
+        cueLabel.xScale = min(1, max(0.6, (width - 20) / max(1, cueLabel.frame.width)))
+        cuePanel.path = CGPath(
+            roundedRect: CGRect(x: -width / 2, y: -13, width: width, height: 26),
+            cornerWidth: 13,
+            cornerHeight: 13,
+            transform: nil
+        )
+        cuePanel.strokeColor = accent.withAlphaComponent(0.55)
+        cueMarker.color = accent
     }
 
     private func addCyberpunkSidePanels(using projection: GameplayProjection) {
@@ -463,23 +569,23 @@ final class PracticeScene: SKScene {
                 sidePoint(fraction: 1, depth: 1, isLeft: isLeft, projection: projection),
                 sidePoint(fraction: 0, depth: 1, isLeft: isLeft, projection: projection)
             ]))
-            wall.fillColor = GameplayVisualTheme.backdropWall
+            wall.fillColor = GameplayVisualTheme.backdropWall.withAlphaComponent(0.45)
             wall.strokeColor = .clear
             wall.zPosition = -19
             staticLayer.addChild(wall)
 
             let edge = projection.x(atSlotBoundary: isLeft ? 0 : projection.laneCount, depth: 0.52)
-            let sideMargin = isLeft ? edge : size.width - edge
+            let sideMargin = min(96, isLeft ? edge : size.width - edge)
             let ambientGlow = SKShapeNode(ellipseOf: CGSize(
                 width: max(24, sideMargin * 1.8),
                 height: max(80, size.height * 0.46)
             ))
             ambientGlow.fillColor = .clear
-            ambientGlow.strokeColor = accent.withAlphaComponent(0.55)
+            ambientGlow.strokeColor = accent.withAlphaComponent(0.30)
             ambientGlow.lineWidth = 4
             ambientGlow.glowWidth = 24
             ambientGlow.position = CGPoint(
-                x: isLeft ? edge / 2 : (edge + size.width) / 2,
+                x: edge + (isLeft ? -1 : 1) * sideMargin / 2,
                 y: projection.y(at: 0.52)
             )
             ambientGlow.zPosition = -18
@@ -500,13 +606,13 @@ final class PracticeScene: SKScene {
                     let via = SKShapeNode(circleOfRadius: track == 1 ? 2.8 : 2.2)
                     via.position = sidePoint(fraction: fraction + 0.115, depth: depth + 0.09, isLeft: isLeft, projection: projection)
                     via.fillColor = GameplayVisualTheme.backdropWall
-                    via.strokeColor = accent.withAlphaComponent(0.78)
+                    via.strokeColor = accent.withAlphaComponent(0.40)
                     via.lineWidth = 1
                     via.zPosition = -10
                     staticLayer.addChild(via)
                 }
                 let conductor = SKShapeNode(path: path)
-                conductor.strokeColor = accent.withAlphaComponent(track == 1 ? 0.64 : 0.36)
+                conductor.strokeColor = accent.withAlphaComponent(track == 1 ? 0.28 : 0.14)
                 conductor.lineWidth = track == 1 ? 1.8 : 1.2
                 conductor.fillColor = .clear
                 conductor.zPosition = -11
@@ -517,7 +623,9 @@ final class PracticeScene: SKScene {
 
     private func sidePoint(fraction: CGFloat, depth: CGFloat, isLeft: Bool, projection: GameplayProjection) -> CGPoint {
         let edge = projection.x(atSlotBoundary: isLeft ? 0 : projection.laneCount, depth: depth)
-        let margin = isLeft ? edge : size.width - edge
+        // Una franja discreta junto a la pista deja el resto del margen oscuro,
+        // incluso cuando la ventana es mucho más ancha que la autopista.
+        let margin = min(96, isLeft ? edge : size.width - edge)
         let direction: CGFloat = isLeft ? -1 : 1
         return CGPoint(x: edge + direction * margin * fraction, y: projection.y(at: depth))
     }
@@ -605,6 +713,7 @@ final class PracticeScene: SKScene {
             beatLabel.text = beatText
         }
         progressFill.size = CGSize(width: 72 * CGFloat(barPosition / timeline.barDurationMilliseconds), height: 4)
+        updateTransitionCue(now: now, displayLeadMilliseconds: displayLeadMilliseconds, projection: projection)
         updatePulseLines(now: now, displayLeadMilliseconds: displayLeadMilliseconds, projection: projection)
         prepareVisibleNotes(from: now - 120, through: now + displayLeadMilliseconds)
         var notesToRecycle = [Int]()
@@ -947,9 +1056,8 @@ final class PracticeScene: SKScene {
     }
 
     private func applyFeedback(sound: String, judgement: RhythmJudgement, noteIndex: Int?, offsetMilliseconds: Double?, occurredAtHostTime: UInt64?) {
-        guard let slot = noteIndex.flatMap({ slotByNoteIndex[$0] }) ?? slotBySound[sound] else { return }
         let projection = self.projection
-        let hitPoint = projection.point(slot: slot, depth: 0)
+        let slot = noteIndex.flatMap({ slotByNoteIndex[$0] }) ?? slotBySound[sound]
         let visualAgeMilliseconds = occurredAtHostTime.map {
             AudioClock.milliseconds(from: $0, to: AudioClock.currentHostTime())
         } ?? 0
@@ -959,10 +1067,21 @@ final class PracticeScene: SKScene {
         if judgement == .extra || judgement == .miss {
             successfulStreak = 0
             refreshStreakHUD(animated: false)
-            effectsRenderer.showExtra(at: hitPoint, laneWidth: projection.trackWidth(at: 0) / CGFloat(projection.laneCount), color: GameplayVisualTheme.miss, reducesMotion: minimizesFeedback)
+            // Un golpe extra puede caer en un pad fuera de la frase: el juicio
+            // sigue siendo visible aunque ese sonido no tenga carril en pantalla.
+            if let slot {
+                effectsRenderer.showExtra(
+                    at: projection.point(slot: slot, depth: 0),
+                    laneWidth: projection.trackWidth(at: 0) / CGFloat(projection.laneCount),
+                    color: GameplayVisualTheme.miss,
+                    reducesMotion: minimizesFeedback
+                )
+            }
             presentJudgement(judgement == .extra ? "EXTRA" : "FALLO", color: GameplayVisualTheme.miss)
             return
         }
+        guard let slot else { return }
+        let hitPoint = projection.point(slot: slot, depth: 0)
         guard let noteIndex, let note = noteByIndex[noteIndex], !consumedNoteIndices.contains(noteIndex) else { return }
         let impact = activateNoteNode(for: note)
 

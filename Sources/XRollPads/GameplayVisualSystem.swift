@@ -73,6 +73,18 @@ struct GameplayProjection {
 
     var horizonY: CGFloat { max(hitLineY + 1, size.height - topInset) }
 
+    /// Las ventanas grandes añaden márgenes, no carriles desproporcionados.
+    /// En pantallas estrechas el espacio disponible sigue siendo el límite.
+    private var preferredTrackWidth: CGFloat {
+        switch laneCount {
+        case ...1: return 320
+        case 2: return 400
+        case 3: return 600
+        case 4: return 720
+        default: return min(1_000, 720 + CGFloat(laneCount - 4) * 80)
+        }
+    }
+
     /// Prolonga los límites de un carril por debajo de la línea de golpe para
     /// que el receptor conserve la misma fuga y la misma pendiente lateral.
     func padGeometry(slot: Int, height: CGFloat) -> ProjectedPadGeometry {
@@ -106,7 +118,7 @@ struct GameplayProjection {
     }
 
     func trackWidth(at depth: CGFloat) -> CGFloat {
-        let bottomWidth = max(1, size.width * 0.92)
+        let bottomWidth = max(1, min(size.width * 0.92, preferredTrackWidth))
         let ratio = 1 - (1 - topWidthRatio) * clamp(depth)
         return bottomWidth * ratio
     }
@@ -128,8 +140,10 @@ struct GameplayProjection {
     /// proyectados de SU carril. Se construye al activar el nodo, no por frame.
     func notePath(slot: Int) -> CGPath {
         let laneWidth = trackWidth(at: 0) / CGFloat(laneCount)
-        let width = min(36, max(8, laneWidth - 6))
-        let height: CGFloat = 30
+        // Un tamaño acotado mantiene la nota reconocible al cambiar de frase;
+        // solo se reduce cuando el propio carril no permite conservarlo.
+        let width = min(44, max(8, laneWidth - 6))
+        let height: CGFloat = 34
         let heightRange = max(1, horizonY - hitLineY)
         let centerSlope = (point(slot: slot, depth: 1).x - point(slot: slot, depth: 0).x) / heightRange
         let widthSlope = (trackWidth(at: 1) - trackWidth(at: 0)) / (CGFloat(laneCount) * heightRange) * (width / laneWidth)

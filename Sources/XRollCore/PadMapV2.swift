@@ -79,6 +79,29 @@ public struct PadMapV2: Codable, Equatable {
         }
     }
 
+    /// Proyección táctil de los objetivos activos, sin cambiar el mapa físico.
+    /// Los objetivos por sonido comparten un pad; los de rol/pad conservan las
+    /// alternativas exactas necesarias aunque correspondan al mismo sonido.
+    public func practicePads(for notes: [Exercise.Note]) -> [Pad] {
+        let ordered = pads.sorted { $0.row == $1.row ? $0.column < $1.column : $0.row < $1.row }
+        var selected = Set<String>()
+        var anySounds = Set<String>()
+        for note in notes {
+            guard let target = note.target, target.type != .any else {
+                anySounds.insert(note.sound)
+                continue
+            }
+            if let exact = ordered.first(where: { pad in
+                pad.sound == note.sound && (target.type == .pad ? pad.id == target.value : pad.role == target.value)
+            }) { selected.insert(exact.id) }
+        }
+        for sound in anySounds {
+            if ordered.contains(where: { $0.sound == sound && selected.contains($0.id) }) { continue }
+            if let pad = ordered.first(where: { $0.sound == sound }) { selected.insert(pad.id) }
+        }
+        return ordered.filter { selected.contains($0.id) }
+    }
+
 }
 
 public struct PadMapV2Router {

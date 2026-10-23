@@ -20,6 +20,7 @@
 		A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */; };
 		A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */; };
 		A1000000000000000000000C /* ../Sources/XRollPads/CourseRailwayMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* ../Sources/XRollPads/CourseRailwayMap.swift */; };
+		A1000000000000000000000D /* ../Sources/XRollPads/RailwayArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* ../Sources/XRollPads/RailwayArtwork.swift */; };
 		D10000000000000000000001 /* XRollCore/SystemInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* XRollCore/SystemInspection.swift */; };
 		D10000000000000000000002 /* XRollCore/RhythmScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* XRollCore/RhythmScoring.swift */; };
 		D10000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */; };
@@ -77,6 +78,7 @@
 		A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/XRollBrand.swift; sourceTree = "<group>"; };
 		A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/DrummerQuotes.swift; sourceTree = "<group>"; };
 		A2000000000000000000000D /* ../Sources/XRollPads/CourseRailwayMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/CourseRailwayMap.swift; sourceTree = "<group>"; };
+		A2000000000000000000000E /* ../Sources/XRollPads/RailwayArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/RailwayArtwork.swift; sourceTree = "<group>"; };
 		D20000000000000000000001 /* XRollCore/SystemInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/SystemInspection.swift; sourceTree = "<group>"; };
 		D20000000000000000000002 /* XRollCore/RhythmScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/RhythmScoring.swift; sourceTree = "<group>"; };
 		D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LatencyRecordingAnalysis.swift; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 				A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */,
 				A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */,
 				A2000000000000000000000D /* ../Sources/XRollPads/CourseRailwayMap.swift */,
+				A2000000000000000000000E /* ../Sources/XRollPads/RailwayArtwork.swift */,
 				A20000000000000000000006 /* PracticeTimingTrace.swift */,
 				A20000000000000000000007 /* Assets.xcassets */,
 			);
@@ -319,6 +322,7 @@
 				A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */,
 				A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */,
 				A1000000000000000000000C /* ../Sources/XRollPads/CourseRailwayMap.swift in Sources */,
+				A1000000000000000000000D /* ../Sources/XRollPads/RailwayArtwork.swift in Sources */,
 				A10000000000000000000005 /* PracticeTimingTrace.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -138,6 +138,33 @@ let jazzFillBar = ending(jazzAnswer, from: 9, with: [(0,51),(1,48),(2,41)])
 let jazzFill = phrase([jazzRim, jazzFillBar], grid: 12)
 let jazzCheckpoint = phrase([jazzWithKick,jazzKick,jazzRim,jazzFillBar], grid: 12)
 
+// Jazz intermedio: conserva el swing aprendido y suma una coordinación
+// principal por lección. El charles en 2/4 se toca con pads, no con pedal.
+let jazzIntermediateBase = phrase([jazzKick, jazzAnswer], grid: 12)
+let jazzTimeA = jazzKick + [(3,42),(9,42)]
+let jazzTimeB = jazzAnswer + [(3,42),(9,42)]
+let jazzTimekeeping = phrase([jazzTimeA, jazzTimeB], grid: 12)
+let jazzInside = jazzTimeA.filter { $0.1 != 38 } + [(1,38),(7,38)]
+let jazzInsidePhrase = phrase([jazzTimeA, jazzInside], grid: 12)
+let jazzKickComp = jazzInside.filter { !($0.0 == 6 && $0.1 == 36) } + [(8,36)]
+let jazzKickDialogue = phrase([jazzInside, jazzKickComp], grid: 12)
+let jazzRimDialogue = voice(jazzKickDialogue, from: 38, to: 37, at: [7,19])
+let jazzOpenDialogue = voice(jazzRimDialogue, from: 42, to: 46, at: [9,21])
+let jazzRideGaps = jazzOpenDialogue.filter { !($0.1 == 51 && [5,17].contains($0.0)) }
+let jazzIntermediateFill = ending(jazzRideGaps, from: 21, with: [(0,38),(1,48),(2,41)])
+let jazzFourBarPhrase = jazzRideGaps + shifted(jazzIntermediateFill, by: 24)
+let jazzTradingFillA = jazzRide + [(0,36),(2,38),(4,48),(7,41),(10,38)]
+let jazzTradingFillB = jazzRide + [(0,36),(2,38),(4,41),(7,48),(10,38)]
+let jazzTradingClose = ending(jazzTradingFillB, from: 9, with: [(0,38),(1,48),(2,41)])
+let jazzTradingFours = jazzFourBarPhrase + shifted(phrase([
+    jazzTradingFillA,jazzTradingFillB,jazzTradingFillA,jazzTradingClose], grid: 12), by: 48)
+let jazzIntermediateCheckpoint = phrase([
+    jazzTimeA,jazzTimeB,jazzInside,jazzKickComp,
+    jazzOpenDialogue.filter { $0.0 < 12 },
+    jazzRideGaps.filter { $0.0 >= 12 }.map { ($0.0 - 12,$0.1) },
+    jazzTradingFillA,jazzTradingClose
+], grid: 12)
+
 // Clave de son 3-2/2-3 y bossa: las células siempre tienen acompañamiento.
 let claveThreeTwo: [Hit] = [(0,37),(6,37),(12,37),(20,37),(24,37)]
 let claveTwoThree: [Hit] = [(4,37),(8,37),(16,37),(22,37),(28,37)]
@@ -183,14 +210,27 @@ let definitions: [Definition] = [
     .init(id: "22_blues_08_fill", title: "Blues 07 · Fill ternario integrado", bpm: 66, grid: 12, bars: 2, hits: bluesFill, objective: "Sustituye el último pulso de la respuesta por caja, tom agudo y tom grave.", difficulty: "triplet-tom-fill"),
     .init(id: "22_blues_04_cierre", title: "Blues 08 · Forma de doce compases", bpm: 66, grid: 12, bars: 12, hits: bluesCheckpoint, objective: "Recorre tres grupos distintos de cuatro compases con shuffle, aro, respuestas y fills.", difficulty: "twelve-bar-integration", checkpoint: true),
 
-    .init(id: "23_jazz_01_ride", title: "Jazz 01 · Ride con espacios", bpm: 64, grid: 12, hits: jazzBase, objective: "Pasa del shuffle continuo a la figura de ride con espacios y caja en dos y cuatro.", difficulty: "jazz-ride"),
-    .init(id: "23_jazz_02_dos_cuatro", title: "Jazz 02 · Bombo bajo el ride", bpm: 64, grid: 12, hits: jazzWithKick, objective: "Añade bombo en uno y tres sin alterar el ride ni la caja.", difficulty: "ride-kick-coordination"),
-    .init(id: "23_jazz_03_comping", title: "Jazz 03 · Comping de caja", bpm: 64, grid: 12, hits: jazzComping, objective: "Anticipa con caja los pulsos dos y cuatro mientras mantienes ride y bombo.", difficulty: "snare-comping"),
-    .init(id: "23_jazz_05_bombo", title: "Jazz 04 · Bombo de respuesta", bpm: 64, grid: 12, hits: jazzKick, objective: "Añade la respuesta de bombo al último tresillo sin perder el comping de caja.", difficulty: "jazz-kick-answer"),
-    .init(id: "23_jazz_06_aro", title: "Jazz 05 · Comping de aro", bpm: 64, grid: 12, hits: jazzRim, objective: "Alterna caja y aro en las anticipaciones bajo la misma figura de ride.", difficulty: "rim-comping"),
-    .init(id: "23_jazz_07_dialogo", title: "Jazz 06 · Dos compases dialogados", bpm: 64, grid: 12, bars: 2, hits: jazzDialogue, objective: "Contesta a la primera anticipación de caja desde el último tresillo del segundo pulso.", difficulty: "comping-dialogue"),
-    .init(id: "23_jazz_08_fill", title: "Jazz 07 · Cierre ternario de toms", bpm: 64, grid: 12, bars: 2, hits: jazzFill, objective: "Conecta el comping con ride, tom agudo y tom grave al cierre de la frase.", difficulty: "jazz-triplet-ending"),
-    .init(id: "23_jazz_04_frase", title: "Jazz 08 · Frase jazz completa", bpm: 64, grid: 12, bars: 4, hits: jazzCheckpoint, objective: "Integra backbeat, comping, respuesta de bombo, aro y cierre sin perder el ride.", difficulty: "jazz-integration", checkpoint: true),
+    .init(id: "23_jazz_01_ride", title: "Jazz básico 01 · Ride de swing", bpm: 64, grid: 12, hits: jazzBase, objective: "Pasa del shuffle continuo a la figura de ride con espacios y caja en dos y cuatro.", difficulty: "jazz-ride"),
+    .init(id: "23_jazz_02_dos_cuatro", title: "Jazz básico 02 · Bombo bajo el ride", bpm: 64, grid: 12, hits: jazzWithKick, objective: "Añade bombo en uno y tres sin alterar el ride ni la caja.", difficulty: "ride-kick-coordination"),
+    .init(id: "23_jazz_03_comping", title: "Jazz básico 03 · Comping de caja", bpm: 64, grid: 12, hits: jazzComping, objective: "Anticipa con caja los pulsos dos y cuatro mientras mantienes ride y bombo.", difficulty: "snare-comping"),
+    .init(id: "23_jazz_05_bombo", title: "Jazz básico 04 · Bombo de respuesta", bpm: 64, grid: 12, hits: jazzKick, objective: "Añade la respuesta de bombo al último tresillo sin perder el comping de caja.", difficulty: "jazz-kick-answer"),
+    .init(id: "23_jazz_06_aro", title: "Jazz básico 05 · Comping de aro", bpm: 64, grid: 12, hits: jazzRim, objective: "Alterna caja y aro en las anticipaciones bajo la misma figura de ride.", difficulty: "rim-comping"),
+    .init(id: "23_jazz_07_dialogo", title: "Jazz básico 06 · Dos compases dialogados", bpm: 64, grid: 12, bars: 2, hits: jazzDialogue, objective: "Contesta a la primera anticipación de caja desde el último tresillo del segundo pulso.", difficulty: "comping-dialogue"),
+    .init(id: "23_jazz_08_fill", title: "Jazz básico 07 · Cierre ternario de toms", bpm: 64, grid: 12, bars: 2, hits: jazzFill, objective: "Conecta el comping con ride, tom agudo y tom grave al cierre de la frase.", difficulty: "jazz-triplet-ending"),
+    .init(id: "23_jazz_04_frase", title: "Jazz básico 08 · Reto de swing", bpm: 64, grid: 12, bars: 4, hits: jazzCheckpoint, objective: "Integra backbeat, comping, respuesta de bombo, aro y cierre sin perder el ride.", difficulty: "jazz-integration", checkpoint: true),
+
+    .init(id: "28_jazz_01_continuidad", title: "Jazz intermedio 01 · Continuidad de swing", bpm: 72, grid: 12, bars: 2, hits: jazzIntermediateBase, objective: "Consolida el diálogo de caja, aro y bombo del curso básico a 72 BPM.", difficulty: "swing-consolidation-tempo"),
+    .init(id: "28_jazz_02_charles", title: "Jazz intermedio 02 · Charles en dos y cuatro", bpm: 72, grid: 12, bars: 2, hits: jazzTimekeeping, objective: "Añade el charles cerrado en dos y cuatro sin mover el ride ni las respuestas de caja y bombo.", difficulty: "hihat-two-and-four"),
+    .init(id: "28_jazz_03_tresillo", title: "Jazz intermedio 03 · Caja en tresillos interiores", bpm: 72, grid: 12, bars: 2, hits: jazzInsidePhrase, objective: "En el segundo compás, lleva la caja al tresillo interior de uno y tres manteniendo ride y charles.", difficulty: "inside-triplet-comping"),
+    .init(id: "28_jazz_04_bombo", title: "Jazz intermedio 04 · Comping de bombo", bpm: 72, grid: 12, hits: jazzKickComp, objective: "Desplaza el segundo bombo al último tresillo de tres sin cambiar las otras voces.", difficulty: "kick-comping-displacement"),
+    .init(id: "28_jazz_05_dialogo", title: "Jazz intermedio 05 · Diálogo entre bombo y caja", bpm: 72, grid: 12, bars: 2, hits: jazzKickDialogue, objective: "Alterna las dos posiciones del bombo sobre la caja interior y el charles en dos y cuatro.", difficulty: "kick-snare-dialogue"),
+    .init(id: "28_jazz_06_aro", title: "Jazz intermedio 06 · Aro dentro del comping", bpm: 72, grid: 12, bars: 2, hits: jazzRimDialogue, objective: "Responde a la primera caja con aro en el tresillo interior del tercer pulso.", difficulty: "inside-rim-comping"),
+    .init(id: "28_jazz_07_apertura", title: "Jazz intermedio 07 · Apertura en cuatro", bpm: 72, grid: 12, bars: 2, hits: jazzOpenDialogue, objective: "Abre el charles en cuatro y ciérralo en el siguiente dos sin perder el comping.", difficulty: "jazz-open-hihat"),
+    .init(id: "28_jazz_08_espacio", title: "Jazz intermedio 08 · Espacio en el ride", bpm: 72, grid: 12, bars: 2, hits: jazzRideGaps, objective: "Deja en silencio una nota de ride en cada compás y conserva el resto de la coordinación.", difficulty: "ride-gap-independence"),
+    .init(id: "28_jazz_09_fill", title: "Jazz intermedio 09 · Fill y vuelta al swing", bpm: 72, grid: 12, bars: 2, hits: jazzIntermediateFill, objective: "Sustituye el último pulso por caja y toms y regresa al groove sin perder el tiempo uno.", difficulty: "triplet-fill-return"),
+    .init(id: "28_jazz_10_frase", title: "Jazz intermedio 10 · Frase de cuatro compases", bpm: 72, grid: 12, bars: 4, hits: jazzFourBarPhrase, objective: "Une dos diálogos conocidos y coloca el fill solo al final de la frase.", difficulty: "four-bar-jazz-phrasing"),
+    .init(id: "28_jazz_11_trading", title: "Jazz intermedio 11 · Trading fours", bpm: 72, grid: 12, bars: 8, hits: jazzTradingFours, objective: "Alterna cuatro compases de groove con cuatro de respuestas de caja y toms, conservando la referencia del ride.", difficulty: "trading-fours"),
+    .init(id: "28_jazz_12_reto", title: "Jazz intermedio 12 · Reto de independencia", bpm: 72, grid: 12, bars: 8, hits: jazzIntermediateCheckpoint, objective: "Integra swing, charles en dos y cuatro, comping interior, aperturas, silencios y respuestas de toms en ocho compases.", difficulty: "intermediate-jazz-integration", checkpoint: true),
 
     .init(id: "24_disco_01_pulso", title: "Disco 01 · Bombo a negras", bpm: 80, hits: disco, objective: "Mantén cuatro bombos por compás con caja en dos y cuatro sin apilar tres voces.", difficulty: "four-on-the-floor"),
     .init(id: "24_disco_02_abierto", title: "Disco 02 · Charles abierto", bpm: 80, hits: discoOpen, objective: "Abre el último contratiempo sin retirar el bombo a negras.", difficulty: "last-offbeat-opening"),
@@ -233,12 +273,12 @@ func vlq(_ value: Int) -> [UInt8] { var value = value; var bytes = [UInt8(value 
 func be16(_ value: Int) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 255)] }
 func be32(_ value: Int) -> [UInt8] { [UInt8(value >> 24), UInt8(value >> 16), UInt8(value >> 8), UInt8(value & 255)] }
 let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("data/exercises")
-let chapterByPrefix = ["20": "rock", "21": "funk", "22": "blues", "23": "jazz", "24": "disco", "25": "reggae", "26": "dembow", "27": "clave-bossa"]
+let chapterByPrefix = ["20": "rock", "21": "funk", "22": "blues", "23": "jazz", "24": "disco", "25": "reggae", "26": "dembow", "27": "clave-bossa", "28": "jazz-intermediate"]
 let firstPrerequisite = [
     "rock": "10_hh_08_fill_cierre", "disco": "20_rock_04_resistencia",
     "funk": "24_disco_03_frase", "reggae": "21_funk_04_clap",
     "dembow": "25_reggae_03_frase", "blues": "26_dembow_03_frase",
-    "jazz": "22_blues_04_cierre", "clave-bossa": "23_jazz_04_frase"
+    "jazz": "22_blues_04_cierre", "jazz-intermediate": "23_jazz_04_frase", "clave-bossa": "28_jazz_12_reto"
 ]
 var previousByChapter = [String: String]()
 var positionByChapter = [String: Int]()

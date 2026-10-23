@@ -559,3 +559,143 @@ paneles de nivel/estación superados usados por ambas apps. Los textos y las
 instrucciones del reto proceden del núcleo. Los coordinadores solo adaptan las
 acciones a su navegación; el proyecto iOS incluye explícitamente este archivo
 compartido. Así una mejora visual o de lenguaje no diverge entre Mac e iPhone.
+
+## D-047 - Ilustraciones ferroviarias vectoriales y estáticas
+
+El recorrido se enriquece con gráficos propios dibujados en SwiftUI/Canvas:
+tren de dos vagones, paisaje urbano, vías y andén numerado. Las estaciones tienen
+distintivos musicales y la llegada incorpora acentos dorados. Se reutilizan en
+macOS e iOS desde `RailwayArtwork.swift`, conservando la metáfora de D-046.
+
+La decoración no introduce decisiones, no recibe entrada y queda fuera de la
+práctica. Es estática también con Reduce Motion y se oculta a VoiceOver, mientras
+los nombres, estados y acciones continúan siendo accesibles. El lienzo conserva
+su proporción al adaptarse a teléfono y escritorio.
+
+## D-048 - Pads táctiles compactos por ejercicio en iOS
+
+Sin controlador MIDI, la práctica muestra solo los pads necesarios para los
+objetivos activos del ejercicio, fragmento, voz o calibración. Los objetivos por
+sonido comparten un único botón; los de rol/pad conservan sus alternativas exactas.
+La selección se fija al comenzar la sesión completa, no según las notas visibles,
+de modo que las voces de los compases posteriores ya tienen su sitio.
+
+La rejilla virtual reparte el espacio entre esos botones: pocas filas en vertical
+y una columna lateral para una a tres voces en horizontal. Dibujo, hit testing y
+accesibilidad usan la misma geometría, incluidas filas incompletas. Cada botón
+conserva el ID, rol y entrada del pad original; el instante canónico sigue siendo
+el timestamp de UITouch convertido a host time.
+
+Esta es una excepción de presentación táctil a la posición fija y la matriz
+completa: no representa un controlador físico. Equipo conserva sus dieciséis
+posiciones y la entrada MIDI no se compacta ni remapea. El objetivo es ampliar los
+botones y devolver espacio a la línea temporal sin nuevas decisiones del usuario.
+
+## D-049 - Jazz básico y Jazz intermedio como estaciones consecutivas
+
+El bloque histórico `jazz` pasa a llamarse «Jazz básico»: conserva sus ocho MIDI,
+IDs, ritmos y progreso a 64 BPM. Se añade `jazz-intermediate` con doce MIDI nuevos
+a 72 BPM, después del básico y antes de Clave/Bossa. Esta inserción amplía D-028;
+el recorrido tiene quince estaciones y el catálogo 129 ejercicios.
+
+El intermedio desarrolla independencia con charles en dos y cuatro, tresillos
+interiores de caja, comping de bombo, aro, aperturas, silencios del ride, fills,
+fraseo y trading fours. Ambos cursos usan 4/4 y rejilla ternaria de doce pasos,
+mantienen un BPM fijo por bloque y no evalúan velocity ni articulación. Cada uno
+termina con su checkpoint integrador: cuatro compases en el básico y ocho en el
+intermedio. Los IDs y resultados anteriores permanecen guardados; la nueva estación
+requiere su propia evidencia curricular.
+
+## D-050 - Aprendizaje al tempo de la lección y apoyo automático gradual
+
+Una lección pendiente se prepara al tempo que acredita su objetivo,
+`min(BPM del MIDI, 100)`, tanto en macOS como en iOS. Esto sustituye la elección
+obligatoria del primer escalón de D-036: empezar siempre a 70 BPM podía no permitir
+avanzar en una lección de 72/78/88 BPM, o añadir velocidad al aprender un ritmo
+de 64/68 BPM. La escalera 70/85/100/120/140/160 sigue como reto opcional desde
+Personalizar; sus premios continúan exigiendo tocar el tempo concreto.
+
+En una lección superada, la preparación propone un reto por encima del mejor
+tempo acreditable. Si ya se tocó a 160 BPM pero faltan los 16 compases de Nivel
+dios, conserva ese reto y prepara la duración necesaria. No encontrar un reto
+superior no implica haber ganado los premios de los tempos que no se tocaron.
+
+Si falla un patrón completo pendiente en Integrar, la acción principal propone
+reintentarlo cuatro BPM más lento con guía completa y unos cuatro compases de
+práctica. Nunca parte la frase: una forma de ocho o doce compases se conserva
+entera. Cuando sale al 70–84 %, sube dos BPM; desde 85 %, cuatro BPM. La subida
+se detiene en el objetivo de aprendizaje. Los intentos lentos no acreditan la
+lección ni generan premios de tempos no tocados. Se conserva el mínimo de 40 BPM.
+
+El apoyo no se aplica a fragmentos, voces aisladas, transferencia, intentos
+históricos desconocidos, ritmos ya superados ni retos por encima del tempo de
+aprendizaje. Solo cambia la siguiente práctica del mismo ejercicio y ofrece una
+acción principal; el usuario no tiene que elegir una estrategia de rescate.
+
+## D-051 - Tronco común continuo y cierres sin técnicas inéditas
+
+Las treinta lecciones de Fundamentos, Coordinación, Subdivisión y Groove se
+revisan conservando IDs, metadatos curriculares y número de posiciones. Tras
+Iniciación se mantiene el groove de corcheas: se añaden respuestas de bombo/caja,
+espacios, parejas, aperturas, palmada, semicorcheas y orquestación de cierres.
+Las prácticas aisladas permanecen como herramientas, no como reinicios del curso.
+
+Cada bloque mantiene un BPM nominal fijo: 70 en Fundamentos y 72 en los otros
+tres. El cierre integra solo voces y posiciones rítmicas trabajadas antes. Ningún
+paso exige tres sonidos simultáneos. Las pruebas auditan estos límites, la
+continuidad desde Iniciación y la ausencia de patrones duplicados.
+
+La calibración sigue usando el motor MIDI de corcheas de `02_sub_02_corcheas`,
+pero aísla su charles con una proyección compartida antes de crear la sesión.
+Así se conserva una calibración regular de una voz sin mantener una lección
+curricular aislada que aburra tras los grooves anteriores. El catálogo mantiene
+129 MIDI; los resultados históricos no se reescriben.
+
+## D-052 - Autopista de sonidos activos y avisos de cambio
+
+La escena de práctica dibuja un carril solo por cada sonido presente en la
+timeline de la sesión, en el orden del primer pad físico de cada sonido. El
+reparto se fija al crear la escena y se conserva durante toda la frase, también
+en compases con silencios. Esto sustituye para la práctica la regla de D-033 de
+reservar carriles para todos los sonidos del mapa: la rejilla física de Equipo
+mantiene sus 16 posiciones y el mapeo MIDI no cambia. Un golpe extra en un pad
+fuera de la frase conserva el juicio, aunque no tenga carril propio.
+
+Antes de un cambio importante, la escena muestra un aviso y una banda que cruza
+la rejilla. Los avisos se calculan en `XRollCore` a partir de la timeline:
+entrada de un sonido nuevo tras el compás inicial, cierre del último compás de la
+última vuelta y última vuelta al empezar la repetición final. El aviso dura como
+mucho 2,4 s, no se repite en cada vuelta y la entrada de un sonido tiene
+prioridad sobre el cierre. Es presentación: no modifica notas, matching ni
+puntuación.
+
+Las voces del primer compás forman el groove inicial y su regreso tras un
+silencio no genera otro aviso. La banda de entrada apunta al primer golpe real
+del sonido, aunque caiga dentro del compás. En Transferir se conservan los avisos
+de cierre y última vuelta, pero se ocultan las entradas para no revelar el patrón
+que debe recordarse sin guía.
+
+**Por qué:** retirar los carriles inactivos devuelve anchura a las notas y a los
+nombres sin cambiar la posición relativa de los sonidos que sí se tocan. Avisar
+solo de los cambios relevantes ayuda a anticipar la variación sin añadir otro
+contador ni una decisión que tomar durante la práctica.
+
+## D-053 - Autopista centrada con anchura acotada por número de sonidos
+
+La compactación de D-052 conserva los sonidos activos, pero no reparte entre
+ellos todo el ancho de una ventana grande. La pista se centra y limita su anchura
+en la línea de golpe a 320/400 pt para una/dos voces, 600/720 pt para tres/cuatro
+y 800/880/960/1.000 pt para cinco a ocho. El espacio disponible, limitado al 92 %
+del ancho de escena, prevalece en pantallas estrechas. La geometría es compartida
+por macOS e iOS; Equipo y la rejilla táctil no cambian.
+
+Notas, receptores, rejilla y feedback conservan el mismo eje y punto de fuga.
+Las notas pasan de un máximo base de 36 × 30 a 44 × 34 pt, sin crecer por tener
+menos voces y reduciéndose si falta espacio. La decoración queda atenuada en una
+franja lateral de hasta 96 pt; el resto del margen permanece oscuro. La altura,
+anticipación, reloj y scoring se conservan.
+
+**Por qué:** con tres sonidos en una ventana grande los carriles ocupaban casi
+toda la pantalla y las notas parecían diminutas. Acotar la anchura concentra la
+lectura y evita receptores excesivamente largos sin introducir otra opción de
+configuración ni alterar el orden del mapa.

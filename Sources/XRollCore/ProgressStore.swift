@@ -29,13 +29,19 @@ public struct PracticeAttempt: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case exerciseID, timestamp, bpm, score, stars, perfect, good, regular, miss, extra
-        case meanOffsetMilliseconds, soundStatistics, hitRecords, trainingContext
+        case meanOffsetMilliseconds, soundStatistics, hitRecords, trainingContext, timestampUnixSeconds
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         exerciseID = try values.decode(String.self, forKey: .exerciseID)
-        timestamp = try values.decode(Date.self, forKey: .timestamp)
+        // ISO 8601 sin fracciones pierde precisión y rompe la deduplicación al
+        // restaurar el propio archivo. Conservamos también el valor de SQLite.
+        if let seconds = try values.decodeIfPresent(Double.self, forKey: .timestampUnixSeconds) {
+            timestamp = Date(timeIntervalSince1970: seconds)
+        } else {
+            timestamp = try values.decode(Date.self, forKey: .timestamp)
+        }
         bpm = try values.decode(Int.self, forKey: .bpm)
         score = try values.decode(Double.self, forKey: .score)
         stars = try values.decode(Int.self, forKey: .stars)
@@ -49,6 +55,39 @@ public struct PracticeAttempt: Codable, Equatable {
         hitRecords = try values.decodeIfPresent([HitRecord].self, forKey: .hitRecords) ?? []
         trainingContext = try values.decodeIfPresent(TrainingContext.self, forKey: .trainingContext)
             ?? .init(evaluationScope: .legacyUnknown)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(exerciseID, forKey: .exerciseID)
+        try values.encode(timestamp, forKey: .timestamp)
+        try values.encode(timestamp.timeIntervalSince1970, forKey: .timestampUnixSeconds)
+        try values.encode(bpm, forKey: .bpm)
+        try values.encode(score, forKey: .score)
+        try values.encode(stars, forKey: .stars)
+        try values.encode(perfect, forKey: .perfect)
+        try values.encode(good, forKey: .good)
+        try values.encode(regular, forKey: .regular)
+        try values.encode(miss, forKey: .miss)
+        try values.encode(extra, forKey: .extra)
+        try values.encodeIfPresent(meanOffsetMilliseconds, forKey: .meanOffsetMilliseconds)
+        try values.encode(soundStatistics, forKey: .soundStatistics)
+        try values.encode(hitRecords, forKey: .hitRecords)
+        try values.encode(trainingContext, forKey: .trainingContext)
+    }
+
+    /// Rechaza datos de historial inválidos antes de convertirlos a enteros
+    /// SQLite. Un archivo importado debe producir un error, no cerrar la app.
+    fileprivate func validateForStorage() throws {
+        guard !exerciseID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              timestamp.timeIntervalSince1970.isFinite,
+              bpm > 0, Int32(exactly: bpm) != nil,
+              score.isFinite, (0...100).contains(score), (0...3).contains(stars),
+              [perfect, good, regular, miss, extra].allSatisfy({ $0 >= 0 && Int32(exactly: $0) != nil }),
+              meanOffsetMilliseconds?.isFinite != false,
+              trainingContext.completedBars >= 0 else {
+            throw ProgressStoreError.invalidAttempt(exerciseID)
+        }
     }
 }
 
@@ -93,7 +132,13 @@ public struct ProgressFilter: Equatable {
 
 public enum ProgressStoreError: LocalizedError {
     case sqlite(String)
-    public var errorDescription: String? { if case .sqlite(let message) = self { return message }; return nil }
+    case invalidAttempt(String)
+    public var errorDescription: String? {
+        switch self {
+        case .sqlite(let message): return message
+        case .invalidAttempt(let id): return "El intento de \(id) contiene valores de historial no válidos."
+        }
+    }
 }
 
 public final class ProgressStore {
@@ -186,6 +231,7 @@ public final class ProgressStore {
     deinit { sqlite3_close(database) }
 
     public func record(_ attempt: PracticeAttempt) throws {
+        try attempt.validateForStorage()
         let statement = try prepare("INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, attempt.exerciseID, -1, sqliteTransient)
@@ -295,7 +341,7 @@ public final class ProgressStore {
         let statement = try prepare("SELECT score FROM (SELECT score, timestamp, id FROM attempts WHERE exercise_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?) ORDER BY timestamp ASC, id ASC")
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, exerciseID, -1, sqliteTransient)
-        sqlite3_bind_int(statement, 2, Int32(max(1, limit)))
+        sqlite3_bind_int(statement, 2, Int32(clamping: max(1, limit)))
         var scores: [Double] = []
         while true {
             let status = sqlite3_step(statement)
@@ -322,7 +368,7 @@ public final class ProgressStore {
         if let value = filter.maximumScore { sqlite3_bind_double(statement, index, value); index += 1 }
         if let value = filter.from { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
         if let value = filter.to { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
-        sqlite3_bind_int(statement, index, Int32(max(1, limit)))
+        sqlite3_bind_int(statement, index, Int32(clamping: max(1, limit)))
         var result: [PracticeAttempt] = []
         while true {
             let status = sqlite3_step(statement)

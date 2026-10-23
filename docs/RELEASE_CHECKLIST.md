@@ -16,17 +16,32 @@
   estructura ZIP, firma ad-hoc, arquitectura arm64, familias y recursos del IPA.
 - Las pruebas de PCM programado comprueban ganancia por golpe/claqueta, ataques
   tras reutilizar nodos, choke, cancelación y límites/reutilización de la caché.
-- Regresiones de contenido: las nueve rutas de género conservan en el cierre
+- Regresiones de contenido: las diez rutas de género conservan en el cierre
   sus voces y posiciones rítmicas, y no exigen tres golpes simultáneos. Hip-hop
-  tiene 12 lecciones y las demás rutas 8; Reggae contiene grooves en todos sus compases.
+  y Jazz intermedio tienen 12 lecciones; las demás rutas tienen 8. Reggae contiene grooves en todos sus compases.
   Las frases no multiplican la duración inicial. Los umbrales de estrellas se
   comprueban antes del redondeo y después de penalizar golpes extra.
-- `XRollUITests` comprueba diez rutas de navegación en simulador; CI conserva su
+- `XRollUITests` comprueba catorce rutas de navegación en simulador; CI conserva su
   resultado. Los resultados sintéticos no validan calibración ni latencia física.
 - El recorrido se comprueba con una única estación actual y un reto final por
   estación; solo celebra acreditaciones nuevas de patrón completo y se reconstruye
   al reabrir SQLite. Las pruebas UI cubren mapa ferroviario, preparación del reto
   y celebración → siguiente parada. Ambas apps compilan la misma vista compartida.
+- La proyección táctil prueba selección de sonidos, deduplicación, objetivos por
+  rol/pad y voces disponibles de todo el catálogo en Core, Drum Kit y Mirror.
+  Las regresiones UI comprueban dos botones grandes, ocho voces, sus zonas de
+  toque y el giro a horizontal sin cerrar la app.
+- La progresión comprueba que todas las lecciones pendientes se preparan a un
+  tempo acreditable, que el apoyo vuelve al objetivo sin saltos mayores de cuatro
+  BPM ni premios ficticios y que la calibración sigue siendo un charles regular.
+   El tronco común conserva grooves y sus cierres no introducen células inéditas.
+- Las regresiones de avisos comprueban entradas al golpe real, silencios y
+  retornos de voces ya conocidas. Un resultado corto a 160 BPM mantiene pendiente
+  el reto de 16 compases, sin conceder premios de otros tempos.
+- El historial conserva timestamps subsegundo al exportar/restaurar y revierte
+  importaciones con valores escalares inválidos. Un catálogo MIDI vacío produce
+  un error recuperable. El pulso interno distingue contratiempos audibles de
+  golpes dentro del silencio de la claqueta.
 
 ## Completado en hardware
 
@@ -57,12 +72,27 @@
 
 - Calibrar de nuevo si cambia la ruta de uso: entrada, salida, frecuencia o
   buffer.
+- Repetir, reiniciar y reanudar en macOS con una ruta sin calibrar debe solicitar
+  calibración; en iOS, comprobar también el buffer/frecuencia efectivos después
+  de reactivar audio desde pausa.
 
 ## Validación pendiente de producto
 
+- Recorrer Fundamentos → Coordinación → Subdivisión → Groove con una persona
+  principiante y otra con experiencia; valorar continuidad, dificultad y interés.
+  Comprobar el reintento con guía y retorno gradual al tempo objetivo en hardware.
+- En iPhone/iPad táctil, comprobar tamaños y legibilidad con una, dos y ocho voces,
+  giro durante la práctica, calibración de charles y práctica por voces. Equipo
+  debe mantener las 16 posiciones; los pads no deben cambiar durante una frase.
+- En macOS, redimensionar la práctica con una, tres y ocho voces: la autopista
+  sigue centrada, deja de ensancharse al alcanzar su límite y mantiene notas,
+  receptores, feedback y rejilla alineados. Repetir en iPad y ventana estrecha.
 - Comprobar el recorrido en Mac e iPhone/iPad: vías, tren, legibilidad de las
   estaciones y niveles, reto final y continuación a la parada correcta con el
   historial real. El lenguaje y las acciones deben coincidir entre plataformas.
+- Revisar ilustraciones y distintivos en pantallas pequeñas y con texto grande;
+  confirmar que no tapan el botón principal y que la decoración no recibe toques
+  ni añade elementos de navegación a VoiceOver.
 - Repetir en iPhone/iPad las rutas de Resultados y la preparación de checkpoint
   indicadas en `docs/IOS_HARDWARE_TESTS.md`; la compilación no verifica su interacción.
 - Seleccionar una lección posterior desde Curso y confirmar que Preparación

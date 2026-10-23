@@ -18,7 +18,7 @@ la interfaz real puede cambiar entre versiones.
 </p>
 
 <p align="center">
-  <strong>Práctica</strong> · carriles, manos y línea de golpe gobernados por el reloj de audio.
+  <strong>Práctica</strong> · carriles por sonido y línea de golpe gobernados por el reloj de audio.
 </p>
 
 <table>
@@ -42,8 +42,8 @@ El repositorio también incluye un port de desarrollo universal para iPhone y
 iPad. La compilación, instalación y validación pendiente en hardware están en
 [docs/IOS_BUILD.md](docs/IOS_BUILD.md) y
 [docs/IOS_HARDWARE_TESTS.md](docs/IOS_HARDWARE_TESTS.md).
-Con el iPad conectado, `scripts/deploy-ipad.sh` compila, firma e instala la app;
-si hay varios dispositivos, acepta `--udid <UDID>`.
+Para probar en iPhone/iPad, genera `dist/ios-device/xRoll-unsigned.ipa` con
+`scripts/build-ios-ipa.sh` e instálalo manualmente con Sideloadly.
 
 ## Desarrollo
 
@@ -95,7 +95,8 @@ y tamano de buffer.
 notas se programan contra el reloj de audio, con medio segundo de margen antes
 del primer golpe.
 
-Desde **Practicar**, `Empezar practica` abre la rejilla de dieciseis carriles.
+Desde **Practicar**, `Empezar practica` abre una autopista centrada con un carril
+por sonido activo y ancho limitado según el número de voces.
 Las notas llegan a la linea de golpe tras dos compases de anticipacion. Durante
 esa entrada puedes probar los pads: los golpes fuera de la ventana del primer
 pulso suenan y se iluminan sin entrar en la puntuacion; los golpes que anticipan
@@ -124,11 +125,11 @@ quiera revisar. Los datos permanecen locales en
 ## Caracteristicas
 
 - Notacion vertical con anticipacion de dos compases y vista previa del patron
-- Indicacion de que mano usar, reforzada con forma ademas de color
+- Un carril por sonido activo, con color, nombre y receptor alineados; sin indicación de manos
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 117 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 129 ejercicios MIDI progresivos
 - Curso libre con ruta recomendada y checkpoints por capítulo
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida

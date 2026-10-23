@@ -230,6 +230,8 @@ final class iOSPracticeModel: ObservableObject {
     @Published private(set) var campaignWorlds = [CourseWorld]()
     @Published private(set) var worldVictory: CourseWorldVictory?
     @Published private(set) var nextCampaignLevel: CourseWorld.Level?
+    @Published private(set) var learningRecovery: CourseLearningRecovery?
+    @Published private(set) var touchPracticePads = [PadMapV2.Pad]()
     @Published private(set) var recentAttempts = [PracticeAttempt]()
     @Published var selectedProgressExerciseID = ""
     @Published var minimumProgressScore = 0.0
@@ -416,9 +418,9 @@ final class iOSPracticeModel: ObservableObject {
     private var nextTempoLevel: TempoPracticeStep? {
         guard !resultIsPartial, (completedScore?.stars ?? 0) >= 2,
               activeEvaluationScope == .fullPattern, let exercise = selectedExercise else { return nil }
-        return TempoLadder.steps(for: exercise).first {
-            $0.bpm > selectedBPM && !TempoLadder.isPassed($0, exerciseID: exercise.id, evidence: courseEvidence)
-        }
+        guard let step = CourseLessonCriteria.optionalTempoStep(for: exercise, evidence: courseEvidence),
+              step.bpm >= selectedBPM else { return nil }
+        return step
     }
     private enum ResultProgressSuggestion {
         case raise(TempoPracticeStep)
@@ -435,7 +437,7 @@ final class iOSPracticeModel: ObservableObject {
         return nil
     }
     var alternativeProgressTitle: String? {
-        if nextCampaignLevel != nil { return nil }
+        if nextCampaignLevel != nil || learningRecovery != nil { return nil }
         switch resultProgressSuggestion {
         case .next where nextTempoLevel != nil: return "Subir nivel"
         case .raise where canOfferNextCourseExercise: return "Siguiente ejercicio"
@@ -443,6 +445,7 @@ final class iOSPracticeModel: ObservableObject {
         }
     }
     var displayedResultActionReason: String {
+        if let learningRecovery { return learningRecovery.message }
         if let nextCampaignLevel {
             return nextCampaignLevel.continuationMessage
         }
@@ -455,6 +458,7 @@ final class iOSPracticeModel: ObservableObject {
         }
     }
     var resultActionTitle: String {
+        if let learningRecovery { return learningRecovery.actionTitle }
         if let nextCampaignLevel { return nextCampaignLevel.continuationTitle }
         switch resultProgressSuggestion {
         case .raise: return "Subir nivel"
@@ -618,6 +622,13 @@ final class iOSPracticeModel: ObservableObject {
         }
         calibrationProfile = profile
         calibrationOffsetMilliseconds = 0
+        if scenario == "touch-practice" || scenario == "touch-many-sounds" {
+            let exerciseID = scenario == "touch-practice" ? "00_i_01_bombo_caja" : "10_hh_08_fill_cierre"
+            selectCourseExercise(exerciseID)
+            selectedRepeats = 16
+            startGuidedLesson()
+            return
+        }
         if scenario == "campaign-map" || scenario == "campaign-boss-ready" {
             if scenario == "campaign-boss-ready" {
                 for node in courseGraph?.nodes.filter({ $0.metadata.chapter == "initiation" && !$0.metadata.flags.contains("checkpoint") }) ?? [] {
@@ -639,6 +650,8 @@ final class iOSPracticeModel: ObservableObject {
             exercise = bundledExercises.first { $0.metadata?.chapter.hasPrefix("fills-") == true }
         case "exercise-preparation":
             exercise = bundledExercises.first { $0.id == "25_reggae_02_skank" }
+        case "learning-recovery":
+            exercise = bundledExercises.first { $0.id == "01_fund_01_pulso" }
         case "campaign-victory":
             exercise = courseGraph?.checkpoint(for: "initiation")?.exercise
         default:
@@ -653,8 +666,13 @@ final class iOSPracticeModel: ObservableObject {
             selectCourseExercise(exercise.id)
             return
         }
+        if scenario == "learning-tempo" {
+            selectCourseExercise("02_sub_03_groove")
+            return
+        }
         selectedExerciseID = exercise.id
         selectedBPM = ["checkpoint-result", "campaign-victory"].contains(scenario) ? CourseLessonCriteria.targetBPM(for: exercise) : 70
+        if scenario == "learning-recovery" { selectedBPM = 66 }
         selectedRepeats = 1
         isCheckpointAssessment = ["checkpoint-result", "campaign-victory"].contains(scenario)
         let configured = PracticeConfiguration(exercise: exercise, bpm: selectedBPM, repeats: 1).applying(to: exercise)
@@ -669,6 +687,7 @@ final class iOSPracticeModel: ObservableObject {
         worldVictory = courseGraph?.worldVictory(completing: CourseAttemptEvidence(attempt: attempt), previousEvidence: courseEvidence)
         nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
             evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+        learningRecovery = CourseLessonCriteria.recovery(for: exercise, attempt: CourseAttemptEvidence(attempt: attempt), evidence: courseEvidence)
         refreshCourseProgress()
         activeEvaluationScope = .fullPattern
         completedScore = score
@@ -1272,7 +1291,7 @@ final class iOSPracticeModel: ObservableObject {
             calibrationStatus = "No se encontró el ejercicio MIDI de calibración."
             return
         }
-        let calibrationExercise = PracticeConfiguration(exercise: exercise, bpm: exercise.bpm, repeats: 8).applying(to: exercise)
+        let calibrationExercise = PracticeConfiguration.calibrationExercise(from: exercise)
         guard startAudioEngine() else { return }
         calibrationTargetSounds = Set(calibrationExercise.notes.map(\.sound))
         calibrationStatus = "Sigue dos compases de cuenta atrás y toca cada nota de charles."
@@ -1357,6 +1376,7 @@ final class iOSPracticeModel: ObservableObject {
 
     private func selectExerciseForPractice(_ exerciseID: String, returnTo tab: iOSMainTab) {
         guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return }
+        learningRecovery = nil
         cancelResultTransition()
         showsResult = false
         worldVictory = nil
@@ -1375,8 +1395,7 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     private func selectPendingTempo(for exercise: Exercise) {
-        let steps = TempoLadder.steps(for: exercise)
-        guard let step = TempoLadder.nextStep(for: exercise, evidence: courseEvidence) ?? steps.last else { return }
+        let step = CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence)
         selectedBPM = step.bpm
         selectedRepeats = TempoLadder.repeats(for: step, exercise: exercise)
             ?? PracticeConfiguration.normalizedRepeats(exercise.repeats)
@@ -1698,6 +1717,7 @@ final class iOSPracticeModel: ObservableObject {
         fullPatternExercise: Exercise? = nil,
         evaluationScope: EvaluationScope = .fullPattern
     ) {
+        learningRecovery = nil
         finishTask?.cancel()
         stopPreview()
         let practice = PracticeSession(exercise: exercise, calibrationOffsetMilliseconds: offsetMilliseconds)
@@ -1718,6 +1738,7 @@ final class iOSPracticeModel: ObservableObject {
         session = practice
         presentedSessionGeneration = generation
         activeExercise = exercise
+        touchPracticePads = usesTouchInput ? (padMap?.practicePads(for: exercise.notes) ?? []) : []
         activeFullPatternExercise = fullPatternExercise
         activeEvaluationScope = calibration ? .fullPattern : evaluationScope
         activeTrainingPhase = calibration ? .integrate : trainingPhase
@@ -1773,7 +1794,7 @@ final class iOSPracticeModel: ObservableObject {
             anticipationMilliseconds: anticipationMilliseconds,
             slotBySound: lanes,
             soundLabels: labels,
-            showsSoundLabels: calibration || practiceHelp == .full,
+            showsSoundLabels: calibration || (trainingPhase != .transfer && practiceHelp == .full),
             showsNotes: calibration || trainingPhase != .transfer,
             hiddenGuideNoteIndices: hiddenGuideNoteIndices,
             emphasizesPlayerNotes: isPartialSelection,
@@ -1851,7 +1872,7 @@ final class iOSPracticeModel: ObservableObject {
 
     func registerPad(id: String, touchTimestamp: TimeInterval) {
         guard usesTouchInput else { return }
-        guard let pad = pads.first(where: { $0.id == id }) else { return }
+        guard let pad = touchPracticePads.first(where: { $0.id == id }) else { return }
         let hostTime = touchClock.hostTime(forUptimeTimestamp: touchTimestamp)
         let audioSubmissionStart = AudioClock.currentHostTime()
         var audioSubmissionReturn: UInt64?
@@ -2172,6 +2193,7 @@ final class iOSPracticeModel: ObservableObject {
         pausedCalibrationProfileKey = activeCalibrationProfileKey
         session = nil
         self.activeExercise = nil
+        touchPracticePads = []
         activeFullPatternExercise = nil
         activeExpectedNotesBySound.removeAll(keepingCapacity: true)
         scene = nil
@@ -2192,6 +2214,14 @@ final class iOSPracticeModel: ObservableObject {
         }
         guard startAudioEngine() else { return }
         let exercise = pausedExercise
+        // AVAudioSession puede negociar otra frecuencia o buffer al activarse;
+        // la comprobación anterior al arranque no basta para reutilizar el offset.
+        guard pausedCalibrationProfileKey == currentCalibrationProfileKey(),
+              pausedCalibration || hasCalibrationForCurrentRoute else {
+            discardPausedPractice()
+            calibrationStatus = "La ruta efectiva cambió al reanudar. Calibra de nuevo antes de puntuar."
+            return
+        }
         let fullPatternExercise = pausedFullPatternExercise
         let scope = pausedEvaluationScope
         let calibration = pausedCalibration
@@ -2222,6 +2252,16 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     func performResultAction() {
+        if let recovery = learningRecovery, let exercise = selectedExercise {
+            selectedBPM = recovery.bpm
+            selectedRepeats = recovery.repeats
+            practiceHelp = .full
+            gapMetronomeLevel = 0
+            updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
+            savePracticePreferences()
+            repeatLastExercise()
+            return
+        }
         if let next = nextCampaignLevel {
             selectCourseExercise(next.id)
             if !next.isBoss { startGuidedLesson() }
@@ -2507,6 +2547,7 @@ final class iOSPracticeModel: ObservableObject {
         let completion = PracticeCompletion(exercise: exercise, elapsedMilliseconds: elapsedMilliseconds)
         let totalBars = completion.totalBars
         let didCompleteWholePattern = completion.isComplete
+        learningRecovery = nil
         resultCompletedBars = completion.completedBars
         resultIsPartial = !isCalibrating && !didCompleteWholePattern
         saveTimingTrace(outcome: isCalibrating ? "calibration-completed" : (didCompleteWholePattern ? "completed" : "abandoned"))
@@ -2548,6 +2589,9 @@ final class iOSPracticeModel: ObservableObject {
                         previousEvidence: courseEvidence)
                     nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
                         evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+                    if let lesson = courseGraph?.node(for: exercise.id)?.exercise {
+                        learningRecovery = CourseLessonCriteria.recovery(for: lesson, attempt: CourseAttemptEvidence(attempt: attempt), evidence: courseEvidence)
+                    }
                 }
             }
             catch { status = "Sesión finalizada; no se pudo guardar el progreso: \(error.localizedDescription)" }
@@ -2620,6 +2664,7 @@ final class iOSPracticeModel: ObservableObject {
         self.session = nil
         presentedSessionGeneration = nil
         activeExercise = nil
+        touchPracticePads = []
         activeFullPatternExercise = nil
         activePracticeConditions = nil
         activeDailyBlockID = nil
@@ -2666,6 +2711,7 @@ final class iOSPracticeModel: ObservableObject {
         presentedSessionGeneration = nil
         discardingPracticeGeneration = nil
         activeExercise = nil
+        touchPracticePads = []
         activeFullPatternExercise = nil
         activePracticeConditions = nil
         activeDailyBlockID = nil
@@ -3530,7 +3576,13 @@ struct iOSHomeView: View {
                     Text("Mejor nivel superado: \(best.label) · \(best.bpm) BPM · \(best.award.label)")
                         .font(.subheadline).foregroundStyle(iOSStudioDesign.accent)
                 }
-                if let step = model.tempoSteps.first(where: { $0.bpm == model.selectedBPM }) {
+                if !CourseLessonCriteria.isPassed(exercise, evidence: model.courseEvidence),
+                   model.selectedBPM == CourseLessonCriteria.targetBPM(for: exercise) {
+                    Text("Aprender el ritmo · \(model.selectedBPM) BPM")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(iOSStudioDesign.primary)
+                    Text("Este tempo permite avanzar: toca el ritmo completo y alcanza el 70 %.")
+                        .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
+                } else if let step = model.tempoSteps.first(where: { $0.bpm == model.selectedBPM }) {
                     Text("Nivel preparado: \(step.label) · \(step.bpm) BPM")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(iOSStudioDesign.primary)
                     Text(TempoLadder.isPassed(step, exerciseID: exercise.id, evidence: model.courseEvidence)
@@ -4073,11 +4125,19 @@ struct iOSHomeView: View {
                     Text(exercise.metadata?.objective ?? "Toca el ritmo completo y mantén el pulso.")
                         .font(.subheadline).foregroundStyle(iOSStudioDesign.secondary).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 7) {
-                        metricPill("\(model.selectedBPM) BPM")
+                        metricPill("\(model.selectedBPM) BPM").accessibilityIdentifier("preparation.bpm")
                         metricPill("\(exercise.bars) compases")
                         metricPill("\(exercise.notes.count) notas")
                     }
-                    if !model.isCheckpointAssessment { tempoLevelSelector(for: exercise) }
+                    if !model.isCheckpointAssessment {
+                        if CourseLessonCriteria.isPassed(exercise, evidence: model.courseEvidence) {
+                            Text("Lección superada. Los tempos superiores son retos opcionales.")
+                                .font(.caption.weight(.semibold)).foregroundStyle(iOSStudioDesign.accent)
+                        } else {
+                            Text("Para avanzar: ritmo completo a \(CourseLessonCriteria.targetBPM(for: exercise)) BPM y al menos 70 %.")
+                                .font(.caption.weight(.semibold)).foregroundStyle(iOSStudioDesign.accent)
+                        }
+                    }
                     iOSExercisePattern(exercise: exercise).padding(.top, 2)
                     Text("\(model.selectedRepeats) vueltas · \(durationLabel(model.selectedExerciseDurationMilliseconds)) · \(model.trainingPhase.label)")
                         .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
@@ -4313,6 +4373,7 @@ struct iOSHomeView: View {
     private func tempoLadder(for exercise: Exercise) -> some View {
         DisclosureGroup(isExpanded: $showsTempoChallenges) {
             VStack(alignment: .leading, spacing: 7) {
+            tempoLevelSelector(for: exercise)
             Stepper(
                 "Tempo de práctica · \(model.selectedBPM) BPM",
                 value: Binding(get: { model.selectedBPM }, set: { model.setSelectedBPM($0) }),
@@ -4499,6 +4560,9 @@ struct iOSHomeView: View {
                 if let victory = model.worldVictory {
                     CourseStationCompletionBanner(completion: victory, stars: model.completedScore?.stars ?? 0,
                         continueAction: { model.continueWorldCampaign() })
+                } else if let recovery = model.learningRecovery {
+                    CourseLevelPassedBanner(title: recovery.title, reason: recovery.message, actionTitle: recovery.actionTitle,
+                        continueAction: { model.performResultAction() }, returnToMap: { model.returnToCourseMenu() })
                 } else if model.nextCampaignLevel != nil {
                     CourseLevelPassedBanner(reason: model.displayedResultActionReason, actionTitle: model.resultActionTitle,
                         continueAction: { model.performResultAction() }, returnToMap: { model.returnToCourseMenu() })
@@ -4582,7 +4646,7 @@ struct iOSHomeView: View {
                         }
                     }
                 }
-                if !model.resultIsPartial, model.resultSummary != nil, model.worldVictory == nil, model.nextCampaignLevel == nil {
+                if !model.resultIsPartial, model.resultSummary != nil, model.worldVictory == nil, model.nextCampaignLevel == nil, model.learningRecovery == nil {
                     resultActionPanel
                 } else if model.resultIsPartial {
                     iOSStudioPanel {
@@ -4700,6 +4764,9 @@ struct iOSHomeView: View {
         let bodyHeight = max(0, size.height - 52)
         let isLandscape = size.width > size.height * 1.25
         let touchSideBySide = model.usesTouchInput && (size.width >= 760 || isLandscape)
+        let controls = TouchPadControlSizing(padCount: model.touchPracticePads.count,
+            availableWidth: max(0, size.width - horizontalPadding * 2), bodyHeight: bodyHeight,
+            sideBySide: touchSideBySide)
 
         VStack(spacing: 6) {
             HStack(spacing: 8) {
@@ -4726,22 +4793,19 @@ struct iOSHomeView: View {
             .frame(height: 36)
 
             if touchSideBySide {
-                let padSize = max(0, min(340, bodyHeight - 36, size.width - horizontalPadding * 2 - 280))
                 HStack(spacing: 8) {
                     practiceScene(height: bodyHeight)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .layoutPriority(1)
-                    touchPracticeControls(padSize: padSize)
-                        .frame(width: padSize + 12, height: bodyHeight)
+                    touchPracticeControls(size: controls.size, maximumColumns: controls.columns)
+                        .frame(width: controls.size.width + 12, height: bodyHeight)
                 }
                 .frame(height: bodyHeight)
             } else if model.usesTouchInput {
-                let padSize = max(0, min(320, size.width - horizontalPadding * 2 - 12, bodyHeight * 0.40, bodyHeight - 206))
-                let controlsHeight = padSize + 36
-                let sceneHeight = max(160, bodyHeight - controlsHeight - 6)
+                let sceneHeight = max(160, bodyHeight - controls.size.height - 42)
                 VStack(spacing: 6) {
                     practiceScene(height: sceneHeight)
-                    touchPracticeControls(padSize: padSize)
+                    touchPracticeControls(size: controls.size, maximumColumns: controls.columns)
                         .frame(maxWidth: .infinity)
                 }
                 .frame(height: bodyHeight)
@@ -4785,16 +4849,19 @@ struct iOSHomeView: View {
         .background(iOSStudioDesign.surface, in: RoundedRectangle(cornerRadius: 9))
     }
 
-    private func touchPracticeControls(padSize: CGFloat) -> some View {
+    private func touchPracticeControls(size: CGSize, maximumColumns: Int) -> some View {
         VStack(spacing: 4) {
-            PadTouchGrid(pads: model.pads) { padID, timestamp in
+            PadTouchGrid(pads: model.touchPracticePads,
+                labels: Dictionary(uniqueKeysWithValues: model.touchPracticePads.map { ($0.id, model.kitLabel(for: $0.sound)) }),
+                maximumColumns: maximumColumns) { padID, timestamp in
                 model.registerPad(id: padID, touchTimestamp: timestamp)
             }
-            .frame(width: padSize, height: padSize)
+            .frame(width: size.width, height: size.height)
             Text(model.isCalibrating ? "\(model.calibrationHitCount) golpes" : model.lastHit)
                 .font(.caption2).foregroundStyle(iOSStudioDesign.secondary).lineLimit(1)
+                .accessibilityIdentifier("practice.touch.lastHit")
         }
-        .frame(width: padSize + 12, height: padSize + 36)
+        .frame(width: size.width + 12, height: size.height + 36)
         .background(iOSStudioDesign.surface, in: RoundedRectangle(cornerRadius: 12))
     }
 
@@ -5080,19 +5147,65 @@ struct iOSAudioRoutePicker: UIViewRepresentable {
     func updateUIView(_ picker: AVRoutePickerView, context: Context) {}
 }
 
+/// Geometría virtual: no reutiliza las coordenadas físicas de Equipo. Dibujo,
+/// hit testing y accesibilidad usan exactamente las mismas celdas compactas.
+private struct TouchPadControlSizing {
+    let size: CGSize
+    let columns: Int
+
+    init(padCount: Int, availableWidth: CGFloat, bodyHeight: CGFloat, sideBySide: Bool) {
+        let maximumColumns = sideBySide ? (padCount <= 3 ? 1 : (padCount <= 6 ? 2 : 3)) : 4
+        let grid = TouchPadGridLayout(count: padCount, maximumColumns: maximumColumns)
+        let widthLimit: CGFloat = sideBySide ? (padCount <= 3 ? 200 : 320) : 440
+        let reservedWidth: CGFloat = sideBySide ? 280 : 12
+        let width = max(0, min(widthLimit, availableWidth - reservedWidth))
+        let cellHeightLimit: CGFloat = sideBySide ? 120 : 104
+        let preferredHeight = CGFloat(grid.rows) * min(cellHeightLimit, width / CGFloat(grid.columns))
+        let heightLimit = sideBySide ? bodyHeight - 36 : min(bodyHeight * 0.42, bodyHeight - 206)
+        size = CGSize(width: width, height: max(0, min(heightLimit, preferredHeight)))
+        columns = grid.columns
+    }
+}
+
+private struct TouchPadGridLayout {
+    let count: Int
+    var maximumColumns = 4
+    var columns: Int {
+        let preferred = count <= 3 ? max(1, count) : (count <= 4 ? 2 : (count <= 9 ? 3 : 4))
+        return min(max(1, maximumColumns), preferred)
+    }
+    var rows: Int { max(1, (count + columns - 1) / columns) }
+
+    func frame(at index: Int, in bounds: CGRect) -> CGRect {
+        guard index >= 0, index < count else { return .zero }
+        let row = index / columns
+        let itemsInRow = min(columns, count - row * columns)
+        let width = bounds.width / CGFloat(itemsInRow)
+        let height = bounds.height / CGFloat(rows)
+        return CGRect(x: bounds.minX + CGFloat(index % columns) * width,
+            y: bounds.minY + CGFloat(row) * height, width: width, height: height)
+    }
+}
+
 private struct PadTouchGrid: UIViewRepresentable {
     let pads: [PadMapV2.Pad]
+    let labels: [String: String]
+    let maximumColumns: Int
     let onHit: (String, TimeInterval) -> Void
 
     func makeUIView(context: Context) -> TouchGridView {
         let view = TouchGridView()
         view.onHit = onHit
+        view.padLabels = labels
+        view.maximumColumns = maximumColumns
         view.pads = pads
         return view
     }
 
     func updateUIView(_ view: TouchGridView, context: Context) {
         view.onHit = onHit
+        view.padLabels = labels
+        view.maximumColumns = maximumColumns
         view.pads = pads
         view.setNeedsDisplay()
     }
@@ -5111,9 +5224,19 @@ private final class TouchGridAccessibilityElement: UIAccessibilityElement {
 private final class TouchGridView: UIView {
     var pads: [PadMapV2.Pad] = [] {
         didSet {
-            if oldValue != pads { updateAccessibilityElements() }
+            if oldValue != pads {
+                activePadTokens.removeAll()
+                updateAccessibilityElements()
+            }
         }
     }
+    var padLabels: [String: String] = [:] {
+        didSet { if oldValue != padLabels { updateAccessibilityElements() } }
+    }
+    var maximumColumns = 4 {
+        didSet { if oldValue != maximumColumns { updateAccessibilityFrames(); setNeedsDisplay() } }
+    }
+    private var grid: TouchPadGridLayout { .init(count: pads.count, maximumColumns: maximumColumns) }
     var onHit: ((String, TimeInterval) -> Void)?
     private var accessibilityPadElements = [String: TouchGridAccessibilityElement]()
 
@@ -5134,13 +5257,10 @@ private final class TouchGridView: UIView {
 
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        let width = bounds.width / 4
-        let height = bounds.height / 4
-        for pad in pads {
-            let frame = CGRect(x: CGFloat(pad.column) * width + 3,
-                               y: CGFloat(3 - pad.row) * height + 3,
-                               width: max(1, width - 6),
-                               height: max(1, height - 6))
+        let layout = grid
+        for (index, pad) in pads.enumerated() {
+            let frame = layout.frame(at: index, in: bounds).insetBy(dx: 3, dy: 3)
+            guard frame.width > 0, frame.height > 0 else { continue }
             let isActive = activePadTokens[pad.id] != nil
             let soundColor = UIColor(cgColor: GameplayVisualTheme.soundAccent(pad.sound).cgColor)
             let padColor = isActive
@@ -5163,6 +5283,8 @@ private final class TouchGridView: UIView {
             context.fill(cap)
 
             var symbolTransform = CGAffineTransform(translationX: frame.midX, y: frame.midY - 7)
+            let symbolScale = min(1.5, max(1, min(frame.width, frame.height) / 90))
+            symbolTransform = symbolTransform.scaledBy(x: symbolScale, y: symbolScale)
             let symbol = GameplayVisualTheme.padSymbolPath(for: pad.sound).copy(using: &symbolTransform)
             if let symbol {
                 context.setStrokeColor(soundColor.cgColor)
@@ -5170,29 +5292,29 @@ private final class TouchGridView: UIView {
                 context.addPath(symbol)
                 context.strokePath()
             }
-            let label = pad.sound.replacingOccurrences(of: "_", with: " ").uppercased()
-            var fontSize = min(CGFloat(13), max(CGFloat(8), width / 7))
-            let maximumLabelWidth = max(1, frame.width - 8)
-            while fontSize > 8 && (label as NSString).size(withAttributes: [.font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold)]).width > maximumLabelWidth {
-                fontSize -= 1
-            }
+            let label = (padLabels[pad.id] ?? pad.sound.replacingOccurrences(of: "_", with: " ")).uppercased()
+            let fontSize = min(CGFloat(18), max(CGFloat(10), frame.width / 8))
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            paragraph.lineBreakMode = .byWordWrapping
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold),
+                .font: UIFont.systemFont(ofSize: fontSize, weight: .semibold),
+                .paragraphStyle: paragraph,
                 .foregroundColor: UIColor.white.withAlphaComponent(isActive ? 1 : 0.88)
             ]
-            let text = label as NSString
-            let size = text.size(withAttributes: attributes)
-            text.draw(at: CGPoint(x: frame.midX - size.width / 2, y: frame.midY + 8 - size.height / 2), withAttributes: attributes)
+            (label as NSString).draw(in: CGRect(x: frame.minX + 5, y: frame.midY + 7,
+                width: max(1, frame.width - 10), height: max(1, frame.height / 2 - 9)), withAttributes: attributes)
         }
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let layout = grid
         for touch in touches {
             let point = touch.location(in: self)
-            let column = min(3, max(0, Int(point.x / max(1, bounds.width) * 4)))
-            let row = 3 - min(3, max(0, Int(point.y / max(1, bounds.height) * 4)))
-            if let pad = pads.first(where: { $0.row == row && $0.column == column }) {
+            guard bounds.contains(point) else { continue }
+            for (index, pad) in pads.enumerated() where layout.frame(at: index, in: bounds).contains(point) {
                 activate(pad, at: touch.timestamp)
+                break
             }
         }
     }
@@ -5200,8 +5322,9 @@ private final class TouchGridView: UIView {
     private func updateAccessibilityElements() {
         accessibilityPadElements = Dictionary(uniqueKeysWithValues: pads.map { pad in
             let element = TouchGridAccessibilityElement(accessibilityContainer: self)
-            let soundName = pad.sound.replacingOccurrences(of: "_", with: " ")
-            element.accessibilityLabel = "\(soundName), fila \(pad.row + 1), columna \(pad.column + 1)"
+            let soundName = padLabels[pad.id] ?? pad.sound.replacingOccurrences(of: "_", with: " ")
+            element.accessibilityLabel = soundName
+            element.accessibilityIdentifier = "practice.pad.\(pad.sound).\(pad.id)"
             element.accessibilityHint = "Toca dos veces para golpear este pad."
             element.accessibilityTraits = .button
             element.activatePad = { [weak self] in
@@ -5214,15 +5337,9 @@ private final class TouchGridView: UIView {
     }
 
     private func updateAccessibilityFrames() {
-        let width = bounds.width / 4
-        let height = bounds.height / 4
-        for pad in pads {
-            accessibilityPadElements[pad.id]?.accessibilityFrameInContainerSpace = CGRect(
-                x: CGFloat(pad.column) * width,
-                y: CGFloat(3 - pad.row) * height,
-                width: width,
-                height: height
-            )
+        let layout = grid
+        for (index, pad) in pads.enumerated() {
+            accessibilityPadElements[pad.id]?.accessibilityFrameInContainerSpace = layout.frame(at: index, in: bounds)
         }
     }
 

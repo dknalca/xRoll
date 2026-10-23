@@ -8,7 +8,79 @@ final class PracticeNavigationUITests: XCTestCase {
         app = XCUIApplication()
     }
 
-    override func tearDownWithError() throws { app.terminate() }
+    override func tearDownWithError() throws {
+        app.terminate()
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testPendingLessonUsesLearningTempoWithoutPresentingSpeedChallenges() {
+        launch("learning-tempo")
+        XCTAssertTrue(app.staticTexts["preparation.title"].waitForExistence(timeout: 30))
+        XCTAssertEqual(app.staticTexts["preparation.bpm"].label, "72 BPM")
+        XCTAssertFalse(app.buttons["Seleccionar nivel Aprender, 70 BPM"].exists)
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "72 BPM")
+    }
+
+    func testSlowSuccessfulAttemptReturnsGraduallyToTheSameLesson() {
+        launch("learning-recovery")
+        XCTAssertTrue(app.buttons["Continuar"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["¡Buen ritmo!"].exists)
+        XCTAssertFalse(app.buttons["Subir nivel"].exists)
+        XCTAssertFalse(app.staticTexts["course.arrival.title"].exists)
+        tap(app.buttons["Continuar"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.title"].label, "Fundamentos 1 · Bombo de respuesta")
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "70 BPM")
+    }
+
+    func testTouchPracticeUsesTwoLargePadsAndKeepsThemPlayableAfterRotation() {
+        launch("touch-practice")
+        let pads = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad."))
+        let kick = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad.kick.")).firstMatch
+        XCTAssertTrue(kick.waitForExistence(timeout: 30))
+        XCTAssertEqual(pads.count, 2)
+        XCTAssertGreaterThan(kick.frame.width, 100)
+        kick.tap()
+        XCTAssertTrue(app.staticTexts["practice.touch.lastHit"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["practice.touch.lastHit"].label, "Bombo")
+        let portrait = XCTAttachment(screenshot: app.screenshot())
+        portrait.name = "Pads compactos · vertical"
+        portrait.lifetime = .keepAlways
+        add(portrait)
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let snare = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad.snare.")).firstMatch
+        XCTAssertTrue(snare.waitForExistence(timeout: 10))
+        XCTAssertEqual(pads.count, 2)
+        XCTAssertGreaterThan(snare.frame.width, 100)
+        snare.tap()
+        XCTAssertEqual(app.staticTexts["practice.touch.lastHit"].label, "Caja")
+        let landscape = XCTAttachment(screenshot: app.screenshot())
+        landscape.name = "Pads compactos · horizontal"
+        landscape.lifetime = .keepAlways
+        add(landscape)
+    }
+
+    func testTouchPracticeShowsOnlyTheEightSoundsOfTheFullHipHopPhrase() {
+        launch("touch-many-sounds")
+        let pads = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad."))
+        XCTAssertTrue(pads.firstMatch.waitForExistence(timeout: 30))
+        XCTAssertEqual(pads.count, 8)
+        let sounds = Set(pads.allElementsBoundByIndex.map { $0.identifier.components(separatedBy: ".")[2] })
+        XCTAssertEqual(sounds, ["kick", "snare", "rim", "clap", "hihat_closed", "hihat_open", "tom_high", "tom_low"])
+        for pad in pads.allElementsBoundByIndex {
+            let soundName = pad.label
+            XCTAssertTrue(pad.isHittable)
+            pad.tap()
+            XCTAssertEqual(app.staticTexts["practice.touch.lastHit"].label, soundName)
+        }
+        let image = XCTAttachment(screenshot: app.screenshot())
+        image.name = "Pads compactos · ocho sonidos"
+        image.lifetime = .keepAlways
+        add(image)
+    }
 
     private func launch(_ scenario: String = "result") {
         app.launchEnvironment["XROLL_UI_TEST_SCENARIO"] = scenario
@@ -45,7 +117,7 @@ final class PracticeNavigationUITests: XCTestCase {
         let title = app.staticTexts["practice.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 15))
         XCTAssertEqual(title.label, "I-02 · Añade charles")
-        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "70 BPM")
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "68 BPM")
         XCTAssertFalse(app.buttons["preparation.start"].exists)
     }
 

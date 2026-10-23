@@ -14,8 +14,9 @@
 10. Reggae.
 11. Dembow.
 12. Blues/Shuffle.
-13. Jazz.
-14. Clave/Bossa.
+13. Jazz básico.
+14. Jazz intermedio.
+15. Clave/Bossa.
 
 El tronco común prepara las habilidades. La ruta guiada recomienda una secuencia
 fija; todos los ejercicios pueden practicarse libremente. Cada capítulo declara
@@ -25,9 +26,10 @@ alternativa sigue respetando el orden entre capítulos; un checkpoint futuro
 superado se conserva y se acredita al completar la ruta anterior. Redobles es
 una ruta técnica transversal y no bloquea el curso principal.
 
-El catálogo completo contiene **117 MIDI**: 33 del tronco común, 76 de géneros
+El catálogo completo contiene **129 MIDI**: 33 del tronco común, 88 de géneros
 y 8 de Redobles. La ampliación de octubre añade 40 lecciones: Hip-hop tiene 12
-y cada uno de los otros ocho géneros tiene 8, incluida su prueba final.
+y cada uno de los otros ocho bloques originales tiene 8, incluida su prueba final.
+Jazz intermedio añade otras 12 lecciones tras Jazz básico.
 
 En la app, cada bloque principal es una **estación** y su checkpoint es el
 **reto final de estación**. El mapa ferroviario muestra el tren en la parada
@@ -73,15 +75,20 @@ Definida en [INITIATION.md](INITIATION.md).
 
 | Nivel | Nombre | Dificultad nueva | Sonidos | BPM |
 |---:|---|---|---|---:|
-| 1.1 | Bombo y caja estables | Esqueleto completo | Bombo + caja | 70 |
-| 1.2 | Segundo bombo | Una variación sin cambiar la caja | mismos | 70 |
-| 1.3 | Charles a negras | Primera guía continua | + HH cerrado | 70 |
-| 1.4 | Primera corchea | Un único «y» de charles | mismos | 70 |
-| 1.5 | Charles a corcheas | Motor completo | mismos | 70 |
-| 1.6 | Bombo doble | Variación de bombo | mismos | 70 |
+| 1.1 | Bombo de respuesta | Añadir bombo en tres y al groove de Iniciación | Bombo + caja + HH cerrado | 70 |
+| 1.2 | Caja de respuesta | Añadir una caja en dos y | mismos | 70 |
+| 1.3 | Bombo doble de entrada | Añadir un bombo en uno y | mismos | 70 |
+| 1.4 | Espacio entre respuestas | Retirar dos charles sin perder el groove | mismos | 70 |
+| 1.5 | Caja de enlace | Desplazar la respuesta de caja a cuatro y | mismos | 70 |
+| 1.6 | Frase de respuestas | Integrar las figuras conocidas en cuatro compases | mismos | 70 |
 | Escalera común | Aprender, Base, Consolidar, Difícil, Jefe y Nivel dios | El mismo ritmo a 70, 85, 100, 120, 140 y 160 BPM | mismos | 70 / 85 / 100 / 120 / 140 / 160 |
 
 La recomendación propone una sola siguiente lección a su tempo de aprendizaje.
+La preparación usa ese mismo tempo, no el primer reto de velocidad pendiente.
+Tras un intento completo difícil, propone el mismo ejercicio cuatro BPM más
+lento con guía completa y una práctica más corta. Al mejorar, vuelve hacia el
+objetivo en pasos de dos o cuatro BPM. El progreso solo se acredita al tocar el
+patrón completo al tempo objetivo y con al menos 70 %.
 Los retos de 70, 85, 100, 120, 140 y 160 BPM son opcionales; sus estrellas y
 trofeos solo se conceden por resultados completos al tempo correspondiente. La
 estación se acredita al superar todos sus ejercicios o su prueba de bloque con
@@ -92,40 +99,40 @@ menos 16 compases.
 
 | Nivel | Nombre | Habilidad |
 |---:|---|---|
-| 3.1 | Dos manos, un pulso | Alternancia |
-| 3.2 | Golpes simultáneos | Bombo + charles |
-| 3.3 | Backbeat simultáneo | Caja + charles |
-| 3.4 | Cambia de pareja | Alternar simultaneidades |
-| 3.5 | Abre y cierra | HH abierto |
-| 3.6 | Refuerza dos y cuatro | Palmada |
-| 3.7 | Rompe la alternancia | Repetición controlada |
-| 3.8 | Prueba de independencia | Integración |
+| 3.1 | Caja entre charles | Alternancia sobre el groove anterior |
+| 3.2 | Cambia de pareja | Cambiar las simultaneidades sin retirar el groove |
+| 3.3 | Respuesta entre parejas | Añadir bombo en dos y |
+| 3.4 | Apertura de cierre | Orquestar el último charles |
+| 3.5 | Abre y cierra en frase | Un compás con apertura y otro con cierre |
+| 3.6 | Palmada de respuesta | Sustituir la caja de cuatro |
+| 3.7 | Palmada de enlace | Anticipar la vuelta con una palmada |
+| 3.8 | Frase de independencia | Integrar solo figuras ya preparadas |
 
 ### Subdivisión y lectura
 
 | Nivel | Nombre | Habilidad | BPM |
 |---:|---|---|---:|
-| 2.1 | Entre los pulsos | Corcheas aisladas | 72 |
-| 2.2 | Corcheas continuas | Mantener subdivisión | 72 |
-| 2.3 | Groove en corcheas | Integración | 72 |
-| 2.4 | Bombo en el y | Primer contratiempo | 72 |
-| 2.5 | Caja desplazada | Contratiempo en otra voz | 72 |
-| 2.6 | Semicorcheas aisladas | Rejilla de 16 | 68 |
-| 2.7 | Una semicorchea | Integración en bombo | 68 |
-| 2.8 | Consolidación | Aumento de tempo | 78 |
-| 2.9 | Frase integrada | Dos compases de caja desplazada y dos de bombo doble | 78 |
+| 2.1 | Contratiempos en contexto | Charles entre pulsos sobre las respuestas conocidas | 72 |
+| 2.2 | Corcheas sobre las respuestas | Completar el motor conservando las voces | 72 |
+| 2.3 | Abierto sobre el motor | Orquestar el último charles | 72 |
+| 2.4 | Bombo en cuatro y | Desplazar el bombo; el abierto cede a la pareja bombo/caja | 72 |
+| 2.5 | Caja desplazada | Llevar la caja al y de dos | 72 |
+| 2.6 | Primera semicorchea de charles | Una nota intermedia sobre el groove | 72 |
+| 2.7 | Bombo en semicorchea | Aplicar la nueva rejilla al bombo | 72 |
+| 2.8 | Ráfaga corta de charles | Dos notas adicionales, sin acelerar | 72 |
+| 2.9 | Frase integrada | Corcheas, desplazamientos y ráfagas conocidas | 72 |
 
 ### Groove y fraseo
 
 | Nivel | Nombre | Habilidad |
 |---:|---|---|
-| 4.1 | El valor del silencio | Retirar un charles |
-| 4.2 | Bombo sincopado | Dos contratiempos |
+| 4.1 | Respiración de charles | Retirar una nota de la ráfaga conocida |
+| 4.2 | Anticipación de bombo | Desplazar un paso un bombo |
 | 4.3 | Respuesta de palmada | Pregunta y respuesta |
-| 4.4 | Preparar el cierre | Fill de palmada |
-| 4.5 | Primer fill de toms | Movimiento entre pads |
+| 4.4 | Cierre de palmada | Sustituir el último pulso por dos palmadas |
+| 4.5 | El mismo cierre en toms | Orquestación sobre el mismo ritmo |
 | 4.6 | Crash de entrada | Marcar frase |
-| 4.7 | Groove completo | Cuatro compases |
+| 4.7 | Frase completa | Cuatro compases sin figuras inéditas |
 
 ## Secuencia de rutas por género
 
@@ -150,11 +157,12 @@ la base al introducir cada variación:
 
 ### Orden posterior a Hip-hop
 
-Rock, Disco, Funk, Reggae, Dembow, Blues/Shuffle, Jazz y Clave/Bossa se abren
-en ese orden. Cada ruta tiene ocho lecciones en 4/4: aplicación de la base,
+Rock, Disco, Funk, Reggae, Dembow, Blues/Shuffle, Jazz básico, Jazz intermedio y
+Clave/Bossa se abren en ese orden. Cada ruta original tiene ocho lecciones en 4/4;
+Jazz intermedio tiene doce: aplicación de la base,
 variaciones graduales, frase con transición y prueba musical integradora.
-Blues/Shuffle y Jazz usan una rejilla ternaria nativa de 12 pasos; las
-miniaturas y el generador curricular conservan esa subdivisión.
+Blues/Shuffle y Jazz básico/intermedio usan una rejilla ternaria nativa de 12
+pasos; las miniaturas y el generador curricular conservan esa subdivisión.
 
 Los importadores MIDI conservan ahora velocity y detectan una rejilla ternaria
 cuando todas las notas usan una división de tresillos. La puntuación temporal
@@ -204,7 +212,7 @@ tres grupos diferentes de cuatro; no se alarga la práctica repitiendo una base:
 7. Fill de caja y toms en el último pulso.
 8. Forma de doce compases con las tres secciones y sus cierres.
 
-### Introducción al jazz
+### Batería de jazz básico
 Ride ternario con espacios (figura larga-corta en dos y cuatro), distinto del
 shuffle continuo. La secuencia a 64 BPM desarrolla independencia sin evaluar
 todavía dinámica ni articulación:
@@ -216,7 +224,31 @@ todavía dinámica ni articulación:
 5. Comping alternado entre caja y aro.
 6. Dos compases dialogados de caja.
 7. Cierre ternario con ride y toms.
-8. Frase jazz completa de cuatro compases.
+8. Reto de swing: frase jazz completa de cuatro compases.
+
+### Batería de jazz intermedio
+
+Doce lecciones a 72 BPM, después del reto básico. Conservan la figura de swing y
+añaden una coordinación principal cada vez. El charles de dos y cuatro se toca
+en pads: es una adaptación rítmica, sin simular ni exigir un pedal.
+
+1. Continuidad de swing: diálogo conocido de caja, aro y bombo a 72 BPM.
+2. Charles cerrado en dos y cuatro bajo el ride y el comping.
+3. Caja en el tresillo interior de uno y tres.
+4. Comping de bombo: desplazar el segundo bombo al último tresillo de tres.
+5. Diálogo de dos compases entre las posiciones de bombo y caja.
+6. Aro dentro del comping del tercer pulso.
+7. Apertura de charles en cuatro y cierre en el siguiente dos.
+8. Espacio en el ride conservando las demás voces.
+9. Fill ternario y vuelta al swing.
+10. Frase de cuatro compases con un único cierre final.
+11. Trading fours: cuatro compases de groove y cuatro de respuestas de caja/toms.
+12. Reto de independencia de ocho compases con el vocabulario del curso.
+
+Los ejercicios habituales duran uno o dos compases; las prácticas iniciales
+mantienen el presupuesto de unos ocho compases totales. Las formas de cuatro y
+ocho se reservan para fraseo e integración. Los dos retos conservan el 70 % como
+criterio básico y las estrellas habituales, sin introducir decisiones adicionales.
 
 ### Disco
 Bombo a negras a 80 BPM. El charles cede en dos y cuatro para que la caja y el

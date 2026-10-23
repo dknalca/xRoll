@@ -29,6 +29,15 @@ public struct PracticeConfiguration: Equatable {
                   offset: exercise.offset, notes: exercise.notes, metadata: exercise.metadata)
     }
 
+    /// La calibración aísla el motor regular del MIDI, aunque su lección de
+    /// origen enseñe un groove completo. Nunca modifica el archivo curricular.
+    public static func calibrationExercise(from exercise: Exercise) -> Exercise {
+        Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family,
+            level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars,
+            grid: exercise.grid, repeats: 8, kit: exercise.kit, loop: nil, offset: exercise.offset,
+            notes: exercise.notes.filter { $0.sound == "hihat_closed" }, metadata: exercise.metadata)
+    }
+
     /// 0 = frase completa; 1/2 = primera/segunda mitad de todos sus compases.
     /// Una célula correctiva limita adicionalmente los pasos seleccionados.
     public static func notes(in exercise: Exercise, fragment: Int, stepRange: ClosedRange<Int>? = nil) -> [Exercise.Note] {
@@ -191,6 +200,53 @@ public enum CourseLessonCriteria {
     /// rápido; los ritmos lentos ya no tienen que acelerarse para avanzar.
     public static func targetBPM(for exercise: Exercise) -> Int { min(exercise.bpm, 100) }
 
+    /// Siguiente reto de velocidad por encima de lo ya superado. Nunca propone
+    /// un escalón inferior al objetivo de aprendizaje ni al mejor tempo tocado.
+    /// Conserva el mismo tempo si aún falta acreditar su duración mínima.
+    public static func optionalTempoStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
+        let target = targetBPM(for: exercise)
+        let highestPassedBPM = evidence
+            .filter {
+                $0.exerciseID == exercise.id && $0.score >= minimumScore
+                    && lessonEvidenceIsEligible($0, for: exercise)
+            }
+            .map(\.bpm).max() ?? target
+        let base = max(target, highestPassedBPM)
+        return TempoLadder.steps(for: exercise).first {
+            ($0.bpm > base || ($0.bpm == base && $0.minimumBars != nil))
+                && !TempoLadder.isPassed($0, exerciseID: exercise.id, evidence: evidence)
+        }
+    }
+
+    /// Una lección pendiente se prepara al tempo que permite aprender y avanzar.
+    /// Solo un ritmo ya superado propone retos opcionales de velocidad.
+    public static func preparationStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep {
+        let target = targetBPM(for: exercise)
+        guard isPassed(exercise, evidence: evidence) else {
+            return .init(label: "Aprender el ritmo", bpm: target, requiredScore: minimumScore,
+                requiredPasses: 1, award: .stars(1))
+        }
+        return optionalTempoStep(for: exercise, evidence: evidence)
+            ?? TempoLadder.steps(for: exercise).last
+            ?? .init(label: "Aprender el ritmo", bpm: target, requiredScore: minimumScore,
+                requiredPasses: 1, award: .stars(1))
+    }
+
+    /// Apoyo automático para un ritmo completo pendiente. Los intentos lentos
+    /// vuelven al objetivo en pasos pequeños y nunca acreditan un tempo no tocado.
+    public static func recovery(for exercise: Exercise, attempt: CourseAttemptEvidence,
+                                evidence: [CourseAttemptEvidence]) -> CourseLearningRecovery? {
+        let target = targetBPM(for: exercise)
+        guard attempt.exerciseID == exercise.id, attempt.trainingContext.evaluationScope == .fullPattern,
+              attempt.trainingContext.phase == .integrate, attempt.bpm <= target,
+              !isPassed(exercise, evidence: evidence),
+              attempt.score < minimumScore || attempt.bpm < target else { return nil }
+        let passed = attempt.score >= minimumScore
+        let bpm = passed ? min(target, attempt.bpm + (attempt.score >= 85 ? 4 : 2)) : max(40, attempt.bpm - 4)
+        let repeats = [1,2,4].last(where: { $0 * exercise.bars <= 4 }) ?? 1
+        return CourseLearningRecovery(bpm: bpm, targetBPM: target, repeats: repeats, successful: passed)
+    }
+
     public static func isPassed(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = CourseLessonCriteria.minimumScore) -> Bool {
         evidence.contains {
             $0.exerciseID == exercise.id
@@ -210,6 +266,20 @@ public enum CourseLessonCriteria {
         case .selectedVoices, .fragment, .corrective:
             return false
         }
+    }
+}
+
+public struct CourseLearningRecovery: Equatable {
+    public let bpm: Int
+    public let targetBPM: Int
+    public let repeats: Int
+    public let successful: Bool
+    public var title: String { successful ? "¡Buen ritmo!" : "Vamos paso a paso" }
+    public var actionTitle: String { successful ? "Continuar" : "Reintentar" }
+    public var message: String {
+        successful
+            ? "Seguimos con el mismo ritmo a \(bpm) BPM. Nos acercamos al objetivo de \(targetBPM) BPM sin saltos grandes."
+            : "Repetimos el mismo ritmo a \(bpm) BPM con guía completa. El objetivo sigue siendo \(targetBPM) BPM."
     }
 }
 

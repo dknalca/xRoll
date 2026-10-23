@@ -14,7 +14,11 @@ while index < arguments.count {
     case "--exercise" where index + 1 < arguments.count:
         filter.exerciseID = arguments[index + 1]; index += 2
     case "--minimum-score" where index + 1 < arguments.count:
-        filter.minimumScore = Double(arguments[index + 1]); index += 2
+        guard let score = Double(arguments[index + 1]), score.isFinite, (0...100).contains(score) else {
+            fputs("--minimum-score requiere un porcentaje entre 0 y 100.\n", stderr)
+            exit(2)
+        }
+        filter.minimumScore = score; index += 2
     default:
         printUsage(); exit(2)
     }

@@ -27,7 +27,7 @@ un dispositivo concreto.
 
 ## Estaciones y retos finales
 
-El curso tiene catorce estaciones. Cada una contiene niveles y un reto final que
+El curso tiene quince estaciones. Cada una contiene niveles y un reto final que
 reúne sus ritmos. Al aprobar un nivel de la estación actual con patrón completo y al
 menos 70 %, pulsa **Continuar**; al llegar al reto, pulsa **Preparar reto final**.
 Su preparación usa el tempo de aprendizaje y el ritmo completo.
@@ -36,6 +36,20 @@ Al completar una estación aparece una celebración con las estrellas del intent
 **Siguiente parada**, que abre la primera estación pendiente. El progreso anterior
 se conserva. Puedes abrir otra estación para explorar o repetir un nivel conocido.
 El mapa, los textos y las acciones son comunes en Mac e iPhone.
+
+### Jazz básico e intermedio
+
+**Jazz básico** tiene ocho lecciones: ride de swing, bombo, acompañamiento de
+caja/aro, diálogo y fill ternario. **Jazz intermedio** tiene doce y desarrolla
+charles en dos y cuatro, comping, aperturas, silencios, fills y trading fours.
+Cada curso termina con su propio reto de estación y conserva el avance al 70 %.
+
+### Tocar en la pantalla del iPhone o iPad
+
+Sin MIDI aparecen solo los sonidos del ejercicio, con botones más grandes y
+nombres del kit. Por ejemplo, bombo y caja requieren dos botones. El panel se
+adapta al girar y los botones permanecen fijos durante toda la frase. En Equipo
+puedes seguir consultando la rejilla física completa del layout.
 
 ## Redobles y transiciones
 
@@ -64,6 +78,11 @@ Al terminar, xRoll guarda el porcentaje, estrellas, juicios, desfase medio y
 estadísticas por sonido. Si aún falta superar el ritmo, la acción principal es
 repetirlo; **Practicar la parte difícil** queda como alternativa opcional y
 menos destacada.
+En una lección pendiente del recorrido, la app prepara el tempo que permite
+avanzar. Si cuesta, **Reintentar** activa la guía completa y baja ligeramente el
+tempo en una práctica más corta. Cuando mejora, **Continuar** acerca el mismo
+ejercicio a su objetivo en pasos de dos o cuatro BPM. No tienes que elegir el
+tipo de apoyo; el ritmo solo se supera al cumplir su tempo y el 70 %.
 El gráfico representa, en orden cronológico, los 20 intentos más recientes del
 ejercicio elegido.
 

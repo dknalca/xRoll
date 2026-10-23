@@ -44,6 +44,8 @@ xRoll no pretende ser únicamente un juego de ritmo. Su propuesta es diagnostica
 - [COMMUNITY_MIDI.md](COMMUNITY_MIDI.md)
 - [IOS_BUILD.md](IOS_BUILD.md): compilación e instalación iOS/iPadOS.
 - [IOS_HARDWARE_TESTS.md](IOS_HARDWARE_TESTS.md): registro de validación física.
+- [AUDIT_2026-10-23.md](AUDIT_2026-10-23.md): auditoría transversal, correcciones,
+  evidencias automatizadas y pendientes observados.
 
 ## Fuentes de verdad
 
@@ -56,7 +58,7 @@ Para evitar contradicciones:
    catálogo ni formato histórico distribuido.
 4. El layout describe funciones físicas; el mapeo MIDI describe los mensajes del dispositivo.
 5. La latencia técnica y el sesgo humano se almacenan por separado.
-6. El catálogo activo contiene 117 ejercicios MIDI: iniciación, fundamentos,
+6. El catálogo activo contiene 129 ejercicios MIDI: iniciación, fundamentos,
    subdivisión, coordinación, grooves, Hip-hop, Rock, Funk, Blues/Shuffle,
    Jazz, Disco, Reggae, Dembow y Clave/Bossa. El test de recursos verifica el
    conteo.
