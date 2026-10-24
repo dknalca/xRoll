@@ -54,8 +54,10 @@ pensar, que es lo que necesita un principiante.
 - Iniciación y el comienzo del tronco común deben poder completarlos personas
   que no han tocado nunca. Los géneros presuponen los bloques anteriores: su
   primera lección aplica esas habilidades en un groove, no reinicia el curso.
-- Tempos iniciales entre 70 y 90. Es donde vive el hip hop y donde hay margen
-  para pensar.
+- El tronco técnico usa tempos iniciales de 70–100. Cada ruta de género usa un
+  único tempo musical fijo (Hip-hop 90, Rock 100, Disco 120, Funk 95, Reggae 75,
+  Dembow 95, Blues 90, Jazz 90, Jazz intermedio 110, Clave/Bossa 100); D-058
+  explica los premios y la migración del historial.
 - Comprobar que la subdivision mas corta no estrecha las ventanas de juicio mas
   de la cuenta. Ver el recorte en docs/SCORING.md.
 
@@ -73,12 +75,19 @@ xroll/1 prerequisite=02_sub_03_groove
 xroll/1 objective=Colocar el bombo entre pulsos sin mover la caja
 xroll/1 new-difficulty=first-offbeat-kick
 xroll/1 recommended-help=full
+xroll/1 previous-learning-bpm=72
 xroll/1 flag=checkpoint
 ```
 
+`previous-learning-bpm` es opcional y solo aparece en las rutas cuyo tempo
+musical cambió. Indica el tempo de referencia anterior para que el historial ya
+guardado siga acreditando la lección, sin conceder premios nuevos. Debe estar
+entre 1 y 100; el parser rechaza otro valor.
+
 Cada capítulo integrado declara exactamente un `flag=checkpoint` en su última
 posición. El patrón de checkpoint representa las habilidades del capítulo; al
-superarlo a su tempo de aprendizaje (`min(BPM del MIDI, 100)`), con ritmo completo
+superarlo a su tempo de referencia (el tempo fijo de la ruta de género o
+`min(BPM del MIDI, 100)` en el tronco técnico), con ritmo completo
 y al menos 70 %, acredita la estación sin inventar puntuaciones para sus
 ejercicios. El validador rechaza checkpoints ausentes, duplicados o que no estén
 al final.

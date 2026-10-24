@@ -178,6 +178,7 @@ struct CourseStationCompletionBanner: View {
 
 struct CourseLevelPassedBanner: View {
     var title = "¡Nivel superado!"
+    var recommendation: String? = nil
     let reason: String
     let actionTitle: String
     let continueAction: () -> Void
@@ -186,6 +187,10 @@ struct CourseLevelPassedBanner: View {
     var body: some View {
         RailwayPanel {
             Label(title, systemImage: "star.circle.fill").font(.title2.bold()).foregroundColor(RailwayColors.accent)
+            if let recommendation {
+                Text(recommendation).font(.headline).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("result.recommendation")
+            }
             Text(reason).font(.subheadline).foregroundColor(RailwayColors.secondary)
             RailwayPrimaryButton(title: actionTitle, symbol: "arrow.right.circle.fill", identifier: "course.continue", action: continueAction)
             Button("Volver al mapa", action: returnToMap)

@@ -17,13 +17,22 @@ un dispositivo concreto.
 ## Primera sesión
 
 1. Abre `dist/xRoll.app` o ejecuta `swift run xroll-pads` desde la raíz.
-2. Conecta el M-Vave antes de abrir la aplicación. Si no aparece, usa
-   **Pads y layout** para elegir la entrada y asignar los sonidos que
-   tenga tu controlador; puedes omitir los que no uses.
-3. En **Curso**, pulsa **Empezar nivel** en la estación actual. El tren marca tu
-   parada y las demás estaciones quedan resumidas.
-4. Usa **Escuchar y colocar** para oír el patrón. Después pulsa
-   **Empezar práctica**. Hay dos compases para prepararse.
+2. En **Inicio**, verás el próximo ritmo y lo que vas a aprender. Si falta
+   configuración, pulsa **Preparar mi equipo**.
+3. Sigue el paso visible: prueba un sonido y pulsa **Lo escucho**; después
+   comprueba los pads. Puedes usar teclado en Mac o pantalla en iPhone/iPad.
+   Con un controlador, reconoce sus 16 posiciones siguiendo la indicación.
+4. Pulsa **Empezar ajuste guiado** y toca al ritmo del clic para calibrar. Si la
+   ruta ya está preparada, la app omite los pasos resueltos.
+   En Mac, la instrucción indica qué tecla usar y permanece visible durante el ajuste.
+5. Pulsa **Vamos a tocar**: el ritmo completo, el tempo y las ayudas ya están
+   preparados. Toca una vuelta con referencia y, tras otra cuenta, continúa tú.
+
+**Personalizar mi práctica** conserva los controles de tempo, voces, duración y
+fases, cerrados inicialmente. **Más herramientas** reúne otras rutinas; **Opciones
+avanzadas** guarda layouts, mapas y ajustes técnicos. Siguen disponibles cuando
+quieras investigarlos. Desde **Curso** puedes elegir otra lección y abrir su
+propia preparación; las opciones que elijas allí se respetan al empezar.
 
 ## Estaciones y retos finales
 
@@ -66,7 +75,7 @@ En Preparación elige la fase que necesitas:
 - **Aislar:** al iniciar la práctica reduce el tempo 20 %, usa dos vueltas y
   trabaja una voz.
 - **Integrar:** devuelve el patrón completo a su contexto.
-- **Transferir:** acompaña el charles sin verlo ni puntuarlo.
+- **Transferir:** toca el patrón completo sin guía visual.
 
 El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
 3+1 compases, 2+2 o sólo un pulso ancla. Empieza siempre por guía total.
@@ -78,6 +87,11 @@ Al terminar, xRoll guarda el porcentaje, estrellas, juicios, desfase medio y
 estadísticas por sonido. Si aún falta superar el ritmo, la acción principal es
 repetirlo; **Practicar la parte difícil** queda como alternativa opcional y
 menos destacada.
+El rescate mantiene el compás de la célula difícil (o dos si cruza una barra),
+sin obligarte a esperar toda una frase larga entre repeticiones. Escucha y toca
+con la referencia; después practica la célula con acompañamiento. Al terminar,
+**Volver al groove completo** recupera el patrón y tempo anteriores con una
+cuenta de entrada clara. El curso solo se acredita con el patrón completo.
 En una lección pendiente del recorrido, la app prepara el tempo que permite
 avanzar. Si cuesta, **Reintentar** activa la guía completa y baja ligeramente el
 tempo en una práctica más corta. Cuando mejora, **Continuar** acerca el mismo
@@ -88,9 +102,12 @@ ejercicio elegido.
 
 Las ayudas cambian solo la guía visual: incluso con ayuda **Reducida**, todas
 las notas del ritmo completo siguen siendo objetivos puntuables. Puedes
-seleccionar cualquier ejercicio y tempo del curso. La acción guiada usa un tempo
-de aprendizaje adecuado para la lección; para acreditarla, toca el ritmo completo
-y alcanza el 70 %. Los retos de velocidad son opcionales. Si ya conoces un
+seleccionar cualquier ejercicio y tempo del curso. La acción guiada usa el tempo
+de referencia de la lección; para acreditarla, toca el ritmo completo y alcanza
+el 70 %. En las rutas de género ese tempo es fijo y musical (por ejemplo, 90 BPM
+en Hip-hop): los premios suben precisión, duración y repeticiones, no velocidad.
+En el tronco técnico los retos de velocidad siguen siendo opcionales. Los premios
+de velocidad anteriores al cambio aparecen como «Histórico». Si ya conoces un
 bloque, puedes hacer su prueba de ritmo completo sin tocar cada ejercicio básico;
 una prueba adelantada queda guardada y cuenta cuando la ruta previa esté
 superada. Los intentos por voces, fragmento o corrección no acreditan el curso.
@@ -109,7 +126,12 @@ swift run xroll-export-progress ~/Desktop/progreso.csv
 swift run xroll-export-progress ~/Desktop/progreso.json --exercise hh_04 --minimum-score 75
 ```
 
-La exportación no altera los datos locales.
+La exportación incluye todos los intentos del filtro elegido y muestra cuántos
+se han guardado. No hay un límite de 100.000 intentos y la interfaz sigue
+disponible mientras se prepara la copia. Si falla, conserva el archivo anterior.
+En iOS puedes compartir el resultado e importar JSON desde Progreso; al repetir
+una importación se omiten los duplicados. La exportación no altera los intentos
+locales. Usa CSV/JSON para una copia portable del historial.
 
 ## Recuperación
 

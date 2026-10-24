@@ -97,17 +97,33 @@ Un compas audible.
 dura uno, las notas tendrian que aparecer antes de que empiece la cuenta. Si no,
 la primera nota entra sin preaviso y se falla siempre.
 
-**El desplazamiento visual arranca dos compases antes de la primera nota, y la
-cuenta audible suena durante el ultimo.** Asi el principio se ve venir con la
-misma anticipacion que todo lo demas.
+**El desplazamiento visual arranca dos compases antes de la primera nota.** El
+HUD muestra «Cuenta de entrada» y los pulsos restantes; la claqueta respeta los
+ajustes de la sesión. Así el principio se ve venir con la misma anticipación que
+todo lo demás.
 
 ## Escuchar y colocar
 
 Antes de puntuar, el usuario puede reproducir una vuelta completa en modo previo.
-La app toca el patron, mueve las mismas notas e ilumina las posiciones que se
-deben golpear, pero no registra puntuacion. La pantalla indica la colocacion de
-las manos y permite repetir o empezar. En el primer intento de cada nivel esta
-pantalla se abre automaticamente; despues sigue disponible como opcion.
+La app toca el patrón y mueve las mismas notas sin registrar puntuación. La
+demostración sigue disponible desde Preparación.
+
+«Escuchar y tocar una vuelta juntos» mantiene los pads disponibles: una vuelta
+suena como referencia y realza los receptores al llegar cada nota. El encabezado
+indica «Juntos · sin puntuar». Después se retira la referencia, aparece otra
+cuenta de entrada y comienza «Ahora tú». El intento solo evalúa esa última parte;
+cancelar durante la referencia no guarda una práctica completa. Pausar y reanudar
+reinicia con referencia y cuenta; salir cancela la transición diferida.
+
+## Rescate con contexto
+
+Desde Resultados, «Practicar la parte difícil» conserva como contexto el compás
+de la célula, o dos si cruza una barra. Primero permite escuchar y tocar con la
+referencia; después el jugador toca la célula y la app acompaña las demás notas.
+La guía es completa y el tempo reducido. Al terminar, la acción principal
+«Volver al groove completo» recupera el patrón y tempo originales, con otra
+referencia y una cuenta de entrada. La célula sigue siendo práctica correctiva,
+sin acreditar el curso ni afirmar mejoras respecto al patrón completo.
 
 ## Retroalimentacion
 
@@ -148,6 +164,22 @@ La especificación detallada está en [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). La e
 
 Durante la ejecución solo se muestran nombre, BPM, vuelta y pausa. El score acumulado y las estrellas no compiten con la siguiente nota.
 
+## Inicio y Equipo guiados
+
+Inicio muestra una próxima práctica, su objetivo y «Vamos a tocar». El tempo de
+aprendizaje, la duración y las ayudas están preparados; si falta equipo, la
+acción lleva al asistente. Los retos conservan su preparación ferroviaria.
+Personalizar comienza cerrado y abre la preparación de ese ritmo. En Preparación,
+los parámetros y las escuchas alternativas están también plegados; la acción
+respeta las opciones elegidas explícitamente. Las rutinas quedan en Más herramientas.
+
+Equipo presenta solo el paso actual: «Escucha un sonido», «Comprueba tus pads»
+y «Toca siguiendo el clic». Una ruta calibrada y disponible muestra Todo listo;
+puede revisarse explícitamente sin borrar el perfil. Confirmar escucha no calibra
+la entrada. Datos MIDI, layouts, mapas y diagnóstico quedan en Opciones avanzadas.
+En iOS, Opciones deja visibles solo claqueta y acompañamiento; el resto se abre
+a petición. En Mac, audio y ajustes se encuentran en Más herramientas.
+
 ## Resultado diagnóstico
 
 Al completar una estación nueva, la celebración encabeza Resultado: tren,
@@ -160,12 +192,34 @@ lento propone acercarse al objetivo en pasos de 2–4 BPM; no se sustituye por u
 salto al siguiente premio de velocidad. La acreditación sigue ligada al tempo
 objetivo y al 70 %, y las prácticas parciales conservan su flujo específico.
 
-Orden:
-1. diagnóstico en lenguaje claro;
-2. precisión, tendencia y consistencia;
-3. microscopio temporal;
-4. resultado por voz/rol/subdivisión;
-5. recomendación y acciones.
+En las rutas de género el panel se llama «Retos de tempo» y explica que la ruta
+tiene un tempo musical fijo. Los seis escalones comparten BPM y muestran su
+precisión y duración; el premio visible solo aparece cuando el intento alcanza
+esa precisión. La comparación de selección usa el escalón, no solo el BPM, para
+que dos premios al mismo tempo no se iluminen ni se confundan a la vez.
+
+El resultado ordinario responde, en este orden:
+1. **Cómo te fue:** porcentaje, estrellas y una frase comprensible;
+2. **Tu siguiente paso:** una recomendación concreta y una acción principal,
+   con la salida al mapa disponible;
+3. **Más opciones**, cerrado inicialmente: retos de tempo, personalización,
+   aislamiento, transferencia y rutinas cuando correspondan;
+4. **Ver detalles del resultado**, cerrado inicialmente: contadores, tendencia,
+   consistencia, microscopio y análisis por sonido.
+
+La recomendación breve se comparte mediante `PracticeResultFeedback`. Exige
+cuatro oportunidades antes de señalar una voz débil y ocho golpes asociados
+para valorar una tendencia temporal general. Para señalar un sonido adelantado
+o atrasado exige también coaching válido, cuatro golpes de esa voz y una
+dirección coherente en al menos tres de cada cuatro. Con poca evidencia lo dice
+explícitamente. Los toques extra pueden explicar un porcentaje bajo aunque los
+golpes asociados estén centrados.
+
+Continuar el curso y el apoyo gradual conservan sus acciones. Fuera de esas
+rutas, un reto de velocidad disponible queda como opción secundaria: la acción
+principal permite consolidar al mismo tempo. Un checkpoint adelantado ofrece
+una sola acción principal para ir a la estación pendiente. Al terminar una
+práctica correctiva, la acción principal devuelve al groove completo.
 
 ## Metro del Ritmo
 
@@ -177,7 +231,10 @@ la numeración son locales a la estación.
 
 Abrir otra estación permite explorar sus niveles. Los retos de tempo y sus premios
 pertenecen al ejercicio; no se confunden con el siguiente nivel del recorrido.
-El reto final reúne las habilidades de la estación y usa el tempo de aprendizaje.
+El reto final reúne las habilidades de la estación y usa el tempo de referencia:
+el tempo musical fijo en rutas de género o el tempo de aprendizaje en el tronco.
+Los premios antiguos de velocidad se etiquetan como «Histórico» y no compiten
+con los actuales de precisión.
 Mapa, premios, acciones y celebraciones se renderizan con las mismas vistas
 compartidas en Mac e iPhone; cada coordinador adapta únicamente la navegación.
 

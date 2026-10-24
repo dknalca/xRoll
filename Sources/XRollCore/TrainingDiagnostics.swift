@@ -79,18 +79,21 @@ public struct TrainingContext: Codable, Equatable {
     public let evaluationScope: EvaluationScope
     public let completedBars: Int
     public let practiceConditions: PracticeConditions?
+    /// Ausente en el historial anterior a los tempos musicales por género.
+    public let tempoPolicyVersion: Int?
 
-    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern, completedBars: Int = 0, practiceConditions: PracticeConditions? = nil) {
+    public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern, completedBars: Int = 0, practiceConditions: PracticeConditions? = nil, tempoPolicyVersion: Int? = nil) {
         self.phase = phase
         self.gapMetronomeLevel = min(3, max(0, gapMetronomeLevel))
         self.showsVisualGuides = showsVisualGuides
         self.evaluationScope = evaluationScope
         self.completedBars = max(0, completedBars)
         self.practiceConditions = practiceConditions
+        self.tempoPolicyVersion = tempoPolicyVersion
     }
 
     private enum CodingKeys: String, CodingKey {
-        case phase, gapMetronomeLevel, showsVisualGuides, evaluationScope, completedBars, practiceConditions
+        case phase, gapMetronomeLevel, showsVisualGuides, evaluationScope, completedBars, practiceConditions, tempoPolicyVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +105,7 @@ public struct TrainingContext: Codable, Equatable {
         evaluationScope = try values.decodeIfPresent(EvaluationScope.self, forKey: .evaluationScope) ?? .legacyUnknown
         completedBars = max(0, try values.decodeIfPresent(Int.self, forKey: .completedBars) ?? 0)
         practiceConditions = try values.decodeIfPresent(PracticeConditions.self, forKey: .practiceConditions)
+        tempoPolicyVersion = try values.decodeIfPresent(Int.self, forKey: .tempoPolicyVersion)
     }
 }
 
@@ -452,7 +456,20 @@ public enum HistoricalDiagnosticsBuilder {
             let records = attempt.hitRecords.sorted { $0.sequence < $1.sequence }
             let exercise = exercisesByID[attempt.exerciseID]
             let stepsPerBeat = max(1, (exercise?.grid ?? 16) / 4)
-            let patternMilliseconds = exercise.map { 60_000 / Double(attempt.bpm) * 4 * Double($0.bars) }
+            let patternMilliseconds = exercise.map { exercise -> Double in
+                var bars = exercise.bars
+                // El rescate puede usar un contexto más corto que el MIDI.
+                // La duración guardada distingue esos intentos de los rescates
+                // históricos que todavía recorrían la frase completa.
+                if attempt.trainingContext.evaluationScope == .corrective,
+                   let conditions = attempt.trainingContext.practiceConditions,
+                   conditions.repeats > 0,
+                   attempt.trainingContext.completedBars >= conditions.repeats,
+                   attempt.trainingContext.completedBars.isMultiple(of: conditions.repeats) {
+                    bars = attempt.trainingContext.completedBars / conditions.repeats
+                }
+                return 60_000 / Double(attempt.bpm) * 4 * Double(bars)
+            }
             for (index, record) in records.enumerated() {
                 add(record, label: record.expectedSound, to: &sounds)
                 add(record, label: record.hand.map { "Mano \($0)" }, to: &hands)

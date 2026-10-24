@@ -188,4 +188,20 @@ final class ScheduledAudioTests: XCTestCase {
         XCTAssertEqual(peaks[1] / peaks[0], 4, accuracy: 0.001)
         XCTAssertEqual(peaks[2] / peaks[0], 2, accuracy: 0.001)
     }
+
+    func testReferenceRoundEndsWithoutCancellingTheLaterPracticeOrLiveHits() throws {
+        let fixture = try Fixture()
+        try fixture.audio.schedule(soundID: "hihat_open", atHostTime: fixture.time(512))
+        try fixture.audio.flushScheduledSounds(stoppingAtHostTime: fixture.time(4_096))
+        // La práctica ya está programada: terminar la referencia no puede
+        // cancelar sus notas ni dejar una cola de la demostración por encima.
+        try fixture.audio.schedule(soundID: "hihat_closed", atHostTime: fixture.time(8_192))
+        try fixture.audio.flushScheduledSounds()
+        let samples = try fixture.render(12_288)
+        XCTAssertGreaterThan(samples[512..<1_024].map(abs).max() ?? 0, 0.1)
+        XCTAssertLessThan(samples[4_096..<8_192].map(abs).max() ?? 0, 0.000_01)
+        XCTAssertGreaterThan(samples[8_192..<8_448].map(abs).max() ?? 0, 0.1)
+        try fixture.audio.play(soundID: "hihat_closed")
+        XCTAssertGreaterThan(try fixture.render(512).map(abs).max() ?? 0, 0.1)
+    }
 }

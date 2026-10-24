@@ -4,6 +4,129 @@ import AVFoundation
 @testable import XRollCore
 
 final class ResourceModelsTests: XCTestCase {
+    func testEquipmentSetupRequiresRealReadinessEvenAfterConfirmingTheChecks() {
+        func step(sound: Bool = true, pad: Bool = true, calibrated: Bool = false,
+                  input: Bool = true, mapped: Bool = true, audio: Bool = true) -> EquipmentSetupStep {
+            EquipmentSetupStep.current(audioAvailable: audio, inputAvailable: input, padsMapped: mapped,
+                soundConfirmed: sound, padConfirmed: pad, calibrated: calibrated)
+        }
+        XCTAssertEqual(step(sound: false, pad: false), .sound)
+        XCTAssertEqual(step(pad: false), .pads)
+        XCTAssertEqual(step(), .calibration, "Confirmar sonido y pads no puede inventar una calibración")
+        XCTAssertEqual(step(calibrated: true), .ready)
+        XCTAssertEqual(step(calibrated: true, input: false), .pads, "La entrada desconectada no está lista")
+        XCTAssertEqual(step(calibrated: true, mapped: false), .pads, "Un mapa incompleto o incompatible no está listo")
+        XCTAssertEqual(step(calibrated: true, audio: false), .sound, "Un perfil previo no resuelve un error actual de audio")
+    }
+
+    func testEquipmentSetupSkipsCompletedChecksButAllowsAnExplicitRecheck() {
+        XCTAssertEqual(EquipmentSetupStep.current(audioAvailable: true, inputAvailable: true, padsMapped: true,
+            soundConfirmed: false, padConfirmed: false, calibrated: true), .ready)
+        XCTAssertEqual(EquipmentSetupStep.current(audioAvailable: true, inputAvailable: true, padsMapped: true,
+            soundConfirmed: false, padConfirmed: false, calibrated: true, rechecking: true), .sound)
+        XCTAssertEqual(EquipmentSetupStep.current(audioAvailable: true, inputAvailable: true, padsMapped: true,
+            soundConfirmed: true, padConfirmed: false, calibrated: true, rechecking: true), .pads)
+        XCTAssertEqual(EquipmentSetupStep.current(audioAvailable: true, inputAvailable: true, padsMapped: true,
+            soundConfirmed: true, padConfirmed: true, calibrated: true, rechecking: true), .ready)
+    }
+
+    func testGuidedPracticeCanAccreditEveryLessonWithoutSpeedChallengesOrOverlongDefaults() throws {
+        for node in try campaignGraph().nodes {
+            let original = node.exercise
+            let prepared = PracticeConfiguration.guided(for: original).applying(to: original)
+            XCTAssertEqual(prepared.notes, original.notes, original.id)
+            XCTAssertEqual(prepared.bars, original.bars, original.id)
+            XCTAssertEqual(prepared.offset, original.offset, original.id)
+            XCTAssertLessThanOrEqual(prepared.bars * prepared.repeats, max(8, original.bars), original.id)
+            let evidence = CourseAttemptEvidence(exerciseID: original.id, bpm: prepared.bpm, score: 70,
+                trainingContext: .init(evaluationScope: .fullPattern, completedBars: prepared.bars * prepared.repeats))
+            XCTAssertTrue(CourseLessonCriteria.isPassed(original, evidence: [evidence]), original.id)
+            if TempoLadder.isFixedTempoRoute(for: original) {
+                XCTAssertEqual(prepared.bpm, original.bpm, "Las rutas de género se aprenden a su tempo musical: \(original.id)")
+            } else {
+                XCTAssertLessThanOrEqual(prepared.bpm, 100, original.id)
+            }
+        }
+    }
+    func testRehearsalTransportKeepsReferenceAndCountInOutsideScoringAndCompletedBars() throws {
+        let exercise = Exercise(format: 1, id: "together", title: "Juntos", family: "test", level: 1,
+            bpm: 120, meter: [4, 4], bars: 3, grid: 12, repeats: 2, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 15, sound: "snare")])
+        let plan = PracticeRehearsalPlan(exercise: exercise, enabled: true)
+        XCTAssertEqual(plan.countInMilliseconds, 4_000)
+        XCTAssertEqual(plan.referenceStartMilliseconds, 4_000)
+        XCTAssertEqual(plan.referenceEndMilliseconds, 10_000)
+        XCTAssertEqual(plan.scoringStartMilliseconds, 14_000)
+        XCTAssertEqual(plan.referenceExercise?.repeats, 1)
+        XCTAssertEqual(plan.referenceExercise?.notes, exercise.notes)
+        let session = PracticeSession(exercise: exercise)
+        for note in ExerciseTimeline(exercise: try XCTUnwrap(plan.referenceExercise)).notes {
+            XCTAssertNil(session.registerIfScorable(.init(sound: note.sound,
+                timeMilliseconds: plan.referenceStartMilliseconds + note.timeMilliseconds - plan.scoringStartMilliseconds)))
+        }
+        XCTAssertTrue(session.hits.isEmpty)
+        let completion = PracticeCompletion(exercise: exercise, elapsedMilliseconds: plan.referenceEndMilliseconds - plan.scoringStartMilliseconds)
+        XCTAssertEqual(completion.completedBars, 0)
+        XCTAssertEqual(completion.totalBars, 6)
+        XCTAssertEqual(completion.context(from: .init(evaluationScope: .fullPattern)).evaluationScope, .fragment)
+        XCTAssertEqual(session.registerIfScorable(.init(sound: "kick", timeMilliseconds: 0))?.judgement, .perfect)
+    }
+
+    func testRehearsalPreservesTheFullGrooveAroundACorrectiveCellAtItsActualTempo() throws {
+        let full = Exercise(format: 1, id: "cell", title: "Célula", family: "test", level: 1,
+            bpm: 100, meter: [4, 4], bars: 8, grid: 16, repeats: 8, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 4, sound: "snare"), .init(step: 120, sound: "kick")])
+        let cell = Exercise(format: 1, id: full.id, title: full.title, family: full.family, level: full.level,
+            bpm: 80, meter: full.meter, bars: full.bars, grid: full.grid, repeats: 2, kit: full.kit, loop: nil, offset: 0,
+            notes: [.init(step: 4, sound: "snare")])
+        let plan = PracticeRehearsalPlan(exercise: cell, reference: full, enabled: true)
+        XCTAssertEqual(plan.referenceExercise?.bpm, 80)
+        XCTAssertEqual(plan.referenceExercise?.bars, 8)
+        XCTAssertEqual(plan.referenceExercise?.repeats, 1)
+        XCTAssertEqual(plan.referenceExercise?.notes, full.notes)
+        let ordinary = PracticeRehearsalPlan(exercise: cell, enabled: false)
+        XCTAssertNil(ordinary.referenceExercise)
+        XCTAssertEqual(ordinary.scoringStartMilliseconds, ordinary.countInMilliseconds)
+        XCTAssertEqual(ExerciseTimeline(exercise: cell).notes.count, 2, "La referencia no modifica los objetivos de la célula")
+    }
+
+    func testCorrectiveContextKeepsAdjacentBarsAndTargetsWithoutWaitingForTheWholePhrase() {
+        let target = Exercise.Target(type: .pad, value: "snare-right")
+        let full = Exercise(format: 1, id: "context", title: "Contexto", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 8, grid: 16, repeats: 2, kit: "kit", loop: nil, offset: 4,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 27, sound: "snare", target: target),
+                    .init(step: 28, sound: "hihat_closed"), .init(step: 31, sound: "kick")])
+        let context = PracticeConfiguration.correctiveContext(in: full, stepRange: 30...33)
+        XCTAssertEqual(context.exercise.bars, 2)
+        XCTAssertEqual(context.exercise.repeats, 2)
+        XCTAssertEqual(context.exercise.offset, 0)
+        XCTAssertEqual(context.exercise.notes.map(\.step), [15, 16, 19])
+        XCTAssertEqual(context.exercise.notes.first?.target, target)
+        XCTAssertEqual(context.stepRange, 14...17)
+        let oneBar = PracticeConfiguration.correctiveContext(in: full, stepRange: 29...31)
+        XCTAssertEqual(oneBar.exercise.bars, 1)
+        XCTAssertEqual(oneBar.exercise.notes.map(\.sound), ["snare"])
+    }
+
+    func testHistoricalLoopsUseTheRecordedCorrectiveLengthAndKeepOlderFullPhraseRescues() {
+        let exercise = Exercise(format: 1, id: "short-rescue", title: "Rescate", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 8, grid: 16, repeats: 2, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 4, sound: "snare")])
+        for patternBars in [1, 8] {
+            let records = (0..<2).map { round in
+                HitRecord(sequence: round, judgement: .perfect, expectedSound: "snare", expectedStep: 4,
+                    expectedTimeMilliseconds: Double(round * patternBars) * 3_000 + 750,
+                    expectedVelocity: nil, hand: nil, target: nil, actualSound: "snare", actualTimeMilliseconds: nil,
+                    actualVelocity: nil, role: nil, padID: nil, offsetMilliseconds: 0)
+            }
+            let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: 80, score: 100, stars: 3,
+                perfect: 2, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0, hitRecords: records,
+                trainingContext: .init(phase: .isolate, evaluationScope: .corrective, completedBars: patternBars * 2,
+                    practiceConditions: .init(bpm: 80, repeats: 2, selectedSounds: ["snare"], stepRange: 3...5)))
+            let report = HistoricalDiagnosticsBuilder.build(attempts: [attempt], exercisesByID: [exercise.id: exercise])
+            XCTAssertEqual(Set(report.byLoop.map(\.label)), ["Vuelta 1", "Vuelta 2"])
+        }
+    }
     func testEveryPendingLessonPreparesAtATempoThatActuallyAllowsCourseProgress() throws {
         for node in try campaignGraph().nodes {
             let lesson = node.exercise
@@ -13,8 +136,14 @@ final class ResourceModelsTests: XCTestCase {
                 trainingContext: .init(evaluationScope: .fullPattern, completedBars: lesson.bars))
             XCTAssertTrue(CourseLessonCriteria.isPassed(lesson, evidence: [attempt]), lesson.id)
             let optional = CourseLessonCriteria.preparationStep(for: lesson, evidence: [attempt])
-            XCTAssertGreaterThan(optional.bpm, prepared.bpm,
-                "Una lección superada no debe volver a un tempo inferior: \(lesson.id)")
+            if TempoLadder.isFixedTempoRoute(for: lesson) {
+                XCTAssertEqual(optional.bpm, prepared.bpm,
+                    "Los premios de una ruta de género suben precisión, no tempo: \(lesson.id)")
+                XCTAssertEqual(optional.award, .stars(2), lesson.id)
+            } else {
+                XCTAssertGreaterThan(optional.bpm, prepared.bpm,
+                    "Una lección superada no debe volver a un tempo inferior: \(lesson.id)")
+            }
             XCTAssertFalse(TempoLadder.isPassed(optional, exerciseID: lesson.id, evidence: [attempt]), lesson.id)
         }
     }
@@ -26,6 +155,141 @@ final class ResourceModelsTests: XCTestCase {
         let next = CourseLessonCriteria.preparationStep(for: lesson, evidence: [attempt])
         XCTAssertEqual(next.bpm, 85, "Superar 72 BPM no debe proponer el escalón inferior de 70 BPM")
         XCTAssertEqual(next.label, "Base")
+    }
+
+    func testGenreRoutesKeepOneMusicalTempoWithinTheirSuggestedRange() throws {
+        let exercises = try campaignGraph().nodes.map(\.exercise)
+        let byChapter = Dictionary(grouping: exercises.filter { GenreTempoProfile.profile(for: $0) != nil },
+            by: { $0.metadata?.chapter ?? "" })
+        XCTAssertEqual(Set(byChapter.keys), ["hiphop", "rock", "disco", "funk", "reggae", "dembow",
+            "blues", "jazz", "jazz-intermediate", "clave-bossa"])
+        for (chapter, lessons) in byChapter {
+            let bpms = Set(lessons.map(\.bpm))
+            XCTAssertEqual(bpms.count, 1, "Un tempo musical por ruta: \(chapter)")
+            let bpm = try XCTUnwrap(bpms.first)
+            let profile = try XCTUnwrap(GenreTempoProfile.profile(for: lessons[0]))
+            XCTAssertTrue(profile.suggestedRange.contains(bpm), "\(chapter) a \(bpm) BPM fuera de \(profile.suggestedRange)")
+        }
+        let hiphop = try XCTUnwrap(byChapter["hiphop"])
+        XCTAssertEqual(hiphop.first?.bpm, 90)
+        XCTAssertEqual(hiphop.first?.metadata?.previousLearningBPM, 72)
+        for lesson in hiphop {
+            let steps = TempoLadder.steps(for: lesson)
+            XCTAssertEqual(Set(steps.map(\.bpm)), [90], "Los premios no aceleran una ruta boom bap: \(lesson.id)")
+            XCTAssertEqual(steps.map(\.award), [.stars(1), .stars(2), .stars(3), .trophies(1), .trophies(2), .trophies(3)])
+            XCTAssertEqual(steps.map { Int($0.requiredScore) }, [70, 80, 90, 90, 90, 95])
+            XCTAssertEqual(steps.last?.requiredPasses, 2)
+            XCTAssertEqual(CourseLessonCriteria.targetBPM(for: lesson), 90)
+        }
+    }
+
+    func testFixedTempoAwardsRaisePrecisionAndEnduranceInsteadOfSpeed() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "10_hh_01_boom_bap")).exercise
+        func evidence(score: Double, bars: Int, bpm: Int? = nil, policy: Int? = TempoLadder.currentPolicyVersion) -> CourseAttemptEvidence {
+            .init(exerciseID: lesson.id, bpm: bpm ?? lesson.bpm, score: score, stars: score >= 90 ? 3 : score >= 80 ? 2 : 1,
+                trainingContext: .init(evaluationScope: .fullPattern, completedBars: bars, tempoPolicyVersion: policy))
+        }
+        let steps = TempoLadder.steps(for: lesson)
+        let firstTrophyBars = try XCTUnwrap(steps[3].minimumBars)
+        let secondTrophyBars = try XCTUnwrap(steps[4].minimumBars)
+        XCTAssertTrue(TempoLadder.isPassed(steps[0], exerciseID: lesson.id, evidence: [evidence(score: 70, bars: lesson.bars)]))
+        XCTAssertFalse(TempoLadder.isPassed(steps[1], exerciseID: lesson.id, evidence: [evidence(score: 75, bars: lesson.bars)]))
+        XCTAssertTrue(TempoLadder.isPassed(steps[1], exerciseID: lesson.id, evidence: [evidence(score: 80, bars: lesson.bars)]))
+        XCTAssertTrue(TempoLadder.isPassed(steps[2], exerciseID: lesson.id, evidence: [evidence(score: 90, bars: lesson.bars)]))
+        XCTAssertFalse(TempoLadder.isPassed(steps[3], exerciseID: lesson.id, evidence: [evidence(score: 92, bars: firstTrophyBars - 1)]))
+        XCTAssertTrue(TempoLadder.isPassed(steps[3], exerciseID: lesson.id, evidence: [evidence(score: 92, bars: firstTrophyBars)]))
+        XCTAssertTrue(TempoLadder.isPassed(steps[4], exerciseID: lesson.id, evidence: [evidence(score: 92, bars: secondTrophyBars)]))
+        let dominance = evidence(score: 96, bars: secondTrophyBars)
+        XCTAssertFalse(TempoLadder.isPassed(steps[5], exerciseID: lesson.id, evidence: [dominance]), "Dominio pide repetirlo")
+        XCTAssertTrue(TempoLadder.isPassed(steps[5], exerciseID: lesson.id, evidence: [dominance, dominance]))
+        XCTAssertEqual(TempoLadder.bestStars(for: steps[1], exerciseID: lesson.id, evidence: [evidence(score: 75, bars: lesson.bars)]), nil)
+        XCTAssertEqual(TempoLadder.bestStars(for: steps[0], exerciseID: lesson.id, evidence: [evidence(score: 75, bars: lesson.bars)]), 1)
+        XCTAssertEqual(TempoLadder.bestStars(for: steps[2], exerciseID: lesson.id, evidence: [evidence(score: 93, bars: lesson.bars)]), 3)
+    }
+
+    func testTempoStepIndexRestoresTheRightAwardWhenSeveralShareTheSameBPM() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "10_hh_01_boom_bap")).exercise
+        XCTAssertEqual(TempoLadder.stepIndex(for: lesson, bpm: lesson.bpm, repeats: 1), 0)
+        let steps = TempoLadder.steps(for: lesson)
+        for index in [3, 4] {
+            let repeats = try XCTUnwrap(TempoLadder.repeats(for: steps[index], exercise: lesson))
+            XCTAssertEqual(TempoLadder.stepIndex(for: lesson, bpm: lesson.bpm, repeats: repeats), index)
+        }
+        XCTAssertEqual(TempoLadder.repeats(for: steps[5], exercise: lesson), TempoLadder.repeats(for: steps[4], exercise: lesson),
+            "Dominio comparte duración con Resistencia; se restaura el premio inferior y se elige el superior a mano")
+        XCTAssertNil(TempoLadder.stepIndex(for: lesson, bpm: lesson.bpm + 1, repeats: 1))
+    }
+
+    func testLegacyGenreProgressSurvivesTheFixedTempoPolicyWithoutCountingNewSlowAttempts() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "10_hh_01_boom_bap")).exercise
+        let legacyBPM = try XCTUnwrap(lesson.metadata?.previousLearningBPM)
+        func evidence(bpm: Int, policy: Int?) -> CourseAttemptEvidence {
+            .init(exerciseID: lesson.id, bpm: bpm, score: 85, stars: 2,
+                trainingContext: .init(evaluationScope: .fullPattern, completedBars: lesson.bars, tempoPolicyVersion: policy))
+        }
+        XCTAssertTrue(CourseLessonCriteria.isPassed(lesson, evidence: [evidence(bpm: legacyBPM, policy: nil)]))
+        XCTAssertFalse(CourseLessonCriteria.isPassed(lesson, evidence: [evidence(bpm: legacyBPM, policy: TempoLadder.currentPolicyVersion)]))
+        XCTAssertTrue(CourseLessonCriteria.isPassed(lesson, evidence: [evidence(bpm: lesson.bpm, policy: TempoLadder.currentPolicyVersion)]))
+        let legacyAward = [evidence(bpm: 70, policy: nil)]
+        XCTAssertEqual(TempoLadder.highestPassedStep(for: lesson, evidence: legacyAward)?.label, "Histórico · Aprender",
+            "La evidencia antigua conserva el escalón que acreditaba, no los premios de velocidad")
+        XCTAssertEqual(TempoLadder.highestPassedStep(for: lesson, evidence: legacyAward)?.award, .stars(1))
+        let oldConsolidation = [evidence(bpm: 100, policy: nil)]
+        XCTAssertEqual(TempoLadder.highestPassedStep(for: lesson, evidence: oldConsolidation)?.label, "Histórico · Consolidar")
+        let unknownScope = CourseAttemptEvidence(exerciseID: lesson.id, bpm: legacyBPM, score: 85,
+            trainingContext: .init(evaluationScope: .legacyUnknown))
+        XCTAssertFalse(CourseLessonCriteria.isPassed(lesson, evidence: [unknownScope]),
+            "Un tempo antiguo sin alcance conocido no demuestra haber tocado el patrón completo")
+        XCTAssertNil(TempoLadder.highestPassedStep(for: lesson,
+            evidence: [evidence(bpm: 140, policy: TempoLadder.currentPolicyVersion)]),
+            "Un intento nuevo acelerado no crea un trofeo histórico")
+    }
+
+    func testTempoPolicySurvivesCompletionSQLiteExportAndRestore() throws {
+        let lesson = try XCTUnwrap(try campaignGraph().node(for: "10_hh_01_boom_bap")).exercise
+        let context = TrainingContext(evaluationScope: .fullPattern, completedBars: lesson.bars,
+            tempoPolicyVersion: TempoLadder.currentPolicyVersion)
+        let timeline = ExerciseTimeline(exercise: lesson)
+        let completed = PracticeCompletion(exercise: lesson,
+            elapsedMilliseconds: timeline.barDurationMilliseconds * Double(lesson.bars * lesson.repeats) + 1)
+            .context(from: context)
+        XCTAssertEqual(completed.tempoPolicyVersion, TempoLadder.currentPolicyVersion)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ProgressStore(url: directory.appendingPathComponent("source.sqlite"))
+        try store.record(.init(exerciseID: lesson.id, timestamp: Date(), bpm: 72, score: 85, stars: 2,
+            perfect: 1, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0,
+            trainingContext: completed))
+        XCTAssertEqual(try store.courseEvidence().first?.trainingContext.tempoPolicyVersion, TempoLadder.currentPolicyVersion)
+        let json = directory.appendingPathComponent("backup.json")
+        XCTAssertEqual(try store.exportJSON(to: json), 1)
+        let restored = try ProgressStore(url: directory.appendingPathComponent("restored.sqlite"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let attempts = try decoder.decode([PracticeAttempt].self, from: Data(contentsOf: json))
+        XCTAssertEqual(try restored.importAttempts(attempts), 1)
+        let evidence = try restored.courseEvidence()
+        XCTAssertEqual(evidence.first?.trainingContext.tempoPolicyVersion, TempoLadder.currentPolicyVersion)
+        XCTAssertFalse(CourseLessonCriteria.isPassed(lesson, evidence: evidence),
+            "Exportar y restaurar no convierte una práctica lenta nueva en historial acreditado")
+    }
+
+    func testGenreAdvancedUnlocksKeepHistoricalSpeedAndUseCurrentTrophies() throws {
+        let graph = try campaignGraph()
+        let lesson = try XCTUnwrap(graph.node(for: "25_reggae_02_skank")).exercise
+        let earlierID = "21_funk_02_silencio"
+        func states(bpm: Int, score: Double, bars: Int, policy: Int?) -> [CourseLevelState] {
+            graph.states(evidence: [.init(exerciseID: lesson.id, bpm: bpm, score: score,
+                trainingContext: .init(evaluationScope: .fullPattern, completedBars: bars, tempoPolicyVersion: policy))])
+        }
+        XCTAssertEqual(states(bpm: 140, score: 85, bars: 8, policy: nil)
+            .first { $0.exerciseID == earlierID }?.status, .available)
+        XCTAssertEqual(states(bpm: 140, score: 95, bars: 16, policy: TempoLadder.currentPolicyVersion)
+            .first { $0.exerciseID == earlierID }?.status, .locked,
+            "Un intento nuevo fuera del tempo musical no desbloquea por velocidad")
+        XCTAssertEqual(states(bpm: lesson.bpm, score: 90, bars: 8, policy: TempoLadder.currentPolicyVersion)
+            .first { $0.exerciseID == earlierID }?.status, .available,
+            "El trofeo a tempo musical acredita la práctica avanzada")
     }
 
     func testOptionalTempoChallengeKeepsUnmetDurationWithoutGrantingOtherTempoAwards() throws {
@@ -49,8 +313,13 @@ final class ResourceModelsTests: XCTestCase {
         let partial = attempt(bpm: 160, bars: 16, scope: .selectedVoices)
         XCTAssertEqual(CourseLessonCriteria.optionalTempoStep(for: lesson, evidence: [partial])?.bpm, 85)
         for node in try campaignGraph().nodes {
-            XCTAssertGreaterThan(try XCTUnwrap(CourseLessonCriteria.optionalTempoStep(for: node.exercise, evidence: [])).bpm,
-                CourseLessonCriteria.targetBPM(for: node.exercise), node.exercise.id)
+            let first = try XCTUnwrap(CourseLessonCriteria.optionalTempoStep(for: node.exercise, evidence: []))
+            if TempoLadder.isFixedTempoRoute(for: node.exercise) {
+                XCTAssertEqual(first.bpm, CourseLessonCriteria.targetBPM(for: node.exercise), node.exercise.id)
+                XCTAssertEqual(first.award, .stars(1), node.exercise.id)
+            } else {
+                XCTAssertGreaterThan(first.bpm, CourseLessonCriteria.targetBPM(for: node.exercise), node.exercise.id)
+            }
         }
     }
 
@@ -170,8 +439,8 @@ final class ResourceModelsTests: XCTestCase {
         let intermediate = graph.nodes.filter { $0.metadata.chapter == "jazz-intermediate" }
         XCTAssertEqual(basic.count, 8)
         XCTAssertEqual(intermediate.count, 12)
-        XCTAssertEqual(Set(basic.map { $0.exercise.bpm }), [64])
-        XCTAssertEqual(Set(intermediate.map { $0.exercise.bpm }), [72])
+        XCTAssertEqual(Set(basic.map { $0.exercise.bpm }), [90])
+        XCTAssertEqual(Set(intermediate.map { $0.exercise.bpm }), [110])
         XCTAssertTrue((basic + intermediate).allSatisfy { $0.exercise.grid == 12 && $0.exercise.meter == [4,4] })
         let basicChallenge = try XCTUnwrap(graph.checkpoint(for: "jazz"))
         let intermediateChallenge = try XCTUnwrap(graph.checkpoint(for: "jazz-intermediate"))
@@ -1191,7 +1460,8 @@ final class ResourceModelsTests: XCTestCase {
         let state = try XCTUnwrap(graph.states(evidence: evidence).first { $0.exerciseID == future.id })
         XCTAssertEqual(state.status, .mastered, "Una lección futura superada conserva su resultado individual")
         XCTAssertFalse(state.chapterAccredited, "No acredita bloques anteriores sin tocar")
-        XCTAssertEqual(TempoLadder.highestPassedStep(for: future, evidence: evidence)?.label, "Jefe")
+        XCTAssertEqual(TempoLadder.highestPassedStep(for: future, evidence: evidence)?.label, "Histórico · Jefe",
+            "El premio anterior a los tempos fijos se conserva como histórico")
         XCTAssertEqual(TempoLadder.highestPassedStep(for: future, evidence: evidence)?.award, .trophies(2))
         XCTAssertEqual(try reopened.progress(for: future.id)?.attemptCount, 1)
     }
@@ -1771,6 +2041,96 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertTrue(try String(contentsOf: csv).contains("hh_01"))
     }
 
+    private func executeExportFixtureSQL(_ sql: String, at url: URL) throws {
+        var database: OpaquePointer?
+        guard sqlite3_open(url.path, &database) == SQLITE_OK else { throw ProgressStoreError.sqlite("No se abrió la fixture") }
+        defer { sqlite3_close(database) }
+        guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else {
+            throw ProgressStoreError.sqlite(String(cString: sqlite3_errmsg(database)))
+        }
+    }
+
+    func testCompleteExportAndRestoreExceedsTheOldHundredThousandAttemptLimit() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-large-backup-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("source.sqlite")
+        let store = try ProgressStore(url: databaseURL)
+        let count = 100_005
+        try executeExportFixtureSQL("""
+            WITH RECURSIVE sequence(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM sequence WHERE n < \(count))
+            INSERT INTO attempts (exercise_id,timestamp,bpm,score,stars,perfect,good,regular,miss,extra)
+            SELECT 'backup',n + 0.125,80,90,3,4,0,0,0,0 FROM sequence
+            """, at: databaseURL)
+        let csv = directory.appendingPathComponent("all.csv")
+        let json = directory.appendingPathComponent("all.json")
+        XCTAssertEqual(try store.exportCSV(to: csv), count)
+        XCTAssertEqual(try Data(contentsOf: csv).filter { $0 == 10 }.count, count + 1)
+        XCTAssertEqual(try store.exportJSON(to: json), count)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let restored = try decoder.decode([PracticeAttempt].self, from: Data(contentsOf: json))
+        XCTAssertEqual(restored.count, count)
+        XCTAssertEqual(restored.first?.timestamp.timeIntervalSince1970, Double(count) + 0.125)
+        XCTAssertEqual(restored.last?.timestamp.timeIntervalSince1970, 1.125)
+        let destination = try ProgressStore(url: directory.appendingPathComponent("restored.sqlite"))
+        XCTAssertEqual(try destination.importAttempts(restored), count)
+        XCTAssertEqual(try destination.progress(for: "backup")?.attemptCount, count)
+        XCTAssertEqual(try destination.importAttempts(restored), 0)
+    }
+
+    func testStreamedExportPreservesFiltersAndDoesNotReplaceAnExistingBackupOnFailure() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-safe-backup-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let database = directory.appendingPathComponent("source.sqlite")
+        let store = try ProgressStore(url: database)
+        for id in ["keep", "other"] {
+            try store.record(.init(exerciseID: id, timestamp: Date(timeIntervalSince1970: 10.125), bpm: 80,
+                score: 90, stars: 3, perfect: 4, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0))
+        }
+        let json = directory.appendingPathComponent("backup.json")
+        XCTAssertEqual(try store.exportJSON(to: json, filter: .init(exerciseID: "keep", minimumScore: 80)), 1)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try decoder.decode([PracticeAttempt].self, from: Data(contentsOf: json)).map(\.exerciseID), ["keep"])
+        XCTAssertEqual(try store.exportJSON(to: json, filter: .init(exerciseID: "absent")), 0)
+        XCTAssertTrue(try decoder.decode([PracticeAttempt].self, from: Data(contentsOf: json)).isEmpty)
+        let oldBackup = try Data(contentsOf: json)
+        try executeExportFixtureSQL("""
+            INSERT INTO attempts (exercise_id,timestamp,bpm,score,stars,perfect,good,regular,miss,extra)
+            VALUES ('damaged',20,80,1e999,0,0,0,0,0,0)
+            """, at: database)
+        XCTAssertThrowsError(try store.exportJSON(to: json))
+        XCTAssertEqual(try Data(contentsOf: json), oldBackup)
+        XCTAssertThrowsError(try store.exportJSON(to: database))
+        XCTAssertEqual(try store.progress(for: "keep")?.attemptCount, 1)
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.path).contains { $0.hasSuffix(".tmp") })
+    }
+
+    func testBackgroundExportUsesItsOwnReaderAndDoesNotBlockRecordingAnAttempt() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-reader-backup-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let database = directory.appendingPathComponent("source.sqlite")
+        let store = try ProgressStore(url: database)
+        let attempt = PracticeAttempt(exerciseID: "reader", timestamp: Date(timeIntervalSince1970: 10.125), bpm: 80,
+            score: 90, stars: 3, perfect: 4, good: 0, regular: 0, miss: 0, extra: 0, meanOffsetMilliseconds: 0)
+        try store.record(attempt)
+        var reader: OpaquePointer?
+        XCTAssertEqual(sqlite3_open_v2(database.path, &reader, SQLITE_OPEN_READONLY, nil), SQLITE_OK)
+        defer { sqlite3_close(reader) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(reader, "SELECT * FROM attempts", -1, &statement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        XCTAssertNoThrow(try store.record(attempt), "Un lector abierto no debe impedir guardar progreso")
+        let exported = expectation(description: "Exportación publicada en main")
+        store.exportInBackground(to: directory.appendingPathComponent("background.json"), format: .json) { result in
+            XCTAssertTrue(Thread.isMainThread)
+            XCTAssertEqual(try? result.get(), 2)
+            exported.fulfill()
+        }
+        wait(for: [exported], timeout: 10)
+    }
+
     func testProgressStoreImportsAttemptsAtomicallyWithoutDuplicates() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-import-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -1966,6 +2326,80 @@ final class ResourceModelsTests: XCTestCase {
 
         XCTAssertEqual(summary.diagnosis, .solid)
         XCTAssertEqual(summary.action, .advance)
+    }
+
+    private func feedbackForResult(_ exercise: Exercise, hits: [TimedPadHit]) -> PracticeResultFeedback {
+        let score = RhythmScorer.score(timeline: ExerciseTimeline(exercise: exercise), bpm: exercise.bpm, grid: exercise.grid, hits: hits)
+        let summary = PracticeResultAnalyzer.summarize(score: score, insights: PracticeInsights(score: score), hasCorrectivePlan: false, canAdvance: false)
+        return PracticeResultFeedback(score: score, summary: summary,
+            coaching: CoachingAnalyzer.recommendation(exercise: exercise, score: score),
+            soundName: { $0 == "snare" ? "Caja" : "Bombo" })
+    }
+
+    func testResultFeedbackDoesNotDiagnoseASoundOrTimingFromOneHitOrMiss() {
+        let exercise = Exercise(format: 1, id: "brief-result", title: "Breve", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "snare")])
+        for hits: [TimedPadHit] in [[], [.init(sound: "snare", timeMilliseconds: 60)]] {
+            let feedback = feedbackForResult(exercise, hits: hits)
+            XCTAssertTrue(feedback.headline.contains("faltan golpes"))
+            XCTAssertFalse(feedback.headline.contains("Caja"))
+            XCTAssertFalse(feedback.headline.contains("tarde"))
+        }
+    }
+
+    func testResultFeedbackNamesRepeatedSoundBiasEvenWhenOtherSoundsCenterTheGlobalMedian() {
+        let exercise = Exercise(format: 1, id: "sound-result", title: "Voces", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 4, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 4, sound: "snare"),
+                    .init(step: 8, sound: "kick"), .init(step: 12, sound: "kick")])
+        let timeline = ExerciseTimeline(exercise: exercise)
+        for offset in [-60.0, 60.0] {
+            let hits = timeline.notes.map { TimedPadHit(sound: $0.sound,
+                timeMilliseconds: $0.timeMilliseconds + ($0.sound == "snare" ? offset : 0)) }
+            let feedback = feedbackForResult(exercise, hits: hits)
+            XCTAssertTrue(feedback.headline.contains("Caja"))
+            XCTAssertTrue(feedback.headline.contains(offset < 0 ? "pronto" : "tarde"))
+            XCTAssertTrue(feedback.recommendation.contains(offset < 0 ? "espera" : "antes"))
+            XCTAssertFalse(feedback.headline.contains("ms"), "Las cifras técnicas quedan en los detalles")
+        }
+    }
+
+    func testResultFeedbackDoesNotClaimOneDirectionWhenTheSoundAlternatesEarlyAndLate() {
+        let exercise = Exercise(format: 1, id: "mixed-result", title: "Alternancia", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 4, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick"), .init(step: 4, sound: "snare"),
+                    .init(step: 8, sound: "kick"), .init(step: 12, sound: "kick")])
+        let timeline = ExerciseTimeline(exercise: exercise)
+        let hits = timeline.notes.map { note -> TimedPadHit in
+            let round = Int(note.timeMilliseconds / timeline.patternDurationMilliseconds)
+            let offset = note.sound == "snare" ? (round.isMultiple(of: 2) ? -60.0 : 60.0) : 0
+            return .init(sound: note.sound, timeMilliseconds: note.timeMilliseconds + offset)
+        }
+        let feedback = feedbackForResult(exercise, hits: hits)
+        XCTAssertFalse(feedback.headline.contains("Caja"))
+        XCTAssertFalse(feedback.headline.contains("tiende a llegar"))
+    }
+
+    func testResultFeedbackUsesRepeatedMissesWithoutInventingATimingDirection() {
+        let exercise = Exercise(format: 1, id: "miss-result", title: "Ausencias", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 4, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "snare")])
+        let feedback = feedbackForResult(exercise, hits: [])
+        XCTAssertTrue(feedback.headline.contains("Caja"))
+        XCTAssertTrue(feedback.headline.contains("apoyo"))
+        XCTAssertFalse(feedback.headline.contains("tarde"))
+    }
+
+    func testResultFeedbackExplainsExtraHitsInsteadOfCelebratingALowScoreAsSolid() {
+        let exercise = Exercise(format: 1, id: "extras-result", title: "Extras", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 8, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "snare")])
+        let hits = ExerciseTimeline(exercise: exercise).notes.map { TimedPadHit(sound: $0.sound, timeMilliseconds: $0.timeMilliseconds) }
+            + (0..<32).map { TimedPadHit(sound: "kick", timeMilliseconds: Double($0) * 100) }
+        let feedback = feedbackForResult(exercise, hits: hits)
+        XCTAssertTrue(feedback.headline.contains("32 toques extra"))
+        XCTAssertFalse(feedback.headline.contains("estable"))
     }
 
     func testNextSessionPlannerStartsWithTheFirstAvailableExercise() {

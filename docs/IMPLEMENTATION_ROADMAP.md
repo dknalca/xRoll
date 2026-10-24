@@ -2,6 +2,21 @@
 
 ## Completado en código
 
+- Inicio guiado con una tarea y acción principal en macOS/iOS; prepara ritmo
+  completo, tempo de aprendizaje, duración y ayuda completa sin heredar fases
+  avanzadas. La preparación manual conserva sus elecciones y los retos finales.
+- Equipo por pasos: sonido, pads y ajuste guiado, con reutilización del perfil
+  válido y revisión explícita. Los controles técnicos permanecen plegados.
+
+- Vuelta acompañada opcional en macOS/iOS: referencia sin puntuación, receptores
+  iluminados y segunda cuenta antes de tocar por cuenta propia. Salir o pausar
+  invalida la transición; la referencia no acredita golpes ni compases.
+- Rescate de uno o dos compases con contexto, guía y retorno al groove y tempo
+  originales. Las colas de referencia se recortan sin cancelar audio futuro.
+- Exportación completa CSV/JSON por bloques de 256, temporal seguro y contador
+  de intentos. Las interfaces usan un lector dedicado en segundo plano con WAL.
+  Regresiones restauran 100.005 intentos, sin truncamiento ni duplicados.
+
 - Progresión continua del tronco común: treinta lecciones revisadas para conservar
   el groove aprendido, añadir una dificultad principal y cerrar con figuras conocidas.
   Sin pasos curriculares de una sola voz ni tres golpes simultáneos.
@@ -28,7 +43,7 @@
 - Autopista centrada con ancho acotado por sonidos activos: tres carriles usan
   hasta 600 pt, con notas más presentes, receptores proporcionados y decoración
   lateral tenue. La altura y la anticipación se conservan en ambas plataformas.
-- Jazz básico con 8 lecciones a 64 BPM y Jazz intermedio con 12 a 72 BPM:
+- Jazz básico con 8 lecciones a 90 BPM y Jazz intermedio con 12 a 110 BPM:
   swing, comping, independencia, fills y trading fours, con retos propios.
 - Catálogo activo MIDI con 129 ejercicios sin patrones duplicados;
   la versión archivada se conserva fuera del catálogo activo.
@@ -42,8 +57,14 @@
 - Duración MIDI inicial ajustada a unos ocho compases totales, sin multiplicar
   las frases por ocho vueltas. Preparación iOS centrada en la lección elegida,
   con nivel preparado, mejor nivel superado y duración total.
-- Estrellas de intentos nuevos a 70/80/90 %; curso y retos de tempo siguen
+- Estrellas de intentos nuevos a 70/80/90 %; curso y retos técnicos siguen
   aprobándose con 70 %. Los resultados anteriores conservan sus estrellas.
+- Tempos musicales fijos por ruta de género (D-058): Hip-hop 90, Rock 100,
+  Disco 120, Funk 95, Reggae 75, Dembow 95, Blues 90, Jazz 90, Jazz intermedio
+  110 y Clave/Bossa 100. Los premios escalan precisión (70/80/90/95 %) y aguante
+  (8 y 16 compases) al mismo tempo; `previous-learning-bpm` migra el historial.
+- Panel de retos por escalón y no solo por BPM: dos premios al mismo tempo se
+  seleccionan, restauran y muestran sin confundirse.
 - Choke vivo protege ataques del mismo sonido admitidos antes del siguiente
   render. Pruebas PCM cubren lotes y conversión 44,1→48 kHz; pendiente confirmar
   los cortes reportados en MIDI con salida Bluetooth de iPhone/iPad.
@@ -89,12 +110,16 @@
   recortados reutilizables en caché LRU de 64 entradas/4 MiB y pruebas de PCM
   para ráfagas, alternancia de charles, cancelación y reutilización de nodos.
 - Los resultados de checkpoint adelantado identifican el primer bloque pendiente
-  y permiten abrirlo conservando la evidencia. Catorce pruebas UI cubren las rutas
+  y permiten abrirlo conservando la evidencia. Veintisiete pruebas UI cubren las rutas
   de Resultados, preparación y recorrido ferroviario en el simulador iOS.
 - Resultado ofrece una vía opcional al siguiente ejercicio tras dos estrellas en
   ritmo completo, sin acreditar ni saltar requisitos del curso. Las filas del
   curso muestran el premio más alto ganado; los trofeos sustituyen visualmente a
   las estrellas anteriores.
+- Resultados prioriza resumen, una recomendación y la acción antes de los
+  detalles. El mensaje compartido exige evidencia suficiente y distingue sesgo
+  por sonido; las opciones de velocidad quedan plegadas. Regresiones cubren
+  pocas muestras, desfases mezclados, extras y acceso a detalles/opciones.
 - El coaching correctivo exige errores repetidos en el mismo sonido y paso; la
   comparación al volver al groove solo se hace con condiciones completas
   equivalentes. Los objetivos se conservan en SQLite y se vuelven a comprobar

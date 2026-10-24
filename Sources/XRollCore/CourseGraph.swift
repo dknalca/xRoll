@@ -39,8 +39,25 @@ public struct CourseGraph: Equatable {
         })
         let directlyCompleted = Set(directScores.keys)
         let advancedPasses = Set(nodes.compactMap { node -> String? in
+            let nodeEvidence = evidenceByExercise[node.metadata.id, default: []]
+            if TempoLadder.isFixedTempoRoute(for: node.exercise) {
+                let trophySteps = TempoLadder.steps(for: node.exercise).filter {
+                    if case .trophies = $0.award { return true }
+                    return false
+                }
+                let passedTrophy = trophySteps.contains {
+                    TempoLadder.isPassed($0, exerciseID: node.metadata.id,
+                        evidence: nodeEvidence.filter { $0.score >= completionScore })
+                }
+                let historicalAdvanced = nodeEvidence.contains {
+                    $0.trainingContext.tempoPolicyVersion == nil && $0.bpm > 100
+                        && $0.score >= completionScore
+                        && $0.trainingContext.evaluationScope.countsAsCompletePattern
+                }
+                return passedTrophy || historicalAdvanced ? node.metadata.id : nil
+            }
             let consolidationBPM = TempoLadder.steps(for: node.exercise).first(where: { $0.label == "Consolidar" })?.bpm ?? 100
-            let passedAdvancedTempo = evidenceByExercise[node.metadata.id, default: []].contains {
+            let passedAdvancedTempo = nodeEvidence.contains {
                 $0.bpm > consolidationBPM
                     && $0.score >= completionScore
                     && $0.trainingContext.evaluationScope.countsAsCompletePattern

@@ -8,9 +8,9 @@ Xcode 14.2 detecta el iPad, pero no tiene el developer disk image para depurarlo
 
 La conexión de los pads mediante un cable Lightning–USB‑C directo no los hizo aparecer en CoreMIDI. En iPad con Lightning, repetir la prueba con un adaptador Lightning a USB para cámara; algunos controladores requieren además alimentación externa.
 
-## Verificación automática del 23/10/2026
+## Verificación automática del 24/10/2026
 
-Se ejecutaron catorce pruebas `XRollUITests` en iPhone 14 simulado con iOS 16.2:
+Se ejecutaron veintisiete pruebas `XRollUITests` en iPhone 14 simulado con iOS 16.2:
 continuación directa, subida de tempo, regreso a Curso/Redobles, preparación de
 checkpoint y acceso al bloque previo pendiente, además de tempo de aprendizaje,
 recuperación gradual, mapa ferroviario y pads táctiles compactos (rotación y
@@ -18,9 +18,32 @@ frase de ocho sonidos). Todas pasaron. Las fixtures de resultado y calibración
 son sintéticas y solo existen en Debug para simulador; no sustituyen ninguna de
 las comprobaciones físicas siguientes.
 
+Las regresiones de Resultados comprueban recomendación por sonido y continuación
+antes de los detalles, evidencia escasa sin conclusiones de timing y apertura
+explícita de las opciones para iniciar un reto de tempo. En una ejecución previa
+de esas pruebas, Xcode avisó de errores al guardar algunos adjuntos de captura;
+el resultado de los tests fue correcto, pero no todas sus imágenes se conservaron.
+
+La última suite completa también comprueba vuelta acompañada → práctica con
+pads estables, abandono durante la referencia sin crédito ni transición tardía,
+rescate → groove al tempo original y contador de la exportación. Su resultado
+agregado fue 27 pruebas y estado `succeeded`. Incluye Inicio guiado, Equipo por
+pasos, reutilización de la calibración, tempo personalizado y opciones técnicas
+plegadas y selección de un único premio entre escalones al mismo tempo musical.
+La suite del 24/10 a las 20:38 terminó sin fallos. En ejecuciones anteriores Xcode
+avisó de errores al guardar algunos adjuntos aunque las pruebas se completaron.
+
+El IPA universal 1.0 (build 16) se generó con `XROLL_BUILD_NUMBER=16 zsh
+scripts/build-ios-ipa.sh`: 129 MIDI, 10 sonidos y 3 loops, firma ad-hoc y arm64
+verificados. SHA-256: `59078598d4b849ad493be2d0a8734fcafa9928b077abfa48c714cbcb3f5bddd1`.
+
 ## Pendientes
 
-- [ ] En la versión 1.0 (build 12), comparar el mapa ferroviario con macOS: quince estaciones conectadas por vías, tren en la parada actual, Jazz básico/intermedio, reto de estación y mismas acciones y premios.
+- [ ] En la versión 1.0 (build 16), comparar el mapa ferroviario con macOS: quince estaciones conectadas por vías, tren en la parada actual, Jazz básico/intermedio, reto de estación y mismas acciones y premios.
+- [ ] En rutas de género, comprobar el tempo fijo (Hip-hop 90, Reggae 75, Disco 120), selección única y requisitos de precisión/aguante. La práctica lenta nueva no acredita la lección y el historial anterior conserva sus créditos.
+- [ ] Recorrer Inicio → Preparar mi equipo → sonido → pads → ajuste guiado → Vamos a tocar. Repetir con perfil vigente, cambio de salida/MIDI, texto grande y VoiceOver; comprobar los controles técnicos plegados y su acceso explícito.
+- [ ] Probar «Escuchar y tocar una vuelta juntos» y el rescate: referencia sin puntuar, fin de colas de audio, segunda cuenta y regreso al patrón/tempo originales. Repetir pausa, giro y abandono.
+- [ ] En Resultados, comprobar porcentaje, frase breve y una recomendación antes de la acción; estadísticas y retos opcionales quedan plegados. Probar texto grande y retorno al groove tras aislamiento.
 - [ ] Pausar una práctica y cambiar la ruta/frecuencia/buffer: reanudar no debe reutilizar una compensación de la ruta anterior, tampoco si el cambio efectivo ocurre al activar audio.
 - [ ] Exportar el historial JSON y volver a importarlo en la misma instalación: no debe añadir otra copia de los intentos recién exportados. Probar también un archivo inválido y confirmar que no guarda un lote parcial.
 - [ ] En una frase con silencios y entradas a mitad de compás, comprobar que «Entra …» solo anuncia sonidos nuevos y que la banda llega al primer golpe real. En Transferir no debe mostrar entradas ni nombres de sonido.

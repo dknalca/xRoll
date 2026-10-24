@@ -49,14 +49,54 @@ Cada nivel introduce una dificultad principal:
 
 Cada habilidad recorre: descubrir, aislar, integrar y transferir.
 
+## Tempo de las rutas
+
+El tronco técnico conserva la escalera común de 70, 85, 100, 120, 140 y 160 BPM.
+Las rutas de género usan un **tempo musical fijo por estación** y no proponen
+aceleraciones fuera de su estilo:
+
+| Ruta | Tempo | Rango orientativo |
+|---|---:|---|
+| Hip-hop / boom bap | 90 | 80–95 |
+| Rock | 100 | 80–120 |
+| Disco | 120 | 110–125 |
+| Funk | 95 | 85–110 |
+| Reggae | 75 | 65–85 |
+| Dembow | 95 | 85–105 |
+| Blues / Shuffle | 90 | 70–110 |
+| Jazz básico | 90 | 80–110 |
+| Jazz intermedio | 110 | 100–130 |
+| Clave / Bossa | 100 | 85–115 |
+
+El tempo se lee siempre del MIDI. `GenreTempoProfile` documenta el rango
+orientativo de cada ruta y las pruebas impiden que una lección quede fuera de él.
+En estas rutas las seis recompensas comparten el tempo musical y escalan en
+precisión, duración y repeticiones:
+
+| Escalón | Precisión | Duración mínima | Premio |
+|---|---:|---:|---|
+| Base | 70 % | patrón completo | 1 estrella |
+| Precisión | 80 % | patrón completo | 2 estrellas |
+| Groove | 90 % | patrón completo | 3 estrellas |
+| Sostener | 90 % | 8 compases | 1 trofeo |
+| Resistencia | 90 % | 16 compases | 2 trofeos |
+| Dominio | 95 % | 16 compases, 2 intentos | 3 trofeos |
+
+El apoyo de aprendizaje sigue bajando el tempo temporalmente, pero no acredita
+la lección ni concede premios hasta tocar el patrón completo al tempo de la ruta.
+Los intentos anteriores a este cambio conservan su progreso: el MIDI declara
+`previous-learning-bpm` para que el historial antiguo siga acreditando la
+lección, y los premios de velocidad ya ganados se muestran como «Histórico · …».
+
 ## Estados de progreso
 
 - **Practicado:** existe un intento guardado, aunque sea parcial.
 - **Superado a un tempo:** ritmo completo con 70 % o más a ese tempo; solo
-  concede el premio del BPM tocado.
+  concede el premio de ese escalón.
 - **Capítulo acreditado:** todos sus ritmos se superaron completos al tempo de
-  aprendizaje (`min(BPM del MIDI, 100)`) con 70 % o más, o se aprobó la prueba
-  MIDI final del bloque.
+  referencia de la ruta con 70 % o más, o se aprobó la prueba MIDI final del
+  bloque. En el tronco técnico el tempo de referencia es `min(BPM del MIDI, 100)`;
+  en las rutas de género es su tempo musical fijo (D-058).
 - **Dominado:** ritmo completo con 85 % o más al BPM nominal, sin sesgo o
   dispersión graves según la política de evaluación vigente.
 - **Transferido:** ejercicio ya dominado y superado con ayudas reducidas o en
@@ -90,10 +130,11 @@ lento con guía completa y una práctica más corta. Al mejorar, vuelve hacia el
 objetivo en pasos de dos o cuatro BPM. El progreso solo se acredita al tocar el
 patrón completo al tempo objetivo y con al menos 70 %.
 Los retos de 70, 85, 100, 120, 140 y 160 BPM son opcionales; sus estrellas y
-trofeos solo se conceden por resultados completos al tempo correspondiente. La
+trofeos solo se conceden por resultados completos al tempo correspondiente. Las
+rutas de género no usan esta escalera: sus premios se describen arriba. La
 estación se acredita al superar todos sus ejercicios o su prueba de bloque con
-70 % o más. Los intentos parciales no acreditan el curso. Nivel dios dura al
-menos 16 compases.
+70 % o más. Los intentos parciales no acreditan el curso. Nivel dios y Dominio
+duran al menos 16 compases.
 
 ### Coordinación e independencia
 
@@ -137,7 +178,7 @@ menos 16 compases.
 ## Secuencia de rutas por género
 
 ### Hip-hop
-Parte de corcheas y bombo sincopado ya aprendidos. La secuencia a 72 BPM conserva
+Parte de corcheas y bombo sincopado ya aprendidos. La secuencia a 90 BPM conserva
 la base al introducir cada variación:
 
 | Lección | Aplicación nueva |
@@ -170,7 +211,7 @@ sigue siendo independiente de la dinámica para no castigar el aprendizaje
 inicial; velocity queda disponible para la siguiente etapa de articulación.
 
 ### Rock
-Frase de dos compases con bombos anticipados a 78 BPM. El crash sustituye el
+Frase de dos compases con bombos anticipados a 100 BPM. El crash sustituye el
 primer charles; después se añade un descenso de toms que sustituye el último
 pulso. La secuencia completa es:
 
@@ -184,7 +225,7 @@ pulso. La secuencia completa es:
 8. Prueba de ocho compases con desarrollo, no ocho copias del mismo patrón.
 
 ### Funk
-Semicorcheas sobre bombos anticipados a 68 BPM; después huecos en dos y cuatro,
+Semicorcheas sobre bombos anticipados a 95 BPM; después huecos en dos y cuatro,
 caja desplazada y respuesta de palmada. Se mantienen las síncopas al añadir cada
 variación:
 
@@ -200,7 +241,7 @@ variación:
 Ghost notes y velocity quedan para una etapa posterior.
 
 ### Blues y shuffle
-Rejilla ternaria de 12 pasos a 66 BPM. La forma final de doce compases conserva
+Rejilla ternaria de 12 pasos a 90 BPM. La forma final de doce compases conserva
 tres grupos diferentes de cuatro; no se alarga la práctica repitiendo una base:
 
 1. Shuffle de charles con bombo y caja.
@@ -214,7 +255,7 @@ tres grupos diferentes de cuatro; no se alarga la práctica repitiendo una base:
 
 ### Batería de jazz básico
 Ride ternario con espacios (figura larga-corta en dos y cuatro), distinto del
-shuffle continuo. La secuencia a 64 BPM desarrolla independencia sin evaluar
+shuffle continuo. La secuencia a 90 BPM desarrolla independencia sin evaluar
 todavía dinámica ni articulación:
 
 1. Ride con espacios y caja en dos y cuatro.
@@ -228,11 +269,11 @@ todavía dinámica ni articulación:
 
 ### Batería de jazz intermedio
 
-Doce lecciones a 72 BPM, después del reto básico. Conservan la figura de swing y
+Doce lecciones a 110 BPM, después del reto básico. Conservan la figura de swing y
 añaden una coordinación principal cada vez. El charles de dos y cuatro se toca
 en pads: es una adaptación rítmica, sin simular ni exigir un pedal.
 
-1. Continuidad de swing: diálogo conocido de caja, aro y bombo a 72 BPM.
+1. Continuidad de swing: diálogo conocido de caja, aro y bombo a 110 BPM.
 2. Charles cerrado en dos y cuatro bajo el ride y el comping.
 3. Caja en el tresillo interior de uno y tres.
 4. Comping de bombo: desplazar el segundo bombo al último tresillo de tres.
@@ -251,7 +292,7 @@ ocho se reservan para fraseo e integración. Los dos retos conservan el 70 % com
 criterio básico y las estrellas habituales, sin introducir decisiones adicionales.
 
 ### Disco
-Bombo a negras a 80 BPM. El charles cede en dos y cuatro para que la caja y el
+Bombo a negras a 120 BPM. El charles cede en dos y cuatro para que la caja y el
 bombo no exijan una tercera voz simultánea:
 
 1. Bombo a negras con backbeat y motor de charles.
@@ -264,7 +305,7 @@ bombo no exijan una tercera voz simultánea:
 8. Frase disco completa con aperturas, palmada, enlace y fill.
 
 ### Reggae
-Los ocho ejercicios son grooves completos a 68 BPM, no gestos introductorios.
+Los ocho ejercicios son grooves completos a 75 BPM, no gestos introductorios.
 El primero tiene dos compases: charles a corcheas con hueco en el tercer pulso,
 bombo y aro juntos en tres, aro a contratiempo y respuesta en semicorchea al final
 del segundo compás. El silencio de bombo en uno es parte del one drop, no una
@@ -281,7 +322,7 @@ cuando cambia la figura de bombo:
 8. Frase completa de cuatro compases con los tres apoyos y cierre de toms.
 
 ### Dembow
-Dos compases desde el inicio a 88 BPM. La célula de bombo/caja no desaparece al
+Dos compases desde el inicio a 95 BPM. La célula de bombo/caja no desaparece al
 añadir voces y las semicorcheas se introducen por separado:
 
 1. Base de dembow con respuesta de bombo al final del segundo compás.
@@ -295,7 +336,7 @@ añadir voces y las semicorcheas se introducen por separado:
 
 ### Clave y bossa
 La clave tiene acompañamiento desde el principio, en frases de dos compases a
-72 BPM. Son y bossa se identifican por sus patrones concretos:
+100 BPM. Son y bossa se identifican por sus patrones concretos:
 
 1. Son 3-2 sobre bombo y charles.
 2. Son 2-3 conservando el acompañamiento.

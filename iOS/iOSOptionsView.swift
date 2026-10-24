@@ -5,6 +5,7 @@ struct iOSOptionsView: View {
     @ObservedObject var model: iOSPracticeModel
     @Binding var isPresented: Bool
     @State private var showsKitMix = false
+    @State private var showsAdvanced = false
 
     var body: some View {
         NavigationStack {
@@ -14,11 +15,22 @@ struct iOSOptionsView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Preferencias que se conservan entre prácticas.")
                             .font(.subheadline).foregroundStyle(iOSStudioDesign.secondary)
-                        practiceAudioOptions
-                        loopOptionsCard
-                        kitMixCard
-                        audioRouteCard
-                        visualSettings
+                        iOSStudioPanel {
+                            Toggle("Escuchar la claqueta", isOn: Binding(get: { model.metronomeEnabled }, set: { model.setMetronomeEnabled($0) }))
+                            Toggle("Usar acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
+                            Text("Puedes empezar con estos ajustes. El tono, la mezcla y los datos técnicos están en Opciones avanzadas.")
+                                .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
+                        }
+                        DisclosureGroup(isExpanded: $showsAdvanced) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                practiceAudioOptions
+                                loopOptionsCard
+                                kitMixCard
+                                audioRouteCard
+                                visualSettings
+                            }.padding(.top, 10)
+                        } label: { Text("Opciones avanzadas").accessibilityIdentifier("options.advanced") }
+                        .tint(iOSStudioDesign.accent)
                     }
                     .frame(maxWidth: 760)
                     .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 28)
@@ -38,6 +50,7 @@ struct iOSOptionsView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
+        .onAppear { showsAdvanced = false; showsKitMix = false }
     }
 
     private var practiceAudioOptions: some View {

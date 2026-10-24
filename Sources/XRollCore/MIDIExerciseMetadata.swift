@@ -11,6 +11,14 @@ public struct MIDIExerciseMetadata: Codable, Equatable {
     public let newDifficulty: String?
     public let recommendedHelp: PracticeHelp?
     public let flags: [String]
+    public let previousLearningBPM: Int?
+
+    public init(id: String, chapter: String, position: Int, prerequisites: [String], objective: String?,
+                newDifficulty: String?, recommendedHelp: PracticeHelp?, flags: [String], previousLearningBPM: Int? = nil) {
+        self.id = id; self.chapter = chapter; self.position = position; self.prerequisites = prerequisites
+        self.objective = objective; self.newDifficulty = newDifficulty; self.recommendedHelp = recommendedHelp
+        self.flags = flags; self.previousLearningBPM = previousLearningBPM
+    }
 }
 
 public enum MIDIExerciseMetadataError: LocalizedError, Equatable {
@@ -56,6 +64,11 @@ public enum MIDIExerciseMetadataParser {
         let objective = try singleValue("objective", in: values)
         let newDifficulty = try singleValue("new-difficulty", in: values)
         let recommendedHelp = try singleValue("recommended-help", in: values).flatMap(PracticeHelp.init(rawValue:))
+        let previousText = try singleValue("previous-learning-bpm", in: values)
+        let previousBPM = previousText.flatMap(Int.init)
+        if previousText != nil, previousBPM.map({ (1...100).contains($0) }) != true {
+            throw MIDIExerciseMetadataError.malformed("previous-learning-bpm fuera de 1...100")
+        }
         if values["recommended-help"] != nil, recommendedHelp == nil {
             throw MIDIExerciseMetadataError.malformed("recommended-help desconocido")
         }
@@ -67,7 +80,7 @@ public enum MIDIExerciseMetadataParser {
             objective: objective,
             newDifficulty: newDifficulty,
             recommendedHelp: recommendedHelp,
-            flags: values["flag", default: []]
+            flags: values["flag", default: []], previousLearningBPM: previousBPM
         )
     }
 

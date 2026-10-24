@@ -21,7 +21,7 @@
   y Jazz intermedio tienen 12 lecciones; las demás rutas tienen 8. Reggae contiene grooves en todos sus compases.
   Las frases no multiplican la duración inicial. Los umbrales de estrellas se
   comprueban antes del redondeo y después de penalizar golpes extra.
-- `XRollUITests` comprueba catorce rutas de navegación en simulador; CI conserva su
+- `XRollUITests` comprueba veintisiete rutas de navegación en simulador; CI conserva su
   resultado. Los resultados sintéticos no validan calibración ni latencia física.
 - El recorrido se comprueba con una única estación actual y un reto final por
   estación; solo celebra acreditaciones nuevas de patrón completo y se reconstruye
@@ -42,6 +42,22 @@
   importaciones con valores escalares inválidos. Un catálogo MIDI vacío produce
   un error recuperable. El pulso interno distingue contratiempos audibles de
   golpes dentro del silencio de la claqueta.
+- La recomendación de Resultados evita conclusiones con pocos golpes, distingue
+  sesgo por voz de la mediana global y no elige una dirección con desfases
+  alternos. Las pruebas UI comprueban acción antes de los detalles y retos de
+  tempo accesibles solo al abrir «Más opciones».
+- Referencia y cuentas fuera del score y de los compases acreditados; regreso del
+  rescate a su tempo original y cancelación sin reactivar la sesión. Las pruebas
+  PCM comprueban fin de las colas de referencia y conservación del audio futuro.
+- Exportación y restauración de 100.005 intentos, filtros, rollback de importación,
+  backup anterior intacto ante fallo y escritura de progreso con un lector activo.
+- Inicio guiado sin heredar una fase/tempo anterior; personalización plegada con
+  cambio explícito de tempo respetado. Equipo no omite una calibración pendiente
+  y reutiliza una vigente; el detalle de audio empieza cerrado y sigue accesible.
+- Tempos fijos de las diez rutas de género, precisión y duración de sus premios,
+  conservación de créditos antiguos y rechazo de prácticas lentas nuevas. La
+  versión de política sobrevive al cierre, SQLite y exportación/restauración.
+  La regresión iOS selecciona un único premio entre varios al mismo BPM.
 
 ## Completado en hardware
 
@@ -77,6 +93,21 @@
   de reactivar audio desde pausa.
 
 ## Validación pendiente de producto
+
+- Comprobar los tempos musicales y los premios de precisión/aguante de D-058
+  tocando las rutas de género; verificar el progreso histórico y el apoyo lento
+  con un historial real en macOS e iOS.
+
+- Recorrer Inicio y el asistente de Equipo en Mac, iPhone e iPad con una persona
+  principiante: una acción principal, pasos claros, texto grande y VoiceOver.
+  Verificar teclado recordado al conectar MIDI, mapa físico de 16 posiciones,
+  cambio de ruta y acceso a todos los controles de personalización y diagnóstico.
+
+- Escuchar/tocar juntos en Mac e iPhone/iPad con una y varias voces, MIDI y toque;
+  comprobar cuentas, receptores y fin audible de la referencia. Repetir pausa,
+  giro, abandono y rescate en una célula que cruce dos compases.
+- Exportar un historial real grande mientras se navega por la app; comprobar el
+  contador y restauración del JSON sin perder contexto, fechas ni registros.
 
 - Recorrer Fundamentos → Coordinación → Subdivisión → Groove con una persona
   principiante y otra con experiencia; valorar continuidad, dificultad y interés.

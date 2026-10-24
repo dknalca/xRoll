@@ -218,12 +218,14 @@ Al implementar o modificar código relacionado con el motor de xRoll:
 - Los sellos de dominio requieren: 85 % a tempo nominal, −15/+15 BPM, Gap
   Metronome 2+2 y transferencia sin guía. Son evidencia adicional: el curso
   básico conserva su desbloqueo amable al 70 %.
-- El criterio básico de una lección es ritmo completo a `min(BPM del MIDI, 100)` y
-  70 % o más. No exige superar varios tempos. La escalera fija (70, 85, 100, 120,
-  140 y 160 BPM) ofrece retos opcionales y sus premios solo cuentan para el tempo
-  realmente tocado; Nivel dios conserva su requisito de 16 compases. Las sesiones
-  parciales no acreditan el curso. Se permite explorar capítulos posteriores,
-  pero sus checkpoints adelantados solo acreditan al completarse la ruta previa.
+- El criterio básico de una lección es ritmo completo a su tempo de referencia y
+  70 % o más. No exige superar varios tempos. En el tronco técnico la referencia
+  es `min(BPM del MIDI, 100)` y la escalera 70/85/100/120/140/160 ofrece retos
+  opcionales; en las rutas de género el tempo es fijo (D-058) y los seis premios
+  suben precisión y aguante sin acelerar. Nivel dios y Dominio conservan su
+  requisito de 16 compases. Las sesiones parciales no acreditan el curso. Se
+  permite explorar capítulos posteriores, pero sus checkpoints adelantados solo
+  acreditan al completarse la ruta previa.
 - Inicio, Curso y Resultados consultan el mismo planificador y muestran una sola
   siguiente lección. Preparación deja visible el objetivo y la acción principal;
   tempo, voces, ayudas y fases avanzadas quedan bajo personalización.

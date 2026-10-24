@@ -37,7 +37,7 @@ xcodebuild -project xRoll.xcodeproj -scheme xRoll \
   CODE_SIGNING_ALLOWED=NO test
 ```
 
-Se comprueban catorce rutas: siguiente ejercicio, continuar tras aprobar con una
+Se comprueban veintisiete rutas: siguiente ejercicio, continuar tras aprobar con una
 estrella sin opciones de tempo, volver a Curso,
 volver a Redobles, preparar/empezar la prueba final y abrir el bloque anterior
 pendiente tras una prueba aprobada, y preparar/empezar exactamente la lección
@@ -50,6 +50,18 @@ todas sus celdas. Las capturas de estas rejillas se conservan como adjuntos.
 La progresión añade preparación a 72 BPM sin exigir el reto de 70 y recuperación
 de un intento lento: continuar devuelve al mismo ritmo, no a otro ejercicio ni
 a un salto innecesario de velocidad.
+Resultados añade recomendación por sonido y continuación antes del análisis,
+evidencia escasa sin conclusiones de timing y acceso a detalles y retos de tempo
+desde grupos plegados. Estos casos usan el scorer y el mensaje compartidos.
+El flujo acompañado añade transición de referencia a práctica, pads estables,
+abandono sin crédito ni reactivación tardía, rescate y retorno al tempo original.
+Progreso añade el contador y enlace del archivo exportado en segundo plano.
+Inicio añade tarea guiada sin heredar ajustes avanzados, asistente de Equipo
+con calibración pendiente o reutilizada, personalización explícita y opciones
+técnicas plegadas. Los grupos conservan identificadores propios en sus etiquetas
+sin sustituir los de los controles anidados.
+La ruta de género comprueba que elegir Precisión mantiene el tempo musical y
+selecciona un solo escalón aunque los seis premios compartan BPM.
 
 Las fixtures `XROLL_UI_TEST_SCENARIO` solo se compilan con `DEBUG` **y** destino
 simulador. Preparan resultados con el scorer real y usan SQLite y perfiles de

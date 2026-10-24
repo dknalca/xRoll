@@ -13,6 +13,162 @@ final class PracticeNavigationUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    func testGuidedHomeHasOnePreparedTaskAndIgnoresPreviousAdvancedSessionSettings() {
+        launch("guided-home")
+        let start = app.buttons["guided.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 30))
+        XCTAssertEqual(start.label, "Vamos a tocar")
+        XCTAssertEqual(app.staticTexts["guided.exercise"].label, "I-01 · Bombo y caja")
+        XCTAssertFalse(app.buttons["Entrenar pulso interno"].exists)
+        XCTAssertFalse(app.buttons["Seleccionar nivel Base, 85 BPM"].exists)
+        XCTAssertFalse(app.staticTexts["preparation.title"].exists)
+        let home = XCTAttachment(screenshot: app.screenshot())
+        home.name = "Inicio guiado · una tarea y una acción"
+        home.lifetime = .keepAlways
+        add(home)
+        tap(start)
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "68 BPM")
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad.")).count, 2)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Inicio guiado · ritmo completo preparado"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testEquipmentWizardShowsOnlyThePendingStepAndCannotSkipCalibration() {
+        launch("guided-setup")
+        tap(app.buttons["guided.start"])
+        let step = app.staticTexts["equipment.step"]
+        XCTAssertTrue(step.waitForExistence(timeout: 15))
+        XCTAssertEqual(step.label, "1 · Escucha un sonido")
+        XCTAssertFalse(app.staticTexts["LAYOUT FUNCIONAL"].exists)
+        XCTAssertFalse(app.buttons["equipment.confirmSound"].exists)
+        tap(app.buttons["equipment.probeSound"])
+        tap(app.buttons["equipment.confirmSound"])
+        XCTAssertEqual(step.label, "2 · Comprueba tus pads")
+        tap(app.buttons["equipment.probePad"])
+        XCTAssertEqual(step.label, "3 · Toca siguiendo el clic")
+        XCTAssertTrue(app.buttons["equipment.calibrate"].exists)
+        XCTAssertFalse(app.buttons["equipment.start"].exists)
+        XCTAssertFalse(app.staticTexts["MAPAS PORTABLES"].exists)
+    }
+
+    func testEquipmentReusesAValidCalibrationAndOffersAnExplicitRecheck() {
+        launch("guided-home")
+        XCTAssertTrue(app.tabBars.buttons["Equipo"].waitForExistence(timeout: 30))
+        app.tabBars.buttons["Equipo"].tap()
+        let step = app.staticTexts["equipment.step"]
+        XCTAssertTrue(step.waitForExistence(timeout: 15))
+        XCTAssertEqual(step.label, "Todo listo")
+        XCTAssertFalse(app.buttons["equipment.probeSound"].exists)
+        tap(app.buttons["equipment.recheck"])
+        XCTAssertEqual(step.label, "1 · Escucha un sonido")
+        tap(app.buttons["equipment.probeSound"])
+        tap(app.buttons["equipment.confirmSound"])
+        tap(app.buttons["equipment.probePad"])
+        XCTAssertEqual(step.label, "Todo listo")
+        XCTAssertFalse(app.buttons["equipment.calibrate"].exists)
+        tap(app.buttons["equipment.start"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+    }
+
+    func testPersonalizationIsCollapsedAndPreservesAnExplicitTempoWhenOpened() {
+        launch("guided-home")
+        tap(app.descendants(matching: .any).matching(identifier: "guided.customize").firstMatch)
+        tap(app.buttons["Abrir preparación personalizada"])
+        XCTAssertTrue(app.staticTexts["preparation.title"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["NIVEL DE TEMPO"].exists)
+        tap(app.descendants(matching: .any).matching(identifier: "preparation.customize").firstMatch)
+        tap(app.descendants(matching: .any).matching(identifier: "preparation.tempos").firstMatch)
+        tap(app.buttons["Seleccionar nivel Base, 85 BPM"])
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "85 BPM")
+    }
+
+    func testTechnicalAudioOptionsRemainAvailableButStartCollapsed() {
+        launch("guided-home")
+        tap(app.buttons["Opciones"])
+        XCTAssertTrue(app.switches["Escuchar la claqueta"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["SALIDA DE AUDIO"].exists)
+        tap(app.descendants(matching: .any).matching(identifier: "options.advanced").firstMatch)
+        XCTAssertTrue(app.staticTexts["SALIDA DE AUDIO"].waitForExistence(timeout: 5))
+    }
+
+    func testGenreAwardsSelectOnlyOneChallengeAtTheSameMusicalTempo() {
+        launch("exercise-preparation")
+        XCTAssertTrue(app.staticTexts["preparation.title"].waitForExistence(timeout: 30))
+        XCTAssertEqual(app.staticTexts["preparation.bpm"].label, "75 BPM")
+        tap(app.descendants(matching: .any).matching(identifier: "preparation.customize").firstMatch)
+        tap(app.descendants(matching: .any).matching(identifier: "preparation.tempos").firstMatch)
+        let base = app.buttons["preparation.tempo.0"]
+        let precision = app.buttons["preparation.tempo.1"]
+        XCTAssertTrue(base.isSelected)
+        tap(precision)
+        XCTAssertTrue(precision.isSelected)
+        XCTAssertFalse(base.isSelected)
+        XCTAssertEqual(precision.value as? String, "80 % · 2 compases")
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "75 BPM")
+    }
+
+    func testRehearsalChangesFromPlayingTogetherToScoredPracticeWithTheSameTouchPads() {
+        launch("rehearsal-preparation")
+        tap(app.buttons["preparation.start"])
+        let stage = app.staticTexts["practice.stage"]
+        XCTAssertTrue(stage.waitForExistence(timeout: 15))
+        XCTAssertEqual(stage.label, "Juntos · sin puntuar")
+        let pads = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad."))
+        let ids = pads.allElementsBoundByIndex.map(\.identifier)
+        XCTAssertEqual(ids.count, 2)
+        pads.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["practice.touch.lastHit"].exists)
+        let transition = expectation(for: NSPredicate(format: "label == %@", "Ahora tú · sigue el ritmo"), evaluatedWith: stage)
+        wait(for: [transition], timeout: 15)
+        XCTAssertEqual(pads.allElementsBoundByIndex.map(\.identifier), ids)
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "120 BPM")
+    }
+
+    func testStoppingDuringRehearsalDoesNotCreditBarsOrRestartFromADelayedCallback() {
+        launch("rehearsal-preparation")
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.stage"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+        tap(app.buttons["Terminar práctica"])
+        XCTAssertTrue(app.staticTexts["0 compases completados"].waitForExistence(timeout: 15))
+        Thread.sleep(forTimeInterval: 7)
+        XCTAssertFalse(app.staticTexts["practice.title"].exists)
+        XCTAssertFalse(app.staticTexts["course.arrival.title"].exists)
+    }
+
+    func testCorrectiveCellIncludesAReferenceAndReturnsToTheOriginalGrooveAndTempo() {
+        launch("rescue-result")
+        tap(app.descendants(matching: .any).matching(identifier: "result.options").firstMatch)
+        tap(app.buttons["Practicar la parte difícil"])
+        XCTAssertTrue(app.staticTexts["practice.stage"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "128 BPM")
+        let returnToGroove = app.buttons["result.primary"]
+        XCTAssertTrue(returnToGroove.waitForExistence(timeout: 40))
+        XCTAssertEqual(returnToGroove.label, "Volver al groove completo")
+        tap(returnToGroove)
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "160 BPM")
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+    }
+
+    func testProgressExportReportsTheNumberOfAttemptsAndOffersTheCompleteFile() {
+        launch("progress-export")
+        tap(app.buttons["Exportar JSON"])
+        let exported = app.staticTexts["progress.export.status"]
+        let ready = expectation(for: NSPredicate(format: "label CONTAINS %@", "Se exportó 1 intento"), evaluatedWith: exported)
+        wait(for: [ready], timeout: 15)
+        XCTAssertTrue(app.buttons["Compartir exportación"].exists)
+    }
+
     func testPendingLessonUsesLearningTempoWithoutPresentingSpeedChallenges() {
         launch("learning-tempo")
         XCTAssertTrue(app.staticTexts["preparation.title"].waitForExistence(timeout: 30))
@@ -21,6 +177,48 @@ final class PracticeNavigationUITests: XCTestCase {
         tap(app.buttons["preparation.start"])
         XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.staticTexts["practice.bpm"].label, "72 BPM")
+    }
+
+    func testResultShowsOneSoundRecommendationAndContinuationBeforeTechnicalDetails() {
+        launch("result-late")
+        let diagnosis = app.staticTexts["result.diagnosis"]
+        XCTAssertTrue(diagnosis.waitForExistence(timeout: 30))
+        XCTAssertTrue(diagnosis.label.contains("Caja"))
+        XCTAssertTrue(diagnosis.label.contains("tarde"))
+        XCTAssertTrue(app.staticTexts["result.recommendation"].label.contains("antes"))
+        let continuation = app.buttons["course.continue"]
+        XCTAssertTrue(continuation.isHittable)
+        XCTAssertFalse(app.staticTexts["EVIDENCIA TEMPORAL"].exists)
+        XCTAssertFalse(app.buttons["Subir nivel"].exists)
+        let image = XCTAttachment(screenshot: app.screenshot())
+        image.name = "Resultado · recomendación y continuación"
+        image.lifetime = .keepAlways
+        add(image)
+        tap(continuation)
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+    }
+
+    func testSparseResultAvoidsTimingClaimsAndKeepsDetailsCollapsedButAccessible() {
+        launch("result-insufficient")
+        let diagnosis = app.staticTexts["result.diagnosis"]
+        XCTAssertTrue(diagnosis.waitForExistence(timeout: 30))
+        XCTAssertTrue(diagnosis.label.contains("faltan golpes"))
+        XCTAssertTrue(app.buttons["result.primary"].isHittable)
+        XCTAssertFalse(app.staticTexts["EVIDENCIA TEMPORAL"].exists)
+        tap(app.descendants(matching: .any).matching(identifier: "result.details").firstMatch)
+        XCTAssertTrue(app.staticTexts["EVIDENCIA TEMPORAL"].waitForExistence(timeout: 5))
+    }
+
+    func testTempoChallengeStaysOptionalAndStartsOnlyAfterOpeningMoreOptions() {
+        launch("fill-result")
+        let primary = app.buttons["result.primary"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 30))
+        XCTAssertEqual(primary.label, "Repetir para consolidar")
+        XCTAssertFalse(app.buttons["Subir nivel"].exists)
+        tap(app.descendants(matching: .any).matching(identifier: "result.options").firstMatch)
+        tap(app.buttons["Subir nivel"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.bpm"].label, "85 BPM")
     }
 
     func testSlowSuccessfulAttemptReturnsGraduallyToTheSameLesson() {
@@ -88,12 +286,13 @@ final class PracticeNavigationUITests: XCTestCase {
     }
 
     private func tap(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(element.waitForExistence(timeout: 30), file: file, line: line)
+        XCTAssertTrue(element.waitForExistence(timeout: 30), app.debugDescription, file: file, line: line)
         for _ in 0..<8 {
             // Un botón parcialmente detrás del indicador inferior puede ser
             // isHittable sin que el centro reciba el toque sintetizado.
-            if element.isHittable && element.frame.maxY < app.frame.maxY - 60 { break }
-            app.swipeUp()
+            if element.isHittable && element.frame.minY > app.frame.minY + 40 && element.frame.maxY < app.frame.maxY - 60 { break }
+            if element.frame.minY < app.frame.minY + 40 { app.swipeDown() }
+            else { app.swipeUp() }
         }
         XCTAssertTrue(element.isHittable, file: file, line: line)
         element.tap()
@@ -151,7 +350,7 @@ final class PracticeNavigationUITests: XCTestCase {
         let title = app.staticTexts["preparation.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 30))
         XCTAssertEqual(title.label, "Reggae 02 · Aperturas a contratiempo")
-        XCTAssertEqual(app.staticTexts["preparation.guidance.exercise"].label, title.label)
+        XCTAssertFalse(app.staticTexts["preparation.guidance.exercise"].exists, "El detalle técnico permanece plegado")
         XCTAssertFalse(app.staticTexts["TU SIGUIENTE PASO"].exists)
         XCTAssertFalse(app.buttons["Empezar siguiente paso"].exists)
         tap(app.buttons["preparation.start"])

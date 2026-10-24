@@ -4,7 +4,7 @@ typealias Hit = (Int, Int)
 struct Definition {
     let id: String
     let title: String
-    let bpm: Int
+    let previousBPM: Int
     let grid: Int
     let bars: Int
     let hits: [Hit]
@@ -12,9 +12,9 @@ struct Definition {
     let difficulty: String
     let checkpoint: Bool
 
-    init(id: String, title: String, bpm: Int, grid: Int = 16, bars: Int = 1,
+    init(id: String, title: String, bpm previousBPM: Int, grid: Int = 16, bars: Int = 1,
          hits: [Hit], objective: String, difficulty: String, checkpoint: Bool = false) {
-        self.id = id; self.title = title; self.bpm = bpm; self.grid = grid
+        self.id = id; self.title = title; self.previousBPM = previousBPM; self.grid = grid
         self.bars = bars; self.hits = hits; self.objective = objective
         self.difficulty = difficulty; self.checkpoint = checkpoint
     }
@@ -219,7 +219,7 @@ let definitions: [Definition] = [
     .init(id: "23_jazz_08_fill", title: "Jazz básico 07 · Cierre ternario de toms", bpm: 64, grid: 12, bars: 2, hits: jazzFill, objective: "Conecta el comping con ride, tom agudo y tom grave al cierre de la frase.", difficulty: "jazz-triplet-ending"),
     .init(id: "23_jazz_04_frase", title: "Jazz básico 08 · Reto de swing", bpm: 64, grid: 12, bars: 4, hits: jazzCheckpoint, objective: "Integra backbeat, comping, respuesta de bombo, aro y cierre sin perder el ride.", difficulty: "jazz-integration", checkpoint: true),
 
-    .init(id: "28_jazz_01_continuidad", title: "Jazz intermedio 01 · Continuidad de swing", bpm: 72, grid: 12, bars: 2, hits: jazzIntermediateBase, objective: "Consolida el diálogo de caja, aro y bombo del curso básico a 72 BPM.", difficulty: "swing-consolidation-tempo"),
+    .init(id: "28_jazz_01_continuidad", title: "Jazz intermedio 01 · Continuidad de swing", bpm: 72, grid: 12, bars: 2, hits: jazzIntermediateBase, objective: "Consolida el diálogo de caja, aro y bombo del curso básico a 110 BPM.", difficulty: "swing-consolidation-tempo"),
     .init(id: "28_jazz_02_charles", title: "Jazz intermedio 02 · Charles en dos y cuatro", bpm: 72, grid: 12, bars: 2, hits: jazzTimekeeping, objective: "Añade el charles cerrado en dos y cuatro sin mover el ride ni las respuestas de caja y bombo.", difficulty: "hihat-two-and-four"),
     .init(id: "28_jazz_03_tresillo", title: "Jazz intermedio 03 · Caja en tresillos interiores", bpm: 72, grid: 12, bars: 2, hits: jazzInsidePhrase, objective: "En el segundo compás, lleva la caja al tresillo interior de uno y tres manteniendo ride y charles.", difficulty: "inside-triplet-comping"),
     .init(id: "28_jazz_04_bombo", title: "Jazz intermedio 04 · Comping de bombo", bpm: 72, grid: 12, hits: jazzKickComp, objective: "Desplaza el segundo bombo al último tresillo de tres sin cambiar las otras voces.", difficulty: "kick-comping-displacement"),
@@ -274,6 +274,10 @@ func be16(_ value: Int) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 255)] }
 func be32(_ value: Int) -> [UInt8] { [UInt8(value >> 24), UInt8(value >> 16), UInt8(value >> 8), UInt8(value & 255)] }
 let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("data/exercises")
 let chapterByPrefix = ["20": "rock", "21": "funk", "22": "blues", "23": "jazz", "24": "disco", "25": "reggae", "26": "dembow", "27": "clave-bossa", "28": "jazz-intermediate"]
+// Un tempo nominal por ruta. El parámetro bpm de las definiciones anteriores
+// se conserva como previousBPM para mantener sus acreditaciones históricas.
+let nominalBPM = ["rock": 100, "disco": 120, "funk": 95, "reggae": 75, "dembow": 95,
+    "blues": 90, "jazz": 90, "jazz-intermediate": 110, "clave-bossa": 100]
 let firstPrerequisite = [
     "rock": "10_hh_08_fill_cierre", "disco": "20_rock_04_resistencia",
     "funk": "24_disco_03_frase", "reggae": "21_funk_04_clap",
@@ -289,13 +293,14 @@ for item in definitions {
     precondition(item.hits.allSatisfy { $0.0 >= 0 && $0.0 < item.bars * item.grid }, "Paso fuera de frase: \(item.id)")
     precondition(Set(item.hits.map { "\($0.0):\($0.1)" }).count == item.hits.count, "Golpe duplicado: \(item.id)")
     precondition(Dictionary(grouping: item.hits, by: { $0.0 }).values.allSatisfy { $0.count <= 2 }, "Tres voces simultáneas: \(item.id)")
-    let title = Array(item.title.utf8); let tempo = 60_000_000 / item.bpm
+    let title = Array(item.title.utf8); let tempo = 60_000_000 / nominalBPM[chapter]!
     var events: [(Int, Int, [UInt8])] = [(0,0,[255,3] + vlq(title.count) + title),
         (0,1,[255,81,3,UInt8((tempo >> 16) & 255),UInt8((tempo >> 8) & 255),UInt8(tempo & 255)]),
         (0,2,[255,88,4,4,2,24,8])]
     var metadata = ["xroll/1 id=\(item.id)", "xroll/1 chapter=\(chapter)", "xroll/1 position=\(position)",
         "xroll/1 prerequisite=\(prerequisite)", "xroll/1 objective=\(item.objective)",
         "xroll/1 new-difficulty=\(item.difficulty)", "xroll/1 recommended-help=\(item.checkpoint ? "normal" : "full")"]
+    metadata.append("xroll/1 previous-learning-bpm=\(min(item.previousBPM, 100))")
     if item.checkpoint { metadata.append("xroll/1 flag=checkpoint") }
     for (index, text) in metadata.enumerated() { let bytes = Array(text.utf8); events.append((0, 3 + index, [255,1] + vlq(bytes.count) + bytes)) }
     for (step, note) in item.hits { let tick = step * 1_920 / item.grid; events.append((tick,100,[153,UInt8(note),100])); events.append((tick + 60,99,[137,UInt8(note),0])) }

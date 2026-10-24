@@ -41,8 +41,11 @@ func vlq(_ value: Int) -> [UInt8] { var v = value; var bytes = [UInt8(v & 0x7F)]
 func be16(_ v: Int) -> [UInt8] { [UInt8(v >> 8), UInt8(v & 0xFF)] }
 func be32(_ v: Int) -> [UInt8] { [UInt8(v >> 24), UInt8(v >> 16), UInt8(v >> 8), UInt8(v & 0xFF)] }
 let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("data/exercises")
+// Las definiciones conservan el BPM anterior para migrar el historial; la ruta
+// boom bap se interpreta y se evalúa ahora a un único tempo musical.
+let nominalBPM = 90
 for (index, exercise) in exercises.enumerated() {
-    let tempo = 60_000_000 / exercise.bpm; let title = Array(exercise.title.utf8); let ppq = 480
+    let tempo = 60_000_000 / nominalBPM; let title = Array(exercise.title.utf8); let ppq = 480
     let bars = exercise.bars
     let notes = exercise.notes
     precondition(notes.allSatisfy { $0.0 >= 0 && $0.0 < bars * 16 }, "Paso fuera de frase: \(exercise.file)")
@@ -50,6 +53,7 @@ for (index, exercise) in exercises.enumerated() {
     precondition(Dictionary(grouping: notes, by: { $0.0 }).values.allSatisfy { $0.count <= 2 }, "Tres voces simultáneas: \(exercise.file)")
     var events: [(Int, Int, [UInt8])] = [(0,0,[0xFF,0x03] + vlq(title.count) + title),(0,1,[0xFF,0x51,0x03,UInt8((tempo >> 16) & 0xFF),UInt8((tempo >> 8) & 0xFF),UInt8(tempo & 0xFF)]),(0,2,[0xFF,0x58,0x04,0x04,0x02,0x18,0x08])]
     var metadata = ["xroll/1 id=\(exercise.file)", "xroll/1 chapter=hiphop", "xroll/1 position=\(index + 1)", "xroll/1 objective=\(exercise.objective)", "xroll/1 new-difficulty=\(exercise.difficulty)", "xroll/1 recommended-help=\(index == exercises.count - 1 ? "normal" : "full")"]
+    metadata.append("xroll/1 previous-learning-bpm=\(min(exercise.bpm, 100))")
     metadata.append("xroll/1 prerequisite=\(index == 0 ? "04_groove_07_completo" : exercises[index - 1].file)")
     if index == exercises.count - 1 { metadata.append("xroll/1 flag=checkpoint") }
     for (metadataIndex, text) in metadata.enumerated() { let bytes = Array(text.utf8); events.append((0, 3 + metadataIndex, [0xFF, 0x01] + vlq(bytes.count) + bytes)) }

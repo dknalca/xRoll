@@ -133,16 +133,22 @@ public struct ProgressFilter: Equatable {
 public enum ProgressStoreError: LocalizedError {
     case sqlite(String)
     case invalidAttempt(String)
+    case invalidExportDestination
     public var errorDescription: String? {
         switch self {
         case .sqlite(let message): return message
         case .invalidAttempt(let id): return "El intento de \(id) contiene valores de historial no válidos."
+        case .invalidExportDestination: return "Elige un archivo distinto de la base de datos del historial."
         }
     }
 }
 
 public final class ProgressStore {
     private var database: OpaquePointer?
+    private let databaseURL: URL
+    private static let exportQueue = DispatchQueue(label: "xRoll.progress-export", qos: .utility)
+
+    public enum ExportFormat: String { case csv, json }
 
     private struct AttemptImportIdentity: Hashable {
         let exerciseID: String
@@ -199,6 +205,7 @@ public final class ProgressStore {
     }
 
     public init(url: URL) throws {
+        databaseURL = url
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard sqlite3_open(url.path, &database) == SQLITE_OK else {
             let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "No se pudo abrir la base de datos."
@@ -226,6 +233,19 @@ public final class ProgressStore {
             columns.insert(name)
         }
         try execute("CREATE TABLE IF NOT EXISTS training_state (state_key TEXT PRIMARY KEY NOT NULL, value_json TEXT NOT NULL)")
+        // El exportador tiene su propia conexión de lectura. WAL permite que
+        // guardar un intento no compita con una exportación larga del historial.
+        try execute("PRAGMA journal_mode=WAL")
+    }
+
+    private init(readOnlyURL url: URL) throws {
+        databaseURL = url
+        guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let failure = error()
+            if let database { sqlite3_close(database) }
+            database = nil
+            throw failure
+        }
     }
 
     deinit { sqlite3_close(database) }
@@ -352,7 +372,7 @@ public final class ProgressStore {
         return scores
     }
 
-    public func attempts(filter: ProgressFilter = .init(), limit: Int = 100) throws -> [PracticeAttempt] {
+    private func attemptsStatement(filter: ProgressFilter, limit: Int? = nil, ascending: Bool = false) throws -> OpaquePointer? {
         var clauses: [String] = []
         if filter.exerciseID != nil { clauses.append("exercise_id = ?") }
         if filter.minimumScore != nil { clauses.append("score >= ?") }
@@ -360,35 +380,50 @@ public final class ProgressStore {
         if filter.from != nil { clauses.append("timestamp >= ?") }
         if filter.to != nil { clauses.append("timestamp <= ?") }
         let whereClause = clauses.isEmpty ? "" : " WHERE " + clauses.joined(separator: " AND ")
-        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json FROM attempts\(whereClause) ORDER BY timestamp DESC, id DESC LIMIT ?")
-        defer { sqlite3_finalize(statement) }
+        let order = ascending ? "ASC" : "DESC"
+        let suffix = limit == nil ? "" : " LIMIT ?"
+        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json FROM attempts\(whereClause) ORDER BY timestamp \(order), id \(order)\(suffix)")
         var index: Int32 = 1
         if let value = filter.exerciseID { sqlite3_bind_text(statement, index, value, -1, sqliteTransient); index += 1 }
         if let value = filter.minimumScore { sqlite3_bind_double(statement, index, value); index += 1 }
         if let value = filter.maximumScore { sqlite3_bind_double(statement, index, value); index += 1 }
         if let value = filter.from { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
         if let value = filter.to { sqlite3_bind_double(statement, index, value.timeIntervalSince1970); index += 1 }
-        sqlite3_bind_int(statement, index, Int32(clamping: max(1, limit)))
+        if let limit { sqlite3_bind_int64(statement, index, sqlite3_int64(max(1, limit))) }
+        return statement
+    }
+
+    public func attempts(filter: ProgressFilter = .init(), limit: Int = 100) throws -> [PracticeAttempt] {
+        let statement = try attemptsStatement(filter: filter, limit: limit)
+        defer { sqlite3_finalize(statement) }
         var result: [PracticeAttempt] = []
         while true {
             let status = sqlite3_step(statement)
             if status == SQLITE_DONE { break }
             guard status == SQLITE_ROW else { throw error() }
-            let soundStatistics: [SoundStatistics]
-            if sqlite3_column_type(statement, 11) == SQLITE_NULL { soundStatistics = [] }
-            else if let pointer = sqlite3_column_blob(statement, 11) { soundStatistics = (try? JSONDecoder().decode([SoundStatistics].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 11))))) ?? [] }
-            else { soundStatistics = [] }
-            let hitRecords: [HitRecord]
-            if sqlite3_column_type(statement, 12) == SQLITE_NULL { hitRecords = [] }
-            else if let pointer = sqlite3_column_blob(statement, 12) { hitRecords = (try? JSONDecoder().decode([HitRecord].self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 12))))) ?? [] }
-            else { hitRecords = [] }
-            let context: TrainingContext
-            if sqlite3_column_type(statement, 13) == SQLITE_NULL { context = .init(evaluationScope: .legacyUnknown) }
-            else if let pointer = sqlite3_column_blob(statement, 13) { context = (try? JSONDecoder().decode(TrainingContext.self, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 13))))) ?? .init(evaluationScope: .legacyUnknown) }
-            else { context = .init(evaluationScope: .legacyUnknown) }
-            result.append(PracticeAttempt(exerciseID: String(cString: sqlite3_column_text(statement, 0)), timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), bpm: Int(sqlite3_column_int(statement, 2)), score: sqlite3_column_double(statement, 3), stars: Int(sqlite3_column_int(statement, 4)), perfect: Int(sqlite3_column_int(statement, 5)), good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)), miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)), meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10), soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
+            result.append(readAttempt(statement))
         }
         return result
+    }
+
+    private func readAttempt(_ statement: OpaquePointer?) -> PracticeAttempt {
+        PracticeAttempt(
+            exerciseID: String(cString: sqlite3_column_text(statement, 0)),
+            timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)),
+            bpm: Int(sqlite3_column_int(statement, 2)), score: sqlite3_column_double(statement, 3),
+            stars: Int(sqlite3_column_int(statement, 4)), perfect: Int(sqlite3_column_int(statement, 5)),
+            good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)),
+            miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)),
+            meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10),
+            soundStatistics: decodeColumn([SoundStatistics].self, statement: statement, index: 11) ?? [],
+            hitRecords: decodeColumn([HitRecord].self, statement: statement, index: 12) ?? [],
+            trainingContext: decodeColumn(TrainingContext.self, statement: statement, index: 13) ?? .init(evaluationScope: .legacyUnknown))
+    }
+
+    private func decodeColumn<Value: Decodable>(_ type: Value.Type, statement: OpaquePointer?, index: Int32) -> Value? {
+        guard sqlite3_column_type(statement, index) != SQLITE_NULL,
+              let pointer = sqlite3_column_blob(statement, index) else { return nil }
+        return try? JSONDecoder().decode(type, from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, index))))
     }
 
     /// Devuelve toda la evidencia ligera necesaria para acreditaciones. No
@@ -423,20 +458,77 @@ public final class ProgressStore {
         return result
     }
 
-    public func exportCSV(to url: URL, filter: ProgressFilter = .init()) throws {
-        let attempts = try attempts(filter: filter, limit: 100_000).reversed()
-        var csv = "exercise_id,timestamp,bpm,score,stars,perfect,good,regular,miss,extra,mean_offset_ms\n"
-        for attempt in attempts {
-            let offset = attempt.meanOffsetMilliseconds.map { "\($0)" } ?? ""
-            let values = ["\"\(attempt.exerciseID.replacingOccurrences(of: "\"", with: "\"\""))\"", "\(attempt.timestamp.timeIntervalSince1970)", "\(attempt.bpm)", "\(attempt.score)", "\(attempt.stars)", "\(attempt.perfect)", "\(attempt.good)", "\(attempt.regular)", "\(attempt.miss)", "\(attempt.extra)", offset]
-            csv += values.joined(separator: ",") + "\n"
-        }
-        try csv.data(using: .utf8)!.write(to: url, options: .atomic)
+    @discardableResult
+    public func exportCSV(to url: URL, filter: ProgressFilter = .init()) throws -> Int {
+        try export(to: url, format: .csv, filter: filter)
     }
 
-    public func exportJSON(to url: URL, filter: ProgressFilter = .init()) throws {
-        let data = try JSONEncoder.xroll.encode(try attempts(filter: filter, limit: 100_000))
-        try data.write(to: url, options: .atomic)
+    @discardableResult
+    public func exportJSON(to url: URL, filter: ProgressFilter = .init()) throws -> Int {
+        try export(to: url, format: .json, filter: filter)
+    }
+
+    /// La interfaz recibe el resultado en main; SQLite y la escritura usan una
+    /// conexión exclusiva del worker, nunca la conexión del coordinador.
+    public func exportInBackground(to url: URL, format: ExportFormat, filter: ProgressFilter = .init(),
+                                   completion: @escaping (Result<Int, Error>) -> Void) {
+        let source = databaseURL
+        Self.exportQueue.async {
+            let result = Result { try ProgressStore(readOnlyURL: source).export(to: url, format: format, filter: filter) }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// Un cursor estable recorre todos los resultados en bloques de 256. Solo
+    /// se sustituye el destino cuando se cerró correctamente el archivo temporal.
+    private func export(to url: URL, format: ExportFormat, filter: ProgressFilter) throws -> Int {
+        let destination = url.standardizedFileURL.resolvingSymlinksInPath()
+        let source = databaseURL.standardizedFileURL.resolvingSymlinksInPath()
+        guard destination != source,
+              ![source.path + "-wal", source.path + "-shm"].contains(destination.path) else {
+            throw ProgressStoreError.invalidExportDestination
+        }
+        let temporary = destination.deletingLastPathComponent().appendingPathComponent(".xroll-export-\(UUID().uuidString).tmp")
+        let manager = FileManager.default
+        guard manager.createFile(atPath: temporary.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
+        defer { try? manager.removeItem(at: temporary) }
+        let file = try FileHandle(forWritingTo: temporary)
+        defer { try? file.close() }
+        let statement = try attemptsStatement(filter: filter, ascending: format == .csv)
+        defer { sqlite3_finalize(statement) }
+        let header = format == .csv ? "exercise_id,timestamp,bpm,score,stars,perfect,good,regular,miss,extra,mean_offset_ms\n" : "[\n"
+        try file.write(contentsOf: Data(header.utf8))
+        let encoder = JSONEncoder.xroll
+        encoder.outputFormatting = [.sortedKeys]
+        var count = 0
+        var ended = false
+        while !ended {
+            try autoreleasepool {
+                var block = Data()
+                for _ in 0..<256 {
+                    let status = sqlite3_step(statement)
+                    if status == SQLITE_DONE { ended = true; break }
+                    guard status == SQLITE_ROW else { throw error() }
+                    let attempt = readAttempt(statement)
+                    if format == .json {
+                        if count > 0 { block.append(contentsOf: ",\n".utf8) }
+                        block.append(try encoder.encode(attempt))
+                    } else {
+                        let offset = attempt.meanOffsetMilliseconds.map { "\($0)" } ?? ""
+                        let values = ["\"\(attempt.exerciseID.replacingOccurrences(of: "\"", with: "\"\""))\"", "\(attempt.timestamp.timeIntervalSince1970)", "\(attempt.bpm)", "\(attempt.score)", "\(attempt.stars)", "\(attempt.perfect)", "\(attempt.good)", "\(attempt.regular)", "\(attempt.miss)", "\(attempt.extra)", offset]
+                        block.append(contentsOf: (values.joined(separator: ",") + "\n").utf8)
+                    }
+                    count += 1
+                }
+                try file.write(contentsOf: block)
+            }
+        }
+        if format == .json { try file.write(contentsOf: Data("\n]\n".utf8)) }
+        try file.close()
+        if manager.fileExists(atPath: destination.path) {
+            _ = try manager.replaceItemAt(destination, withItemAt: temporary)
+        } else { try manager.moveItem(at: temporary, to: destination) }
+        return count
     }
 
     private func columnNames(in table: String) throws -> Set<String> {
@@ -454,7 +546,11 @@ public final class ProgressStore {
     private func execute(_ sql: String) throws {
         let statement = try prepare(sql)
         defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return }
+            guard status == SQLITE_ROW else { throw error() }
+        }
     }
 
     private func prepare(_ sql: String) throws -> OpaquePointer? {

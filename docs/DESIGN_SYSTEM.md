@@ -110,13 +110,32 @@ Los retos de velocidad se eligen desde Preparación. Fuera de esta continuación
 del recorrido se mantiene el resultado diagnóstico con precisión, tendencia,
 consistencia y herramientas de práctica opcionales.
 
+El resultado ordinario muestra «Cómo te fue» (porcentaje, estrellas y una frase)
+y «Tu siguiente paso» (una recomendación y un botón principal). «Más opciones»
+y «Ver detalles del resultado» empiezan cerrados, después de la acción. Un reto
+opcional no sustituye al reintento de consolidación ni a la continuación del
+curso. Los mensajes breves evitan milisegundos y conclusiones con poca evidencia.
+
 Si un patrón completo pendiente necesita apoyo, el panel compartido ofrece
 «Reintentar» con guía completa y un tempo algo menor. Tras un buen intento lento,
 «Continuar» aumenta 2–4 BPM hacia el objetivo conservando el mismo ejercicio.
 El título es «Vamos paso a paso» o «¡Buen ritmo!», sin anunciar un nivel superado
 hasta que se cumpla su criterio real. La acción no pide configurar un rescate.
 
+### Inicio y Equipo para principiantes
+
+Inicio presenta una tarjeta de próxima práctica con una acción destacada. Los
+parámetros y otras estrategias empiezan plegados. La preparación explícita
+conserva sus elecciones; el inicio guiado aplica valores de aprendizaje sin
+heredar una fase avanzada anterior.
+
+Equipo presenta solo la tarea actual y un botón principal: escuchar, comprobar
+pads y seguir el clic. Un perfil vigente permite mostrar Todo listo sin repetir
+pasos. El detalle técnico se abre mediante Opciones avanzadas; UID, canales y
+buffer no son decisiones iniciales. La posición que se está aprendiendo tiene
+texto y borde destacado, además de color.
 ### Progreso
+
 Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y gráficos superpuestos.
 
 ## Movimiento

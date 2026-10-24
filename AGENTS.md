@@ -8,6 +8,7 @@
 - El curso conserva la metáfora ferroviaria: línea, estaciones y reto final de estación. Mapa, acciones y celebraciones deben usar las vistas compartidas de `CourseRailwayMap.swift` en macOS e iOS; consulta D-046 antes de cambiar esta presentación.
 - La práctica táctil iOS usa solo los sonidos activos del ejercicio en una rejilla virtual compacta (D-048). Equipo y el mapeo MIDI conservan las 16 posiciones físicas; no apliques la compactación al controlador real.
 - La autopista de práctica también dibuja solo los sonidos presentes en la timeline y añade avisos de entrada, cierre y última vuelta (D-052); no reserva carriles para sonidos ausentes.
+- Inicio prioriza una práctica guiada y Equipo muestra solo el paso pendiente. Personalización y controles técnicos empiezan plegados; conserva su acceso explícito y las elecciones de preparación (D-057).
 
 ## Build y pruebas (desde la raíz)
 
@@ -33,4 +34,5 @@
 ## Contenido
 
 - Los ejercicios integrados y comunitarios son MIDI; no añadas un catálogo JSON paralelo. Los metadatos curriculares viajan en el MIDI y los valida `CurriculumValidator`; consulta `docs/EXERCISES.md`.
+- Las rutas de género usan un tempo musical fijo por estación y premios de precisión/aguante, no la escalera 70–160 (D-058). No introduzcas tempos fuera del rango de la ruta; el tempo se lee del MIDI y `previous-learning-bpm` solo migra historial.
 - Los sonidos y WAV se resuelven desde `kit.json`, sin nombres de audio en código. Registra todo audio añadido en `Resources/Loops/ATTRIBUTION.md` en el mismo commit.

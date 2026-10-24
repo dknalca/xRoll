@@ -1,5 +1,32 @@
 import Foundation
 
+/// Transporte de una vuelta acompañada opcional, separado del origen del score.
+/// Las dos cuentas de entrada y la referencia no añaden compases acreditables.
+public struct PracticeRehearsalPlan: Equatable {
+    public let countInMilliseconds: Double
+    public let referenceExercise: Exercise?
+    public let referenceStartMilliseconds: Double
+    public let referenceEndMilliseconds: Double
+    public let scoringStartMilliseconds: Double
+
+    public init(exercise: Exercise, reference: Exercise? = nil, countInBars: Int = 2, enabled: Bool) {
+        let timeline = ExerciseTimeline(exercise: exercise)
+        countInMilliseconds = timeline.barDurationMilliseconds * Double(min(4, max(1, countInBars)))
+        referenceStartMilliseconds = countInMilliseconds
+        if enabled {
+            let source = reference ?? exercise
+            let oneRound = PracticeConfiguration(exercise: source, bpm: exercise.bpm, repeats: 1).applying(to: source)
+            referenceExercise = oneRound
+            referenceEndMilliseconds = countInMilliseconds + ExerciseTimeline(exercise: oneRound).patternDurationMilliseconds
+            scoringStartMilliseconds = referenceEndMilliseconds + countInMilliseconds
+        } else {
+            referenceExercise = nil
+            referenceEndMilliseconds = countInMilliseconds
+            scoringStartMilliseconds = countInMilliseconds
+        }
+    }
+}
+
 /// Ajustes de una sesión que no alteran el archivo original del ejercicio.
 public struct PracticeConfiguration: Equatable {
     public var bpm: Int
@@ -8,6 +35,12 @@ public struct PracticeConfiguration: Equatable {
     public init(exercise: Exercise, bpm: Int? = nil, repeats: Int? = nil) {
         self.bpm = min(240, max(40, bpm ?? exercise.bpm))
         self.repeats = Self.normalizedRepeats(repeats ?? exercise.repeats)
+    }
+
+    /// El inicio guiado prepara aprendizaje, no retos opcionales de velocidad.
+    public static func guided(for exercise: Exercise) -> PracticeConfiguration {
+        .init(exercise: exercise, bpm: CourseLessonCriteria.targetBPM(for: exercise),
+              repeats: defaultRepeats(forBars: exercise.bars))
     }
 
     /// Longitudes en potencias de dos para elegir sesiones cortas o largas.
@@ -36,6 +69,29 @@ public struct PracticeConfiguration: Equatable {
             level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars,
             grid: exercise.grid, repeats: 8, kit: exercise.kit, loop: nil, offset: exercise.offset,
             notes: exercise.notes.filter { $0.sound == "hihat_closed" }, metadata: exercise.metadata)
+    }
+
+    /// Conserva el compás de la célula y su acompañamiento; incluye dos si la
+    /// célula cruza la barra. Solo se usa con alcance correctivo, nunca para
+    /// acreditar una versión abreviada del patrón completo.
+    public static func correctiveContext(in exercise: Exercise, stepRange: ClosedRange<Int>) -> (exercise: Exercise, stepRange: ClosedRange<Int>) {
+        let totalSteps = exercise.bars * exercise.grid
+        let lower = min(totalSteps - 1, max(0, stepRange.lowerBound))
+        let upper = min(totalSteps - 1, max(lower, stepRange.upperBound))
+        let firstBar = lower / exercise.grid
+        let lastBar = upper / exercise.grid
+        let origin = firstBar * exercise.grid
+        let end = (lastBar + 1) * exercise.grid
+        let notes = exercise.notes.compactMap { note -> Exercise.Note? in
+            let step = (note.step + exercise.offset) % totalSteps
+            guard step >= origin, step < end else { return nil }
+            return .init(step: step - origin, sound: note.sound, hand: note.hand, target: note.target, velocity: note.velocity)
+        }
+        let context = Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family,
+            level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: lastBar - firstBar + 1,
+            grid: exercise.grid, repeats: exercise.repeats, kit: exercise.kit, loop: exercise.loop,
+            offset: 0, notes: notes, metadata: exercise.metadata)
+        return (context, (lower - origin)...(upper - origin))
     }
 
     /// 0 = frase completa; 1/2 = primera/segunda mitad de todos sus compases.
@@ -69,8 +125,9 @@ public struct PracticeCompletion: Equatable {
     public func context(from original: TrainingContext) -> TrainingContext {
         TrainingContext(phase: original.phase, gapMetronomeLevel: original.gapMetronomeLevel,
                         showsVisualGuides: original.showsVisualGuides,
-                        evaluationScope: isComplete ? original.evaluationScope : .fragment,
-                        completedBars: completedBars, practiceConditions: original.practiceConditions)
+                         evaluationScope: isComplete ? original.evaluationScope : .fragment,
+                         completedBars: completedBars, practiceConditions: original.practiceConditions,
+                         tempoPolicyVersion: original.tempoPolicyVersion)
     }
 }
 
@@ -97,7 +154,7 @@ public enum TempoAward: Equatable {
     }
 }
 
-/// Escalones comunes que hacen comparable el progreso entre todos los ritmos.
+/// Requisitos de un premio de velocidad o de dominio a tempo musical fijo.
 public struct TempoPracticeStep: Equatable {
     public let label: String
     public let bpm: Int
@@ -105,41 +162,113 @@ public struct TempoPracticeStep: Equatable {
     public let requiredPasses: Int
     public let minimumBars: Int?
     public let award: TempoAward
+    public let requiresKnownFullPattern: Bool
+    public let isHistorical: Bool
 
-    public init(label: String, bpm: Int, requiredScore: Double, requiredPasses: Int, minimumBars: Int? = nil, award: TempoAward) {
+    public init(label: String, bpm: Int, requiredScore: Double, requiredPasses: Int, minimumBars: Int? = nil, award: TempoAward, requiresKnownFullPattern: Bool = false, isHistorical: Bool = false) {
         self.label = label
         self.bpm = bpm
         self.requiredScore = requiredScore
         self.requiredPasses = requiredPasses
         self.minimumBars = minimumBars
         self.award = award
+        self.requiresKnownFullPattern = requiresKnownFullPattern
+        self.isHistorical = isHistorical
+    }
+
+    public var requirements: String {
+        "\(Int(requiredScore)) %" + (minimumBars.map { " · \($0) compases" } ?? "")
+            + (requiredPasses > 1 ? " · \(requiredPasses) intentos" : "")
+    }
+}
+
+/// Rangos orientativos de las rutas concretas del curso, no límites universales
+/// de cada género. El tempo fijo real se lee siempre del MIDI.
+public struct GenreTempoProfile: Equatable {
+    public let name: String
+    public let suggestedRange: ClosedRange<Int>
+    public static func profile(for exercise: Exercise) -> GenreTempoProfile? {
+        switch exercise.metadata?.chapter {
+        case "hiphop": return .init(name: "Hip-hop / boom bap", suggestedRange: 80...95)
+        case "rock": return .init(name: "Rock", suggestedRange: 80...120)
+        case "disco": return .init(name: "Disco", suggestedRange: 110...125)
+        case "funk": return .init(name: "Funk", suggestedRange: 85...110)
+        case "reggae": return .init(name: "Reggae", suggestedRange: 65...85)
+        case "dembow": return .init(name: "Dembow", suggestedRange: 85...105)
+        case "blues": return .init(name: "Blues / Shuffle", suggestedRange: 70...110)
+        case "jazz": return .init(name: "Jazz básico", suggestedRange: 80...110)
+        case "jazz-intermediate": return .init(name: "Jazz intermedio", suggestedRange: 100...130)
+        case "clave-bossa": return .init(name: "Clave / Bossa", suggestedRange: 85...115)
+        default: return nil
+        }
     }
 }
 
 public enum TempoLadder {
+    public static let currentPolicyVersion = 1
     public static func steps(for exercise: Exercise) -> [TempoPracticeStep] {
-        return [
-            .init(label: "Aprender", bpm: 70, requiredScore: 70, requiredPasses: 1, award: .stars(1)),
-            .init(label: "Base", bpm: 85, requiredScore: 70, requiredPasses: 1, award: .stars(2)),
-            .init(label: "Consolidar", bpm: 100, requiredScore: 70, requiredPasses: 1, award: .stars(3)),
-            .init(label: "Difícil", bpm: 120, requiredScore: 70, requiredPasses: 1, award: .trophies(1)),
-            .init(label: "Jefe", bpm: 140, requiredScore: 70, requiredPasses: 1, award: .trophies(2)),
-            .init(label: "Nivel dios", bpm: 160, requiredScore: 70, requiredPasses: 1, minimumBars: 16, award: .trophies(3))
-        ]
+        if GenreTempoProfile.profile(for: exercise) != nil {
+            func step(_ label: String, _ score: Double, _ bars: Int, _ passes: Int, _ award: TempoAward) -> TempoPracticeStep {
+                .init(label: label, bpm: exercise.bpm, requiredScore: score, requiredPasses: passes,
+                    minimumBars: max(exercise.bars, bars), award: award, requiresKnownFullPattern: true)
+            }
+            return [step("Base", 70, exercise.bars, 1, .stars(1)),
+                    step("Precisión", 80, exercise.bars, 1, .stars(2)),
+                    step("Groove", 90, exercise.bars, 1, .stars(3)),
+                    step("Sostener", 90, 8, 1, .trophies(1)),
+                    step("Resistencia", 90, 16, 1, .trophies(2)),
+                    step("Dominio", 95, 16, 2, .trophies(3))]
+        }
+        return technicalSteps()
+    }
+
+    /// Las rutas de género se tocan siempre a su tempo musical; sus premios
+    /// escalan en precisión y aguante, no en velocidad.
+    public static func isFixedTempoRoute(for exercise: Exercise) -> Bool {
+        GenreTempoProfile.profile(for: exercise) != nil
+    }
+
+    private static func technicalSteps(historical: Bool = false) -> [TempoPracticeStep] {
+        let values: [(String, Int, TempoAward)] = [("Aprender",70,.stars(1)), ("Base",85,.stars(2)),
+            ("Consolidar",100,.stars(3)), ("Difícil",120,.trophies(1)), ("Jefe",140,.trophies(2)), ("Nivel dios",160,.trophies(3))]
+        return values.map { label, bpm, award in
+            .init(label: historical ? "Histórico · \(label)" : label, bpm: bpm, requiredScore: 70,
+                  requiredPasses: 1, minimumBars: bpm == 160 ? 16 : nil, award: award, isHistorical: historical)
+        }
     }
 
     public static func passedAttempts(for step: TempoPracticeStep, exerciseID: String, attempts: [PracticeAttempt]) -> Int {
         passedAttempts(for: step, exerciseID: exerciseID, evidence: attempts.map(CourseAttemptEvidence.init))
     }
 
+    private static func qualifies(_ evidence: CourseAttemptEvidence, for step: TempoPracticeStep, exerciseID: String) -> Bool {
+        evidence.exerciseID == exerciseID
+            && evidence.bpm == step.bpm
+            && evidence.score >= step.requiredScore
+            && (step.requiresKnownFullPattern ? evidence.trainingContext.evaluationScope == .fullPattern : evidence.trainingContext.evaluationScope.countsAsCompletePattern)
+            && (!step.isHistorical || evidence.trainingContext.tempoPolicyVersion == nil)
+            && (step.minimumBars == nil || evidence.trainingContext.completedBars >= step.minimumBars!)
+    }
+
     public static func passedAttempts(for step: TempoPracticeStep, exerciseID: String, evidence: [CourseAttemptEvidence]) -> Int {
-        evidence.filter {
-            $0.exerciseID == exerciseID
-                && $0.bpm == step.bpm
-                && $0.score >= step.requiredScore
-                && $0.trainingContext.evaluationScope.countsAsCompletePattern
-                && (step.minimumBars == nil || $0.trainingContext.completedBars >= step.minimumBars!)
-        }.count
+        evidence.filter { qualifies($0, for: step, exerciseID: exerciseID) }.count
+    }
+
+    /// Estrellas visibles de un escalón: solo cuentan intentos que alcanzan su
+    /// precisión, aunque varios escalones compartan el mismo tempo musical.
+    public static func bestStars(for step: TempoPracticeStep, exerciseID: String, evidence: [CourseAttemptEvidence]) -> Int? {
+        evidence.filter { qualifies($0, for: step, exerciseID: exerciseID) }.map(\.stars).max()
+    }
+
+    /// Escalón que corresponde a un tempo y una duración dados. Sirve para
+    /// restaurar preferencias cuando varios escalones comparten BPM.
+    public static func stepIndex(for exercise: Exercise, bpm: Int, repeats: Int) -> Int? {
+        let steps = steps(for: exercise)
+        let candidates = steps.indices.filter { steps[$0].bpm == bpm }
+        guard !candidates.isEmpty else { return nil }
+        return candidates.first(where: { Self.repeats(for: steps[$0], exercise: exercise) == repeats })
+            ?? candidates.first(where: { (Self.repeats(for: steps[$0], exercise: exercise) ?? 1) <= repeats })
+            ?? candidates[0]
     }
 
     public static func isPassed(_ step: TempoPracticeStep, exerciseID: String, attempts: [PracticeAttempt]) -> Bool {
@@ -163,7 +292,14 @@ public enum TempoLadder {
     }
 
     public static func highestPassedStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
-        steps(for: exercise).reversed().first { isPassed($0, exerciseID: exercise.id, evidence: evidence) }
+        let current = steps(for: exercise).reversed().first { isPassed($0, exerciseID: exercise.id, evidence: evidence) }
+        guard GenreTempoProfile.profile(for: exercise) != nil else { return current }
+        let historical = technicalSteps(historical: true).reversed().first { isPassed($0, exerciseID: exercise.id, evidence: evidence) }
+        func rank(_ step: TempoPracticeStep) -> Int {
+            switch step.award { case .stars(let count): return count; case .trophies(let count): return count + 3 }
+        }
+        if let historical, current.map({ rank(historical) > rank($0) }) ?? true { return historical }
+        return current
     }
 
     public static func isConsolidated(_ exercise: Exercise, attempts: [PracticeAttempt], minimumScore: Double = 70) -> Bool {
@@ -180,7 +316,7 @@ public enum TempoLadder {
     public static func isCheckpointPassed(_ exercise: Exercise, evidence: [CourseAttemptEvidence], minimumScore: Double = 70) -> Bool {
         return evidence.contains {
             $0.exerciseID == exercise.id
-                && $0.bpm >= CourseLessonCriteria.targetBPM(for: exercise)
+                && CourseLessonCriteria.lessonEvidenceIsEligible($0, for: exercise)
                 && $0.score >= max(minimumScore, CourseLessonCriteria.minimumScore)
                 && $0.trainingContext.evaluationScope == .fullPattern
         }
@@ -193,17 +329,19 @@ public enum TempoLadder {
 }
 
 /// Criterio de aprendizaje básico, independiente de los retos opcionales de
-/// velocidad: ritmo completo a un tempo de aprendizaje no superior a 100 BPM.
+/// dominio: ritmo completo al tempo musical de género o al de aprendizaje técnico.
 public enum CourseLessonCriteria {
     public static let minimumScore = 70.0
-    /// Conserva progreso histórico a 100 BPM en ritmos cuyo tempo nominal es más
-    /// rápido; los ritmos lentos ya no tienen que acelerarse para avanzar.
-    public static func targetBPM(for exercise: Exercise) -> Int { min(exercise.bpm, 100) }
+    /// Las rutas de género usan el tempo del MIDI; el tronco técnico mantiene
+    /// su objetivo de aprendizaje limitado a 100 BPM.
+    public static func targetBPM(for exercise: Exercise) -> Int {
+        GenreTempoProfile.profile(for: exercise) == nil ? min(exercise.bpm, 100) : exercise.bpm
+    }
 
-    /// Siguiente reto de velocidad por encima de lo ya superado. Nunca propone
-    /// un escalón inferior al objetivo de aprendizaje ni al mejor tempo tocado.
-    /// Conserva el mismo tempo si aún falta acreditar su duración mínima.
+    /// Siguiente premio de precisión/aguante en géneros o de velocidad en el
+    /// tronco técnico. Conserva el reto cuando falta acreditar su duración.
     public static func optionalTempoStep(for exercise: Exercise, evidence: [CourseAttemptEvidence]) -> TempoPracticeStep? {
+        if GenreTempoProfile.profile(for: exercise) != nil { return TempoLadder.nextStep(for: exercise, evidence: evidence) }
         let target = targetBPM(for: exercise)
         let highestPassedBPM = evidence
             .filter {
@@ -255,9 +393,15 @@ public enum CourseLessonCriteria {
         }
     }
 
-    private static func lessonEvidenceIsEligible(_ evidence: CourseAttemptEvidence, for exercise: Exercise) -> Bool {
+    fileprivate static func lessonEvidenceIsEligible(_ evidence: CourseAttemptEvidence, for exercise: Exercise) -> Bool {
         switch evidence.trainingContext.evaluationScope {
         case .fullPattern:
+            if GenreTempoProfile.profile(for: exercise) != nil {
+                if evidence.trainingContext.tempoPolicyVersion == nil {
+                    return evidence.bpm >= (exercise.metadata?.previousLearningBPM ?? min(exercise.bpm, 100))
+                }
+                return evidence.bpm == exercise.bpm
+            }
             return evidence.bpm >= targetBPM(for: exercise)
         case .legacyUnknown:
             // Historial anterior al contexto de sesión solo se conserva con el
@@ -833,6 +977,73 @@ public struct PracticeResultSummary: Equatable {
     public let medianOffsetMilliseconds: Double?
     public let consistencyMilliseconds: Double?
     public let percentile95AbsoluteMilliseconds: Double?
+}
+
+/// Explicación breve compartida por ambos resultados. No cambia puntuación,
+/// acreditación ni acciones: limita las conclusiones a la evidencia disponible.
+public struct PracticeResultFeedback: Equatable {
+    public let headline: String
+    public let recommendation: String
+
+    public init(score: ExerciseScore, summary: PracticeResultSummary,
+                coaching: CoachingRecommendation? = nil, soundName: (String) -> String) {
+        let associatedHits = score.hits.filter { $0.expectedNote != nil }
+        if case .weakSound(let sound, _, _) = summary.diagnosis,
+           associatedHits.filter({ $0.expectedNote?.sound == sound }).count
+            + score.misses.filter({ $0.sound == sound }).count >= 4 {
+            headline = "«\(soundName(sound))» necesita más apoyo."
+            recommendation = "Escucha su referencia y concéntrate en colocar esa entrada dentro del ritmo."
+            return
+        }
+        guard associatedHits.count >= 8 else {
+            headline = "Aún faltan golpes para valorar una tendencia."
+            recommendation = "Sigue la guía en la próxima vuelta. Con más golpes podremos señalar qué conviene mejorar."
+            return
+        }
+        // Una mediana global puede ocultar que una voz llega tarde mientras
+        // las demás van centradas. Exigimos cuatro golpes y dirección en 3/4,
+        // además de los mínimos del coaching, antes de señalar un sonido.
+        let allowsSoundTiming: Bool
+        switch summary.diagnosis {
+        case .solid, .timingBias: allowsSoundTiming = true
+        default: allowsSoundTiming = false
+        }
+        if let coaching, coaching.opportunities >= 4, coaching.issueCount >= 2,
+           coaching.issue != .repeatedMiss,
+           allowsSoundTiming {
+            let offsets = associatedHits.filter { $0.expectedNote?.sound == coaching.sound }.compactMap(\.offsetMilliseconds)
+            let matching = offsets.filter { coaching.issue == .early ? $0 < -15 : $0 > 15 }.count
+            if offsets.count >= 4, matching * 4 >= offsets.count * 3 {
+                let early = coaching.issue == .early
+                headline = "«\(soundName(coaching.sound))» tiende a llegar \(early ? "pronto" : "tarde")."
+                recommendation = early
+                    ? "Escucha su referencia y espera un poco más antes de tocar, manteniendo el pulso del resto."
+                    : "Escucha su referencia y prepara ese golpe un poco antes, manteniendo el pulso del resto."
+                return
+            }
+        }
+        switch summary.diagnosis {
+        case .insufficientEvidence, .weakSound:
+            headline = "Todavía no hay una dificultad suficientemente repetida."
+            recommendation = "Mantén la guía y busca repetir el patrón con regularidad en la próxima práctica."
+        case .inconsistent:
+            headline = "La separación entre los golpes todavía varía."
+            recommendation = "Escucha la claqueta y busca una separación regular entre los golpes, sin perseguir cada nota."
+        case .timingBias(let offset):
+            headline = offset < 0 ? "Tiendes a llegar antes del pulso." : "Tiendes a llegar después del pulso."
+            recommendation = offset < 0
+                ? "Espera un poco más antes de tocar y escucha cómo coincide cada golpe con la referencia."
+                : "Prepara el movimiento un poco antes y escucha cómo coincide cada golpe con la referencia."
+        case .solid:
+            if score.percentage < 70, score.extraCount > 0 {
+                headline = "Se registraron \(score.extraCount) toques extra."
+                recommendation = "Toca solo las notas del patrón y deja espacio en los silencios."
+            } else {
+                headline = "Tus golpes asociados mantienen un pulso estable."
+                recommendation = "Conserva esa regularidad en la siguiente práctica."
+            }
+        }
+    }
 }
 
 public enum PracticeResultAnalyzer {

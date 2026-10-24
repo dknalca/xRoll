@@ -440,13 +440,16 @@ public final class SampleAudioEngine {
 
     /// Completa las voces pendientes después de añadir el patrón entero. Se usa
     /// antes de que empiece la reproducción, no a mitad de sesión.
-    public func flushScheduledSounds() throws {
+    /// Un final explícito recorta las colas de la referencia sin detener los
+    /// eventos que ya estén programados para la práctica posterior.
+    public func flushScheduledSounds(stoppingAtHostTime endHostTime: UInt64? = nil) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
         let pending = pendingScheduledChokeHits.values.sorted { $0.hostTime < $1.hostTime }
         pendingScheduledChokeHits.removeAll()
         for hit in pending {
-            try scheduleUnchoked(soundID: hit.soundID, atHostTime: hit.hostTime, volume: hit.volume)
+            if let endHostTime { try schedule(hit, stoppingAtHostTime: endHostTime) }
+            else { try scheduleUnchoked(soundID: hit.soundID, atHostTime: hit.hostTime, volume: hit.volume) }
         }
     }
 

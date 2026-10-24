@@ -28,6 +28,31 @@ public struct CalibrationProfileKey: Codable, Equatable, Hashable {
     }
 }
 
+/// Un único paso de equipo visible. Las comprobaciones de escucha no sustituyen
+/// ni el mapa físico ni la calibración exacta de la ruta elegida.
+public enum EquipmentSetupStep: String, CaseIterable, Hashable {
+    case sound, pads, calibration, ready
+
+    public var title: String {
+        switch self {
+        case .sound: return "1 · Escucha un sonido"
+        case .pads: return "2 · Comprueba tus pads"
+        case .calibration: return "3 · Toca siguiendo el clic"
+        case .ready: return "Todo listo"
+        }
+    }
+
+    public static func current(audioAvailable: Bool, inputAvailable: Bool, padsMapped: Bool,
+                               soundConfirmed: Bool, padConfirmed: Bool, calibrated: Bool,
+                               rechecking: Bool = false) -> EquipmentSetupStep {
+        let previousChecks = calibrated && !rechecking
+        if !audioAvailable || !(soundConfirmed || previousChecks) { return .sound }
+        if !inputAvailable || !padsMapped || !(padConfirmed || previousChecks) { return .pads }
+        if !calibrated { return .calibration }
+        return .ready
+    }
+}
+
 public struct CalibrationEstimate: Equatable {
     public let offsetMilliseconds: Double
     public let medianAbsoluteDeviationMilliseconds: Double

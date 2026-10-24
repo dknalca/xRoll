@@ -143,3 +143,36 @@ entre dibujo, toques y accesibilidad; no altera las coordenadas físicas de Equi
 El tamaño del panel depende de las voces y la orientación. Al reconstruir la
 escena tras un giro, la etiqueta de racha se desliga de su panel anterior antes
 de volver a insertarse, conservando la sesión y evitando un segundo padre SpriteKit.
+
+`PracticeRehearsalPlan` separa referencia, cuentas de entrada y origen puntuable.
+Los coordinadores programan audio contra ese origen; `PracticeSessionIngress`
+admite los golpes, pero `PracticeSession` descarta la entrada previa a la ventana
+del primer objetivo. La escena de referencia tiene realce visual automático y se
+sustituye por la escena evaluada al terminar; la transición está ligada al token
+o generación de la sesión. `flushScheduledSounds(stoppingAtHostTime:)` recorta
+las últimas colas sin cancelar eventos futuros. La calibración no usa referencia.
+
+`PracticeConfiguration.correctiveContext` recorta el contexto del rescate a los
+compases de la célula y traslada sus pasos conservando objetivos y offset audible.
+Solo se usa con alcance correctivo. El retorno restaura la configuración completa
+sin convertir una célula en evidencia curricular.
+
+`ProgressStore` usa WAL y exporta mediante un cursor sin límite de registros,
+codificando bloques de 256 en un temporal y sustituyendo el destino al finalizar.
+La API de interfaz usa un worker serial y una conexión de solo lectura propia;
+la conexión del coordinador no cambia de hilo. La CLI conserva la API síncrona.
+Ambas devuelven el número de intentos y conservan los filtros y la precisión del
+historial. Las copias portables se crean mediante CSV/JSON; los ficheros WAL y
+SHM pertenecen a SQLite y no se tratan como una exportación independiente.
+
+`PracticeConfiguration.guided` comparte tempo de aprendizaje y duración inicial.
+Los coordinadores aplican ritmo completo, Integrar y guía completa en la entrada
+guiada. iOS distingue Inicio de Preparación con `showsExercisePreparation`;
+seleccionar una lección conserva su pantalla y parámetros propios.
+
+`EquipmentSetupStep` proyecta un único paso pendiente a partir de audio, entrada,
+mapa, comprobaciones y calibración. Cada coordinador vincula las confirmaciones
+al `CalibrationProfileKey` actual y descarta golpes anteriores a la comprobación.
+Las pruebas de sonido se ejecutan fuera de sesiones y suspenden MIDI si deben
+activar audio. El callback MIDI no cambia; los pasos solo se publican desde main.
+Una confirmación de interfaz nunca sustituye un perfil de calibración válido.

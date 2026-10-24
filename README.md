@@ -7,6 +7,11 @@ xRoll te dice con cuanta precision lo hiciste y si vas adelantado o atrasado.
 
 Pensado para quien empieza de cero.
 
+Inicio propone una próxima práctica y **Vamos a tocar**: ritmo, tempo y ayudas
+ya preparados. **Mi equipo** guía sonido, pads y calibración, mostrando solo el
+paso pendiente. Personalización, rutinas y datos técnicos quedan plegados, pero
+siguen accesibles para quien quiera explorarlos.
+
 ## Vista rápida
 
 La aplicación reúne preparación, práctica, diagnóstico y configuración del
@@ -114,6 +119,14 @@ El historial se puede sacar en CSV o JSON con `xroll-export-progress`. Los
 filtros `--exercise` y `--minimum-score` permiten exportar solo la parte que se
 quiera revisar. Los datos permanecen locales en
 `~/Library/Application Support/xRoll/progress.sqlite`.
+Las exportaciones recorren todo el filtro por bloques, sin truncar el historial,
+y muestran el número de intentos. La interfaz prepara el archivo en segundo
+plano y conserva la copia anterior si falla la escritura.
+
+Desde Preparación, **Escuchar y tocar una vuelta juntos** reproduce una vuelta
+sin puntuación y da paso a la práctica propia tras otra cuenta de entrada. El
+rescate de una parte difícil conserva su compás y acompañamiento y permite
+volver al groove completo con el tempo original.
 
 ## Requisitos
 

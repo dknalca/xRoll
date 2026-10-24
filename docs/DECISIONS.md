@@ -699,3 +699,157 @@ anticipación, reloj y scoring se conservan.
 toda la pantalla y las notas parecían diminutas. Acotar la anchura concentra la
 lectura y evita receptores excesivamente largos sin introducir otra opción de
 configuración ni alterar el orden del mapa.
+
+## D-054 - Resultado con una recomendación y una acción antes del análisis
+
+En macOS e iOS, el resultado ordinario presenta porcentaje, estrellas y una
+frase breve; después una recomendación y la acción principal. Estadísticas,
+milisegundos, microscopio, comparaciones y traza quedan bajo «Ver detalles del
+resultado». Los retos de velocidad y herramientas avanzadas quedan bajo
+«Más opciones». Ambos grupos empiezan cerrados en cada resultado nuevo.
+
+Se conserva la prioridad de D-046 para la llegada a una estación y sus vistas
+compartidas, y la de D-050 para el apoyo gradual. Fuera de la continuación del
+curso, un reto de velocidad disponible no se convierte en acción principal:
+se propone consolidar al mismo tempo y la subida se elige explícitamente.
+El checkpoint futuro ofrece como acción principal ir a la estación pendiente.
+Tras aislamiento, se prioriza volver al groove completo en ambas apps.
+
+`PracticeResultFeedback` comparte la explicación sin modificar scoring ni
+acreditaciones. Una voz débil requiere cuatro oportunidades; una tendencia
+temporal general, ocho golpes asociados. Para afirmar que una voz se adelanta
+o retrasa exige coaching elegible, cuatro golpes de esa voz y dirección
+coherente en al menos el 75 %. Con menos evidencia evita señalar una dificultad
+o dirección. El detalle conserva las medidas, separadas de la recomendación.
+
+**Por qué:** la acción principal aparecía después del análisis y competía con
+alternativas y mensajes técnicos. El principiante debe entender qué ocurrió,
+en qué concentrarse y qué tocar después sin interpretar primero estadísticas.
+
+## D-055 - Vuelta acompañada y rescate breve con regreso al groove
+
+Preparación añade «Escuchar y tocar una vuelta juntos» como alternativa al inicio
+directo. Tras la cuenta de entrada suena una vuelta con referencia y receptores
+iluminados. Otra cuenta separa «Juntos · sin puntuar» de «Ahora tú». La
+referencia y las cuentas no pertenecen a la timeline evaluada: no añaden golpes,
+compases, premios ni acreditaciones. La calibración sigue siendo obligatoria
+antes de este flujo, porque conduce automáticamente a una práctica puntuada.
+
+`PracticeRehearsalPlan` comparte los tiempos relativos. Audio se programa a host
+time futuro; la escena solo representa y realza los receptores. Las colas de la
+referencia terminan en su frontera mediante buffers recortados, sin detener las
+notas futuras de la práctica. Pausar reinicia el recorrido desde su cuenta; salir
+o terminar invalida la transición pendiente. La selección de pads táctiles se
+mantiene al pasar de la referencia a la práctica propia.
+
+El rescate correctivo usa el compás de la célula, o los dos compases adyacentes
+si cruza una barra. Conserva sus demás notas como acompañamiento, destinos
+exactos y posición dentro del compás. Primero se escucha/toca la referencia,
+después se practica la célula con guía completa. «Volver al groove completo»
+recupera el patrón, tempo y duración originales con referencia y cuenta clara.
+Solo se afirma una mejora al comparar rondas completas equivalentes; la célula
+no se compara como si fuera el groove completo. El historial usa la duración
+guardada para distinguir las vueltas de los rescates cortos y de los antiguos.
+
+Esto desarrolla el rescate Whale y no recorta las lecciones completas ni cambia
+el apoyo gradual de D-050. El alcance correctivo sigue sin acreditar el curso.
+
+## D-056 - Exportación completa por bloques y copia segura del historial
+
+CSV y JSON exportan todos los intentos del filtro actual, sin el límite silencioso
+de 100.000. Un cursor SQLite estable alimenta bloques de 256 registros y devuelve
+el número exportado. Se conserva el orden anterior: CSV cronológico y JSON del
+más reciente al más antiguo. El JSON sigue siendo un array importable, con el
+timestamp preciso, contexto y registros de golpes de cada intento.
+
+Las interfaces exportan en un worker serial con su propia conexión de lectura;
+SQLite usa WAL para que esa lectura no impida guardar nuevos intentos. El
+coordinador conserva su conexión y las publicaciones vuelven a main. No se
+exporta sobre el archivo de base de datos ni sus auxiliares WAL/SHM.
+
+Se escribe un temporal junto al destino y solo se reemplaza el archivo anterior
+después de cerrar correctamente la copia nueva. Un fallo elimina el temporal y
+conserva el backup anterior. Mac, iOS y CLI muestran el número de intentos; la
+importación mantiene la transacción y deduplicación existentes. Para una copia
+portable se usa la exportación, no solo el archivo SQLite abierto con su WAL.
+
+**Por qué:** una exportación incompleta sin aviso no es una copia fiable. La
+regresión restaura y vuelve a importar 100.005 intentos, además de comprobar
+filtros, destino anterior conservado y escritura de progreso con un lector activo.
+
+## D-057 - Inicio guiado y Equipo por pasos con opciones avanzadas plegadas
+
+Inicio muestra una próxima práctica, su objetivo y una acción principal:
+«Vamos a tocar», o «Preparar mi equipo» si falta configuración. Usa el recorrido
+curricular existente; aplica tempo de aprendizaje, duración breve, ritmo completo,
+Integrar, guía completa y sin silencios de claqueta. Las preferencias avanzadas de
+una sesión anterior no se trasladan por accidente a este inicio. Un reto final
+conserva «Preparar reto final» y su preparación ferroviaria (D-046).
+
+La vuelta acompañada de D-055 se incluye por defecto en el inicio guiado y en
+una preparación normal de Integrar. Personalizar permite escuchar demostración,
+elegir parámetros o empezar sin referencia. Se conserva D-041: al abrir una
+lección y cambiar explícitamente tempo, voces o fase, esas elecciones se respetan
+al empezar. Inicio y Preparación son rutas distintas; una lección elegida no
+presenta otra recomendación global competidora.
+
+Equipo enseña solo el paso pendiente: escuchar, comprobar pads o tocar siguiendo
+el clic para calibrar. `EquipmentSetupStep` comparte la política. Una calibración
+vigente omite comprobaciones resueltas, pero no una entrada desconectada, un mapa
+incompleto/incompatible, una asignación en curso o un error de audio. «Volver a
+comprobar» permite revisar escucha y pads sin borrar la calibración. Las
+confirmaciones se vinculan al perfil actual de entrada, salida, frecuencia y
+buffer; no inventan un perfil calibrado.
+
+El mapa MIDI conserva sus 16 posiciones y el asistente existente. La prueba MIDI
+debe resolver un pad del mapa, no solo el fallback GM. Pantalla y teclado no
+exigen aprender un controlador externo. Una distribución incompatible ofrece la
+recomendada mediante una acción explícita. Mac recuerda la elección de teclado,
+no la revoca al refrescar MIDI y recarga su calibración al seleccionarlo.
+
+Layouts, mapas, mezcla, tono, buffer y diagnóstico están bajo Opciones avanzadas.
+Mac agrupa audio, ajustes y redobles en Más herramientas; iOS pliega rutinas en
+Inicio y deja dos interruptores básicos en Opciones. Los identificadores de los
+grupos se aplican a las etiquetas, sin sustituir los de controles hijos.
+
+**Por qué:** empezar no debe exigir entender BPM, fases ni dispositivos MIDI.
+La personalización se descubre a petición del usuario, sin bloquearla por nivel
+ni modificar puntuación, acreditaciones o rutas ferroviarias.
+
+## D-058 - Tempo musical fijo por ruta de género y premios de precisión
+
+Las rutas de género dejan de ofrecer la escalera común de 70–160 BPM. Cada
+estación usa un único tempo musical coherente con su estilo: Hip-hop 90, Rock
+100, Disco 120, Funk 95, Reggae 75, Dembow 95, Blues 90, Jazz básico 90, Jazz
+intermedio 110 y Clave/Bossa 100. El MIDI es la fuente del tempo y
+`GenreTempoProfile` documenta el rango orientativo de cada ruta. Un ejercicio de
+boom bap de esta ruta a 120 BPM se aleja de su referencia de 80–95 BPM y forzaba
+premios de velocidad incoherentes. Los rangos describen estas rutas concretas,
+no límites universales de cada género. Esto sustituye la escalera de D-030/D-050
+en géneros y los tempos originales de Jazz de D-049.
+
+`CourseLessonCriteria.targetBPM` devuelve el tempo fijo en estas rutas; el tronco
+técnico conserva `min(BPM, 100)`. Los seis premios comparten el tempo musical y
+escalan en precisión, aguante y repetición: 70/80/90 % para las estrellas y
+90 % con 8 o 16 compases y 95 % con 16 compases repetidos para los trofeos. El
+último escalón exige dos intentos. Los checkpoints y la
+acreditación de estación usan el tempo fijo, no una versión acelerada.
+
+Los generadores escriben `previous-learning-bpm` en el MIDI. Con ese valor, el
+historial anterior sigue acreditando la lección aunque se guardara al tempo
+antiguo con alcance completo conocido; el alcance histórico desconocido conserva
+el criterio previo de 100 BPM. Los premios de velocidad ya ganados se conservan
+como «Histórico …». `TrainingContext.tempoPolicyVersion` marca los intentos nuevos
+en ambas apps y se conserva al cerrar y exportar/restaurar SQLite.
+Los intentos nuevos por debajo del tempo musical no acreditan el curso ni crean
+premios nuevos, pero siguen disponibles para aprender. Las preferencias guardan
+BPM y duración; cuando varios escalones comparten BPM, `TempoLadder.stepIndex`
+restaura el premio de menor exigencia y el resto se elige explícitamente.
+Un trofeo actual permite abrir lecciones anteriores como práctica avanzada; los
+desbloqueos históricos por velocidad se conservan.
+
+**Por qué:** la dificultad de un groove depende de su estilo; acelerar por
+encima del rango no demuestra dominio musical. Separar precisión, duración y
+repetición mantiene retos progresivos sin sacar la ruta de su tempo. La
+regresión comprueba rangos, tempos por estación, premios, restauración con BPM
+compartido y migración de evidencia antigua.

@@ -77,6 +77,8 @@ final class PracticeScene: SKScene {
     private let soundLabels: [String: String]
     private let showsSoundLabels: Bool
     private let showsNotes: Bool
+    private let playsReference: Bool
+    private var lastReferenceTime: Double?
     /// Notas que la ayuda reducida oculta sin retirarlas de la sesión puntuable.
     private let hiddenGuideNoteIndices: Set<Int>
     private let emphasizesPlayerNotes: Bool
@@ -142,7 +144,7 @@ final class PracticeScene: SKScene {
         GameplayProjection(size: size, hitLineY: hitY, laneCount: max(1, slotBySound.count))
     }
 
-    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false, predictsPresentationFrame: Bool = false) {
+    init(timeline: ExerciseTimeline, startHostTime: UInt64, anticipationMilliseconds: Double, slotBySound: [String: Int], soundLabels: [String: String], showsSoundLabels: Bool = true, showsNotes: Bool = true, hiddenGuideNoteIndices: Set<Int> = [], emphasizesPlayerNotes: Bool = false, playerSounds: Set<String>? = nil, gridGuide: GridGuideSubdivision = .eighth, viewZoom: PracticeViewZoom = .standard, reducesMotion: Bool = false, usesLowPowerVisuals: Bool = false, predictsPresentationFrame: Bool = false, playsReference: Bool = false) {
         self.timeline = timeline
         self.startHostTime = startHostTime
         self.anticipationMilliseconds = anticipationMilliseconds
@@ -172,6 +174,7 @@ final class PracticeScene: SKScene {
         self.soundLabels = soundLabels
         self.showsSoundLabels = showsSoundLabels
         self.showsNotes = showsNotes
+        self.playsReference = playsReference
         self.hiddenGuideNoteIndices = hiddenGuideNoteIndices
         self.emphasizesPlayerNotes = emphasizesPlayerNotes
         self.playerSounds = playerSounds
@@ -702,12 +705,19 @@ final class PracticeScene: SKScene {
             pulseHitLine(isBar: absoluteBeat.isMultiple(of: 4))
         }
         let currentBar = min(timeline.bars, Int(patternPosition / timeline.barDurationMilliseconds) + 1)
-        let barText = "VUELTA \(Int(elapsed / timeline.patternDurationMilliseconds) + 1) · C \(currentBar)/\(timeline.bars)"
+        if playsReference {
+            let lower = lastReferenceTime.map { $0.nextUp } ?? 0
+            if now >= lower {
+                for note in timeline.notes[timeline.noteRange(from: lower, through: now)] { showWarmupHit(sound: note.sound) }
+            }
+            lastReferenceTime = now
+        }
+        let barText = now < 0 ? "CUENTA DE ENTRADA" : "VUELTA \(Int(elapsed / timeline.patternDurationMilliseconds) + 1) · C \(currentBar)/\(timeline.bars)"
         if barText != lastBarText {
             lastBarText = barText
             barLabel.text = barText
         }
-        let beatText = "Pulso \(min(4, Int(barPosition / beatDuration) + 1)) de 4"
+        let beatText = now < 0 ? "Entra en \(max(1, Int(ceil(-now / beatDuration)))) pulsos" : "Pulso \(min(4, Int(barPosition / beatDuration) + 1)) de 4"
         if beatText != lastBeatText {
             lastBeatText = beatText
             beatLabel.text = beatText

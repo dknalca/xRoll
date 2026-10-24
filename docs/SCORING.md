@@ -84,8 +84,11 @@ una puntuacion negativa.
 | 1 | 70 % o mas |
 
 Por debajo del 70 % no se concede ninguna estrella. Los umbrales se aplican al
-porcentaje neto, antes del redondeo visual. La aprobación curricular y de un reto
-de tempo sigue requiriendo el 70 %; las estrellas del intento no elevan ese mínimo.
+porcentaje neto, antes del redondeo visual. La aprobación curricular sigue
+requiriendo el 70 %; las estrellas del intento no elevan ese mínimo. Los retos
+técnicos de velocidad conservan ese umbral. En rutas de género, los premios a
+tempo musical fijo exigen 70/80/90 % para estrellas y 90/95 % más duración y
+repetición para trofeos; véase D-058 y `docs/CURRICULUM.md`.
 Los resultados históricos conservan las estrellas que se guardaron entonces.
 
 ## Adelantado o atrasado
@@ -158,6 +161,10 @@ leen con una colección de eventos vacía.
 `training_context_json` acompaña a los intentos nuevos con fase D-A-I-T, nivel
 de Gap Metronome y estado de guía visual. Permite evaluar maestría sin inferir
 la intención de una pantalla o una versión concreta de la interfaz.
+Incluye `tempoPolicyVersion` en los intentos nuevos para distinguir la política
+de tempo musical de los resultados históricos. El campo se conserva en SQLite,
+exportación/restauración y cierre parcial; su ausencia no se convierte en una
+versión actual al leer el historial.
 
 Los compases completados se calculan con el host time de cierre y la duración
 real de la sesión. Un abandono no se registra como intento completo ni concede
