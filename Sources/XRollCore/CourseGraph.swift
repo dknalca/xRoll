@@ -168,6 +168,12 @@ public struct CourseGraph: Equatable {
     /// de API históricos se conservan; cada bloque se presenta como una estación.
     public func worlds(evidence: [CourseAttemptEvidence]) -> [CourseWorld] {
         let courseStates = states(evidence: evidence)
+        return worlds(evidence: evidence, states: courseStates)
+    }
+
+    /// Reutiliza los estados de la misma instantánea para no evaluar dos veces
+    /// el historial al preparar el mapa.
+    public func worlds(evidence: [CourseAttemptEvidence], states courseStates: [CourseLevelState]) -> [CourseWorld] {
         let byID = Dictionary(uniqueKeysWithValues: courseStates.map { ($0.exerciseID, $0) })
         let recommendation = CourseRecommendationPlanner.recommend(exercises: nodes.map(\.exercise),
             courseLevels: courseStates, evidence: evidence)

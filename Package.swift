@@ -68,7 +68,7 @@ let package = Package(
         ),
         .testTarget(
             name: "XRollCoreTests",
-            dependencies: ["XRollCore"],
+            dependencies: ["XRollCore", "XRollRealtimeQueue"],
             path: "Tests/XRollCoreTests"
         )
     ]

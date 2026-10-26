@@ -6,6 +6,9 @@
 
 typedef struct XRollRealtimeQueue XRollRealtimeQueue;
 
+// MIDIPacket.length usa UInt16; el límite incluye cualquier paquete completo.
+enum { XROLL_MAX_PACKET_BYTES = 65535 };
+
 XRollRealtimeQueue *xroll_realtime_queue_create(uint32_t capacity);
 void xroll_realtime_queue_destroy(XRollRealtimeQueue *queue);
 bool xroll_realtime_queue_push(XRollRealtimeQueue *queue, uint64_t host_time, uint64_t callback_host_time, const uint8_t *bytes, uint16_t length);

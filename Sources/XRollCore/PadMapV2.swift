@@ -57,6 +57,13 @@ public struct PadMapV2: Codable, Equatable {
         })
     }
 
+    /// Solo cambia la identidad del controlador; el archivo conserva sus
+    /// notas, canales, posiciones y roles al importarse en otro equipo.
+    public func rebound(to device: Device) -> PadMapV2 {
+        PadMapV2(id: id, name: name, preset: .custom, orientation: orientation,
+            device: device, created: created, pads: pads)
+    }
+
     public func validate(availableSounds: Set<String>) throws {
         guard format == 2 else { throw PadMapValidationError.unsupportedFormat(format) }
         guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("id del mapa") }

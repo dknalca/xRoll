@@ -1,5 +1,36 @@
 import Foundation
 
+/// Límites de sanidad del historial, muy superiores a una sesión admitida por
+/// la app. También protegen la lectura de bases creadas por versiones anteriores.
+enum HistoryValidation {
+    static let maximumMilliseconds = Double(Int32.max)
+    static func time(_ value: Double?) -> Bool {
+        value.map { $0.isFinite && abs($0) <= maximumMilliseconds } ?? true
+    }
+    static func count(_ value: Int) -> Bool { value >= 0 && Int32(exactly: value) != nil }
+}
+
+extension HitRecord {
+    var isValidForHistory: Bool {
+        HistoryValidation.count(sequence)
+            && (expectedStep.map { (0..<(MIDIExerciseLoader.maximumBars * 16)).contains($0) } ?? true)
+            && HistoryValidation.time(expectedTimeMilliseconds)
+            && (expectedTimeMilliseconds.map { $0 >= 0 } ?? true)
+            && HistoryValidation.time(actualTimeMilliseconds)
+            && HistoryValidation.time(offsetMilliseconds)
+            && (expectedVelocity.map { (1...127).contains($0) } ?? true)
+            && (actualVelocity.map { (0...127).contains($0) } ?? true)
+    }
+}
+
+extension SoundStatistics {
+    var isValidForHistory: Bool {
+        !sound.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && [expected, perfect, good, regular, missed].allSatisfy(HistoryValidation.count)
+            && perfect + good + regular + missed <= expected
+    }
+}
+
 /// Alcance de la evidencia recogida durante una práctica.
 public enum EvaluationScope: String, Codable, Equatable {
     case fullPattern
@@ -59,6 +90,22 @@ public struct PracticeConditions: Codable, Equatable {
 
     public var isFullPattern: Bool { stepRangeLowerBound == nil && stepRangeUpperBound == nil }
 
+    var isValidForHistory: Bool {
+        let maximumStep = MIDIExerciseLoader.maximumBars * 16
+        let validRange: Bool
+        switch (stepRangeLowerBound, stepRangeUpperBound) {
+        case (nil, nil): validRange = true
+        case (.some(let lower), .some(let upper)): validRange = lower >= 0 && upper >= lower && upper < maximumStep
+        default: validRange = false
+        }
+        let validProfile = calibrationProfileKey.map {
+            $0.sampleRate.isFinite && $0.sampleRate > 0 && $0.sampleRate <= 768_000
+                && $0.bufferFrames > 0 && $0.bufferFrames <= Int32.max
+        } ?? true
+        return bpm > 0 && Int32(exactly: bpm) != nil && (1...16).contains(repeats)
+            && (0...3).contains(gapMetronomeLevel) && validRange && validProfile
+    }
+
     /// La prueba de retención puede quitar la guía visual, pero mantiene tempo,
     /// patrón, ruta de audio y calibración para que el objetivo siga siendo comparable.
     public func isComparableForRetention(to other: PracticeConditions) -> Bool {
@@ -81,6 +128,13 @@ public struct TrainingContext: Codable, Equatable {
     public let practiceConditions: PracticeConditions?
     /// Ausente en el historial anterior a los tempos musicales por género.
     public let tempoPolicyVersion: Int?
+
+    var isValidForHistory: Bool {
+        (0...(MIDIExerciseLoader.maximumBars * 16)).contains(completedBars)
+            && (0...3).contains(gapMetronomeLevel)
+            && (practiceConditions?.isValidForHistory ?? true)
+            && (tempoPolicyVersion.map { $0 >= 0 && Int32(exactly: $0) != nil } ?? true)
+    }
 
     public init(phase: TrainingPhase = .integrate, gapMetronomeLevel: Int = 0, showsVisualGuides: Bool = true, evaluationScope: EvaluationScope = .fullPattern, completedBars: Int = 0, practiceConditions: PracticeConditions? = nil, tempoPolicyVersion: Int? = nil) {
         self.phase = phase
@@ -154,7 +208,10 @@ public enum CoachingAnalyzer {
     ) -> CoachingRecommendation? {
         let records = HitRecord.records(from: score).filter { $0.expectedSound != nil && $0.expectedStep != nil }
         let validSteps = exercise.bars * exercise.grid
-        let groups = Dictionary(grouping: records.filter { ($0.expectedStep ?? validSteps) < validSteps }) {
+        let groups = Dictionary(grouping: records.filter {
+            guard let step = $0.expectedStep else { return false }
+            return (0..<validSteps).contains(step)
+        }) {
             Key(sound: $0.expectedSound!, step: $0.expectedStep!)
         }
         let candidates = groups.compactMap { key, records -> CoachingRecommendation? in
@@ -453,7 +510,7 @@ public enum HistoricalDiagnosticsBuilder {
         }
 
         for attempt in attempts {
-            let records = attempt.hitRecords.sorted { $0.sequence < $1.sequence }
+            let records = attempt.hitRecords.filter(\.isValidForHistory).sorted { $0.sequence < $1.sequence }
             let exercise = exercisesByID[attempt.exerciseID]
             let stepsPerBeat = max(1, (exercise?.grid ?? 16) / 4)
             let patternMilliseconds = exercise.map { exercise -> Double in
@@ -483,8 +540,10 @@ public enum HistoricalDiagnosticsBuilder {
                     else { label = "Subdivisión \(local + 1)" }
                     add(record, label: label, to: &subdivisions)
                 }
-                if let expectedTime = record.expectedTimeMilliseconds, let patternMilliseconds, patternMilliseconds > 0 {
-                    add(record, label: "Vuelta \(Int(expectedTime / patternMilliseconds) + 1)", to: &loops)
+                if let expectedTime = record.expectedTimeMilliseconds, expectedTime >= 0,
+                   let patternMilliseconds, patternMilliseconds > 0,
+                   let loop = Int(exactly: floor(expectedTime / patternMilliseconds)), loop < Int.max {
+                    add(record, label: "Vuelta \(loop + 1)", to: &loops)
                 }
                 if let next = records.dropFirst(index + 1).first(where: { $0.expectedSound != nil })?.expectedSound,
                    let sound = record.expectedSound { add(record, label: "\(sound) → \(next)", to: &transitions) }

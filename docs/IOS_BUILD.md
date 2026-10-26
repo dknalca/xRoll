@@ -24,7 +24,7 @@ swift scripts/render_ios_app_icon.swift \
 
 La app y el framework compilan para simulador y destino genérico iOS con `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'platform=iOS Simulator,name=iPhone 14' build` y `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`. CI ejecuta el segundo comando en cada push a `main` y pull request. `simctl install` y `simctl launch` funcionan en simuladores iOS 16.2. El catálogo integrado actual contiene 129 ejercicios; los recursos se copian desde `data/exercises/`. La comprobación de aprendizaje y puntuación con el M‑Vave sigue pendiente en hardware.
 
-El scoring iOS usa un acumulador incremental y `PracticeSessionIngress` serializa los eventos fuera de SwiftUI. La escena consume el feedback en su ciclo de frame y la traza esquema 4 separa procesamiento, actualización visual y consumo del evento. El audio usa pools acotados de `AVAudioPlayerNode`; las pruebas offline no sustituyen la comprobación acústica en iPhone/iPad con una ruta de audio fija.
+El scoring iOS usa un acumulador incremental y `PracticeSessionIngress` serializa los eventos fuera de SwiftUI. La escena consume el feedback en su ciclo de frame y la traza esquema 4 separa procesamiento, actualización visual y consumo del evento. Las instantáneas del historial y la importación JSON usan conexión/worker dedicados; el importador procesa objetos incrementalmente y aplica rollback si un intento es inválido. El audio usa pools acotados de `AVAudioPlayerNode`; las pruebas offline no sustituyen la comprobación acústica en iPhone/iPad con una ruta de audio fija.
 
 ### Pruebas de navegación iOS
 
@@ -78,6 +78,10 @@ Desde la raíz, después de las comprobaciones:
 XROLL_BUILD_NUMBER=2 zsh scripts/build-ios-ipa.sh
 ```
 
+Para generar una copia sin reemplazar `dist/ios-device` ni `dist/ios-build`, se
+pueden definir `XROLL_IOS_OUTPUT_DIRECTORY` y `XROLL_IOS_DERIVED_DATA` a rutas
+temporales.
+
 El script compila Release para dispositivo en `dist/ios-build`, crea
 `Payload/xRoll.app` y genera `dist/ios-device/xRoll-unsigned.ipa`. Es un único
 IPA arm64 para **iPhone e iPad** (`UIDeviceFamily` 1 y 2), mínimo iOS/iPadOS 16.2.
@@ -86,8 +90,10 @@ es 2 y no cambia el número guardado en el proyecto.
 
 El IPA tiene firma ad-hoc, sin perfil de aprovisionamiento ni certificado de
 desarrollo. AltStore, SideStore o Sideloadly deben volver a firmarlo al instalar.
-El script comprueba firma, arquitectura, integridad ZIP, identificador, familias
-de dispositivo y recursos antes de reemplazar el IPA anterior; imprime SHA-256.
+El script comprueba firma, arquitectura, integridad ZIP, identificador, familias,
+LICENSE y atribuciones antes de reemplazar el IPA anterior; imprime SHA-256.
+Para validar sin sobrescribir recursos locales, define `XROLL_IOS_OUTPUT_DIRECTORY`
+y `XROLL_IOS_DERIVED_DATA` con directorios temporales antes de ejecutarlo.
 El IPA de desarrollo firmado por USB se guarda aparte como `xRoll.ipa`.
 
 El flujo de pruebas del usuario es generar este IPA y entregarlo para instalar

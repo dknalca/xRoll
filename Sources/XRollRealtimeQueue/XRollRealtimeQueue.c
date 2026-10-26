@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { XROLL_MAX_PACKET_BYTES = 256 };
-
 typedef struct {
     _Atomic uint64_t sequence;
     uint64_t host_time;
@@ -53,7 +51,11 @@ void xroll_realtime_queue_destroy(XRollRealtimeQueue *queue) {
 }
 
 bool xroll_realtime_queue_push(XRollRealtimeQueue *queue, uint64_t host_time, uint64_t callback_host_time, const uint8_t *bytes, uint16_t length) {
-    if (!queue || !bytes || length == 0 || length > XROLL_MAX_PACKET_BYTES) { return false; }
+    if (!queue) { return false; }
+    if (!bytes || length == 0) {
+        atomic_fetch_add_explicit(&queue->dropped, 1, memory_order_relaxed);
+        return false;
+    }
     XRollRealtimeQueueCell *cell;
     uint64_t position = atomic_load_explicit(&queue->enqueue_position, memory_order_relaxed);
     for (;;) {

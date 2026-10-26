@@ -85,7 +85,9 @@ public struct PracticeAttempt: Codable, Equatable {
               score.isFinite, (0...100).contains(score), (0...3).contains(stars),
               [perfect, good, regular, miss, extra].allSatisfy({ $0 >= 0 && Int32(exactly: $0) != nil }),
               meanOffsetMilliseconds?.isFinite != false,
-              trainingContext.completedBars >= 0 else {
+              trainingContext.isValidForHistory,
+              hitRecords.allSatisfy(\.isValidForHistory),
+              soundStatistics.allSatisfy(\.isValidForHistory) else {
             throw ProgressStoreError.invalidAttempt(exerciseID)
         }
     }
@@ -111,12 +113,53 @@ public struct CourseAttemptEvidence: Equatable {
     public init(attempt: PracticeAttempt) {
         self.init(exerciseID: attempt.exerciseID, bpm: attempt.bpm, score: attempt.score, stars: attempt.stars, trainingContext: attempt.trainingContext)
     }
+
+    /// Solo el curso usa esta proyección: dos mejores intentos por condición
+    /// acreditable bastan para los premios, incluido Dominio. El historial y la
+    /// exportación conservan todos los intentos y sus condiciones originales.
+    public static func compacted(_ evidence: [CourseAttemptEvidence]) -> [CourseAttemptEvidence] {
+        struct Key: Hashable {
+            let id: String
+            let bpm: Int
+            let scope: String
+            let bars: Int
+            let policy: Int?
+            let stars: Int
+        }
+        var groups = [Key: [CourseAttemptEvidence]]()
+        for item in evidence {
+            let key = Key(id: item.exerciseID, bpm: item.bpm, scope: item.trainingContext.evaluationScope.rawValue,
+                bars: item.trainingContext.completedBars, policy: item.trainingContext.tempoPolicyVersion, stars: item.stars)
+            var best = groups[key, default: []]
+            best.append(item)
+            best.sort { $0.score > $1.score }
+            groups[key] = Array(best.prefix(2))
+        }
+        return groups.values.flatMap { $0 }
+    }
+}
+
+/// Instantánea de lectura calculada en el worker; las vistas no decodifican ni
+/// agrupan registros de golpes al reconstruir su árbol.
+public struct ProgressSnapshot {
+    public let recentAttempts: [PracticeAttempt]
+    public let filteredAttempts: [PracticeAttempt]
+    public let courseEvidence: [CourseAttemptEvidence]
+    public let courseLevels: [CourseLevelState]
+    public let campaignWorlds: [CourseWorld]
+    public let diagnostics: HistoricalDiagnostics
+    public let masterySeals: [MasterySeal]
 }
 
 public struct ExerciseProgress: Equatable {
     public let attemptCount: Int
     public let bestScore: Double
     public let latestScore: Double
+}
+
+public struct ExerciseProgressDetail: Equatable {
+    public let progress: ExerciseProgress?
+    public let recentScores: [Double]
 }
 
 public struct ProgressFilter: Equatable {
@@ -134,11 +177,13 @@ public enum ProgressStoreError: LocalizedError {
     case sqlite(String)
     case invalidAttempt(String)
     case invalidExportDestination
+    case invalidImportFile
     public var errorDescription: String? {
         switch self {
         case .sqlite(let message): return message
         case .invalidAttempt(let id): return "El intento de \(id) contiene valores de historial no válidos."
         case .invalidExportDestination: return "Elige un archivo distinto de la base de datos del historial."
+        case .invalidImportFile: return "El historial debe ser un array JSON de intentos válidos."
         }
     }
 }
@@ -236,6 +281,9 @@ public final class ProgressStore {
         // El exportador tiene su propia conexión de lectura. WAL permite que
         // guardar un intento no compita con una exportación larga del historial.
         try execute("PRAGMA journal_mode=WAL")
+        sqlite3_busy_timeout(database, 5_000)
+        try execute("CREATE INDEX IF NOT EXISTS attempts_exercise_time ON attempts(exercise_id, timestamp DESC, id DESC)")
+        try execute("CREATE INDEX IF NOT EXISTS attempts_time ON attempts(timestamp DESC, id DESC)")
     }
 
     private init(readOnlyURL url: URL) throws {
@@ -246,14 +294,27 @@ public final class ProgressStore {
             database = nil
             throw failure
         }
+        sqlite3_busy_timeout(database, 5_000)
     }
 
     deinit { sqlite3_close(database) }
 
     public func record(_ attempt: PracticeAttempt) throws {
         try attempt.validateForStorage()
-        let statement = try prepare("INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        let statement = try prepareAttemptInsert()
         defer { sqlite3_finalize(statement) }
+        try insertAttempt(attempt, using: statement, encoder: JSONEncoder())
+    }
+
+    private func prepareAttemptInsert() throws -> OpaquePointer? {
+        try prepare("INSERT INTO attempts (exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    }
+
+    /// Reutiliza sentencia y encoder en lotes grandes; las columnas JSON siguen
+    /// perteneciendo al intento individual y la transacción al llamador.
+    private func insertAttempt(_ attempt: PracticeAttempt, using statement: OpaquePointer?, encoder: JSONEncoder) throws {
+        sqlite3_reset(statement)
+        sqlite3_clear_bindings(statement)
         sqlite3_bind_text(statement, 1, attempt.exerciseID, -1, sqliteTransient)
         sqlite3_bind_double(statement, 2, attempt.timestamp.timeIntervalSince1970)
         sqlite3_bind_int(statement, 3, Int32(attempt.bpm)); sqlite3_bind_double(statement, 4, attempt.score)
@@ -261,11 +322,11 @@ public final class ProgressStore {
         sqlite3_bind_int(statement, 7, Int32(attempt.good)); sqlite3_bind_int(statement, 8, Int32(attempt.regular))
         sqlite3_bind_int(statement, 9, Int32(attempt.miss)); sqlite3_bind_int(statement, 10, Int32(attempt.extra))
         if let offset = attempt.meanOffsetMilliseconds { sqlite3_bind_double(statement, 11, offset) } else { sqlite3_bind_null(statement, 11) }
-        let soundData = try JSONEncoder().encode(attempt.soundStatistics)
+        let soundData = try encoder.encode(attempt.soundStatistics)
         _ = soundData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 12, bytes.baseAddress, Int32(soundData.count), sqliteTransient) }
-        let recordData = try JSONEncoder().encode(attempt.hitRecords)
+        let recordData = try encoder.encode(attempt.hitRecords)
         _ = recordData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 13, bytes.baseAddress, Int32(recordData.count), sqliteTransient) }
-        let contextData = try JSONEncoder().encode(attempt.trainingContext)
+        let contextData = try encoder.encode(attempt.trainingContext)
         _ = contextData.withUnsafeBytes { bytes in sqlite3_bind_blob(statement, 14, bytes.baseAddress, Int32(contextData.count), sqliteTransient) }
         guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
     }
@@ -302,10 +363,14 @@ public final class ProgressStore {
         var knownAttempts = try existingAttemptImportIdentities()
         try execute("SAVEPOINT import_progress")
         do {
+            let statement = try prepareAttemptInsert()
+            defer { sqlite3_finalize(statement) }
+            let encoder = JSONEncoder()
             var importedCount = 0
             for attempt in importedAttempts {
+                try attempt.validateForStorage()
                 guard knownAttempts.insert(AttemptImportIdentity(attempt)).inserted else { continue }
-                try record(attempt)
+                try insertAttempt(attempt, using: statement, encoder: encoder)
                 importedCount += 1
             }
             try execute("RELEASE import_progress")
@@ -355,6 +420,43 @@ public final class ProgressStore {
         }
         guard sqlite3_column_int(statement, 0) > 0 else { return nil }
         return ExerciseProgress(attemptCount: Int(sqlite3_column_int(statement, 0)), bestScore: sqlite3_column_double(statement, 1), latestScore: sqlite3_column_double(statement, 2))
+    }
+
+    public func loadProgressDetailInBackground(for exerciseID: String,
+                                               completion: @escaping (Result<ExerciseProgressDetail, Error>) -> Void) {
+        let source = databaseURL
+        Self.exportQueue.async {
+            let result = Result {
+                let reader = try ProgressStore(readOnlyURL: source)
+                let progress = try reader.progress(for: exerciseID)
+                let scores = try reader.scores(for: exerciseID)
+                return ExerciseProgressDetail(progress: progress, recentScores: scores)
+            }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// Resumen por todos los ejercicios para recomendaciones de calentamiento;
+    /// una consulta agrupada sustituye 129 accesos SQLite en el hilo de interfaz.
+    public func loadExerciseProgressInBackground(completion: @escaping (Result<[String: ExerciseProgress], Error>) -> Void) {
+        let source = databaseURL
+        Self.exportQueue.async {
+            let result = Result { try ProgressStore(readOnlyURL: source).allExerciseProgress() }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    private func allExerciseProgress() throws -> [String: ExerciseProgress] {
+        let statement = try prepare("SELECT exercise_id, COUNT(*), MAX(score), (SELECT score FROM attempts AS latest WHERE latest.exercise_id = attempts.exercise_id ORDER BY timestamp DESC, id DESC LIMIT 1) FROM attempts GROUP BY exercise_id")
+        defer { sqlite3_finalize(statement) }
+        var result = [String: ExerciseProgress]()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return result }
+            guard status == SQLITE_ROW, let id = sqlite3_column_text(statement, 0) else { throw error() }
+            result[String(cString: id)] = ExerciseProgress(attemptCount: Int(sqlite3_column_int(statement, 1)),
+                bestScore: sqlite3_column_double(statement, 2), latestScore: sqlite3_column_double(statement, 3))
+        }
     }
 
     public func scores(for exerciseID: String, limit: Int = 20) throws -> [Double] {
@@ -415,9 +517,18 @@ public final class ProgressStore {
             good: Int(sqlite3_column_int(statement, 6)), regular: Int(sqlite3_column_int(statement, 7)),
             miss: Int(sqlite3_column_int(statement, 8)), extra: Int(sqlite3_column_int(statement, 9)),
             meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL ? nil : sqlite3_column_double(statement, 10),
-            soundStatistics: decodeColumn([SoundStatistics].self, statement: statement, index: 11) ?? [],
-            hitRecords: decodeColumn([HitRecord].self, statement: statement, index: 12) ?? [],
-            trainingContext: decodeColumn(TrainingContext.self, statement: statement, index: 13) ?? .init(evaluationScope: .legacyUnknown))
+            soundStatistics: (decodeColumn([SoundStatistics].self, statement: statement, index: 11) ?? []).filter(\.isValidForHistory),
+            hitRecords: (decodeColumn([HitRecord].self, statement: statement, index: 12) ?? []).filter(\.isValidForHistory),
+            trainingContext: readContext(statement, index: 13))
+    }
+
+    private func readContext(_ statement: OpaquePointer?, index: Int32) -> TrainingContext {
+        guard let context = decodeColumn(TrainingContext.self, statement: statement, index: index) else {
+            // Solo la ausencia histórica admite la política de legado. Un blob
+            // dañado no puede convertirse en evidencia completa por accidente.
+            return .init(evaluationScope: sqlite3_column_type(statement, index) == SQLITE_NULL ? .legacyUnknown : .fragment)
+        }
+        return context.isValidForHistory ? context : .init(evaluationScope: .fragment)
     }
 
     private func decodeColumn<Value: Decodable>(_ type: Value.Type, statement: OpaquePointer?, index: Int32) -> Value? {
@@ -436,17 +547,7 @@ public final class ProgressStore {
             let status = sqlite3_step(statement)
             if status == SQLITE_DONE { break }
             guard status == SQLITE_ROW else { throw error() }
-            let context: TrainingContext
-            if sqlite3_column_type(statement, 4) == SQLITE_NULL {
-                context = .init(evaluationScope: .legacyUnknown)
-            } else if let pointer = sqlite3_column_blob(statement, 4) {
-                context = (try? JSONDecoder().decode(
-                    TrainingContext.self,
-                    from: Data(bytes: pointer, count: Int(sqlite3_column_bytes(statement, 4)))
-                )) ?? .init(evaluationScope: .legacyUnknown)
-            } else {
-                context = .init(evaluationScope: .legacyUnknown)
-            }
+            let context = readContext(statement, index: 4)
             result.append(CourseAttemptEvidence(
                 exerciseID: String(cString: sqlite3_column_text(statement, 0)),
                 bpm: Int(sqlite3_column_int(statement, 1)),
@@ -475,6 +576,126 @@ public final class ProgressStore {
         let source = databaseURL
         Self.exportQueue.async {
             let result = Result { try ProgressStore(readOnlyURL: source).export(to: url, format: format, filter: filter) }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    public func loadSnapshot(exercises: [Exercise], graph: CourseGraph?, filter: ProgressFilter = .init(), selectedExerciseID: String? = nil,
+                             diagnosticExerciseID: String? = nil) throws -> ProgressSnapshot {
+        try execute("BEGIN")
+        defer { try? execute("ROLLBACK") }
+        let recent = try attempts(limit: 1_000)
+        let filtered = filter == ProgressFilter() ? recent : try attempts(filter: filter, limit: 1_000)
+        let evidence = try compactedCourseEvidence()
+        let levels = graph?.states(evidence: evidence) ?? []
+        let worlds = graph?.worlds(evidence: evidence, states: levels) ?? []
+        let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let selected = selectedExerciseID.flatMap { byID[$0] }
+        let masteryAttempts = try selected.map { try attempts(filter: .init(exerciseID: $0.id), limit: 1_000) } ?? []
+        let diagnosticSelection = diagnosticExerciseID ?? filter.exerciseID
+        let diagnosticAttempts = diagnosticSelection.map { id in filtered.filter { $0.exerciseID == id } } ?? filtered
+        return ProgressSnapshot(recentAttempts: recent, filteredAttempts: filtered, courseEvidence: evidence,
+            courseLevels: levels, campaignWorlds: worlds,
+            diagnostics: HistoricalDiagnosticsBuilder.build(attempts: diagnosticAttempts, exercisesByID: byID),
+            masterySeals: selected.map { MasteryEvaluator.seals(exercise: $0, attempts: masteryAttempts) } ?? [])
+    }
+
+    /// Cada operación posee su conexión; nunca traslada la del coordinador.
+    public func loadSnapshotInBackground(exercises: [Exercise], graph: CourseGraph?, filter: ProgressFilter = .init(), selectedExerciseID: String? = nil,
+                                         diagnosticExerciseID: String? = nil,
+                                         completion: @escaping (Result<ProgressSnapshot, Error>) -> Void) {
+        let source = databaseURL
+        Self.exportQueue.async {
+            let result = Result { try ProgressStore(readOnlyURL: source).loadSnapshot(exercises: exercises, graph: graph,
+                filter: filter, selectedExerciseID: selectedExerciseID, diagnosticExerciseID: diagnosticExerciseID) }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// Agrupa evidencia directamente desde SQLite y retiene solo dos intentos
+    /// por condición curricular, sin construir primero toda la tabla en memoria.
+    private func compactedCourseEvidence() throws -> [CourseAttemptEvidence] {
+        struct Key: Hashable {
+            let id: String
+            let bpm: Int
+            let scope: EvaluationScope
+            let bars: Int
+            let policy: Int?
+            let stars: Int
+        }
+        let statement = try prepare("SELECT exercise_id, bpm, score, stars, training_context_json FROM attempts ORDER BY timestamp DESC, id DESC")
+        defer { sqlite3_finalize(statement) }
+        var grouped = [Key: [CourseAttemptEvidence]]()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW, let pointer = sqlite3_column_text(statement, 0) else { throw error() }
+            let context = readContext(statement, index: 4)
+            let item = CourseAttemptEvidence(exerciseID: String(cString: pointer),
+                bpm: Int(sqlite3_column_int(statement, 1)), score: sqlite3_column_double(statement, 2),
+                stars: Int(sqlite3_column_int(statement, 3)), trainingContext: context)
+            let key = Key(id: item.exerciseID, bpm: item.bpm, scope: context.evaluationScope,
+                bars: context.completedBars, policy: context.tempoPolicyVersion, stars: item.stars)
+            var best = grouped[key, default: []]
+            if best.count < 2 { best.append(item) }
+            else if let weakest = best.indices.min(by: { best[$0].score < best[$1].score }), item.score > best[weakest].score {
+                best[weakest] = item
+            }
+            grouped[key] = best
+        }
+        return grouped.values.flatMap { $0 }
+    }
+
+    /// Lee un objeto cada vez, dentro de una transacción. No carga el array
+    /// completo ni mantiene en RAM todas las identidades del historial previo.
+    public func importJSON(from url: URL) throws -> Int {
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        try execute("SAVEPOINT import_json")
+        do {
+            let existing = try prepare("SELECT 1 FROM attempts WHERE exercise_id = ? AND timestamp = ? AND bpm = ? AND score = ? AND stars = ? AND perfect = ? AND good = ? AND regular = ? AND miss = ? AND extra = ? AND mean_offset_ms IS ? LIMIT 1")
+            defer { sqlite3_finalize(existing) }
+            let insert = try prepareAttemptInsert()
+            defer { sqlite3_finalize(insert) }
+            let encoder = JSONEncoder()
+            var count = 0
+            let decoder = JSONDecoder.xroll
+            try ProgressJSONStream.read(file) { data in
+                let attempt = try decoder.decode(PracticeAttempt.self, from: data)
+                try attempt.validateForStorage()
+                sqlite3_reset(existing)
+                sqlite3_clear_bindings(existing)
+                sqlite3_bind_text(existing, 1, attempt.exerciseID, -1, sqliteTransient)
+                sqlite3_bind_double(existing, 2, attempt.timestamp.timeIntervalSince1970)
+                sqlite3_bind_int(existing, 3, Int32(attempt.bpm))
+                sqlite3_bind_double(existing, 4, attempt.score)
+                for (offset, value) in [attempt.stars, attempt.perfect, attempt.good, attempt.regular, attempt.miss, attempt.extra].enumerated() {
+                    sqlite3_bind_int(existing, Int32(5 + offset), Int32(value))
+                }
+                if let offset = attempt.meanOffsetMilliseconds { sqlite3_bind_double(existing, 11, offset) }
+                else { sqlite3_bind_null(existing, 11) }
+                let status = sqlite3_step(existing)
+                guard status == SQLITE_DONE || status == SQLITE_ROW else { throw error() }
+                if status == SQLITE_DONE {
+                    try insertAttempt(attempt, using: insert, encoder: encoder)
+                    count += 1
+                }
+            }
+            try execute("RELEASE import_json")
+            return count
+        } catch {
+            try? execute("ROLLBACK TO import_json")
+            try? execute("RELEASE import_json")
+            throw error
+        }
+    }
+
+    public func importJSONInBackground(from url: URL, completion: @escaping (Result<Int, Error>) -> Void) {
+        let source = databaseURL
+        Self.exportQueue.async {
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            let result = Result { try ProgressStore(url: source).importJSON(from: url) }
             DispatchQueue.main.async { completion(result) }
         }
     }
@@ -561,6 +782,62 @@ public final class ProgressStore {
 
     private func error() -> ProgressStoreError {
         ProgressStoreError.sqlite(database.map { String(cString: sqlite3_errmsg($0)) } ?? "Error de SQLite.")
+    }
+}
+
+/// Reconoce las fronteras de objetos sin interpretar strings ni llaves como
+/// separadores. JSONDecoder sigue validando el contenido de cada intento.
+private enum ProgressJSONStream {
+    static func read(_ file: FileHandle, consume: (Data) throws -> Void) throws {
+        enum State { case start, value, object, separator, end }
+        var state = State.start
+        var object = Data()
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var permitsEnd = true
+        // Un intento normal máximo tiene 65.536 objetivos. El límite es por
+        // objeto, nunca por historial, y evita retener un blob arbitrario.
+        let maximumAttemptBytes = 64 * 1_024 * 1_024
+        while let chunk = try file.read(upToCount: 64 * 1_024), !chunk.isEmpty {
+            for byte in chunk {
+                let whitespace = byte == 32 || byte == 9 || byte == 10 || byte == 13
+                switch state {
+                case .start:
+                    if whitespace { continue }
+                    guard byte == 91 else { throw ProgressStoreError.invalidImportFile }
+                    state = .value
+                case .value:
+                    if whitespace { continue }
+                    if byte == 93 && permitsEnd { state = .end; continue }
+                    guard byte == 123 else { throw ProgressStoreError.invalidImportFile }
+                    object = Data([byte]); depth = 1; inString = false; escaped = false; state = .object
+                case .object:
+                    object.append(byte)
+                    guard object.count <= maximumAttemptBytes else { throw ProgressStoreError.invalidImportFile }
+                    if inString {
+                        if escaped { escaped = false }
+                        else if byte == 92 { escaped = true }
+                        else if byte == 34 { inString = false }
+                    } else if byte == 34 { inString = true }
+                    else if byte == 123 || byte == 91 { depth += 1 }
+                    else if byte == 125 || byte == 93 { depth -= 1 }
+                    if depth == 0 {
+                        try autoreleasepool { try consume(object) }
+                        object.removeAll(keepingCapacity: false)
+                        state = .separator
+                    }
+                case .separator:
+                    if whitespace { continue }
+                    if byte == 93 { state = .end }
+                    else if byte == 44 { permitsEnd = false; state = .value }
+                    else { throw ProgressStoreError.invalidImportFile }
+                case .end:
+                    guard whitespace else { throw ProgressStoreError.invalidImportFile }
+                }
+            }
+        }
+        guard case .end = state else { throw ProgressStoreError.invalidImportFile }
     }
 }
 

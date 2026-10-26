@@ -51,6 +51,17 @@
   PCM comprueban fin de las colas de referencia y conservación del audio futuro.
 - Exportación y restauración de 100.005 intentos, filtros, rollback de importación,
   backup anterior intacto ante fallo y escritura de progreso con un lector activo.
+- El historial importado valida registros anidados y condiciones antes del commit;
+  bases con `HitRecord` legado corrupto no causan cierres en el diagnóstico ni la
+  exportación. Importación JSON lee cada intento de forma incremental en segundo
+  plano y revierte el lote completo si falla.
+- La instantánea de progreso se lee con conexión de solo lectura y publica en main;
+  la evidencia curricular compactada conserva estados y premios de tempo,
+  incluidos los que requieren dos intentos. La cola MIDI acepta paquetes completos
+  hasta UInt16.max y contabiliza desbordamientos y entradas inválidas.
+- Catálogos MIDI repetidos en archivos comunitarios se deduplican sin cerrar la
+  app; los IDs duplicados al importar se notifican y los presets conservan canales
+  físicos mixtos. Ambos paquetes incluyen LICENSE y ATTRIBUTION.md.
 - Inicio guiado sin heredar una fase/tempo anterior; personalización plegada con
   cambio explícito de tempo respetado. Equipo no omite una calibración pendiente
   y reutiliza una vigente; el detalle de audio empieza cerrado y sigue accesible.

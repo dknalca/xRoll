@@ -16,6 +16,7 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case duplicateNoteNumber(Int)
     case missingSampleFiles([String])
     case emptyExerciseCatalog
+    case duplicateExercise(String)
 
     public var errorDescription: String? {
         switch self {
@@ -49,6 +50,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "Faltan \(files.count) samples obligatorios: \(files.joined(separator: ", "))."
         case .emptyExerciseCatalog:
             return "El catálogo no contiene ejercicios MIDI."
+        case .duplicateExercise(let id):
+            return "Ya existe un ejercicio con el identificador \(id)."
         }
     }
 }
@@ -212,11 +215,30 @@ public struct ResourceCatalog {
             return exercise
         }
 
+        var identifiers = Set<String>()
+        for exercise in exercises where !identifiers.insert(exercise.id).inserted {
+            throw ResourceValidationError.duplicateExercise(exercise.id)
+        }
         let levels = exercises.map(\.level).sorted()
         guard levels == Array(1...exercises.count) else {
             throw ResourceValidationError.emptyIdentifier("niveles consecutivos de ejercicios")
         }
         return exercises
+    }
+
+    /// Comparte la unicidad entre ambas apps y se recupera de archivos antiguos
+    /// duplicados sin borrarlos. El catálogo integrado siempre tiene prioridad.
+    public func loadCommunityExercises(in directory: URL, kit: KitManifest, bundled: [Exercise]) throws -> [Exercise] {
+        guard fileManager.fileExists(atPath: directory.path) else { return [] }
+        let urls = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]).filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        var known = Set(bundled.map(\.id))
+        return urls.enumerated().compactMap { index, url in
+            guard let exercise = try? MIDIExerciseLoader.load(url: url, kit: kit, level: bundled.count + index + 1),
+                  known.insert(exercise.id).inserted else { return nil }
+            return exercise
+        }
     }
 
     public func missingSampleFiles(for kit: KitManifest, in directory: URL) -> [String] {

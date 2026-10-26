@@ -37,6 +37,33 @@ El IPA universal 1.0 (build 16) se generó con `XROLL_BUILD_NUMBER=16 zsh
 scripts/build-ios-ipa.sh`: 129 MIDI, 10 sonidos y 3 loops, firma ad-hoc y arm64
 verificados. SHA-256: `59078598d4b849ad493be2d0a8734fcafa9928b077abfa48c714cbcb3f5bddd1`.
 
+## Verificación del árbol de trabajo del 25/10/2026
+
+En macOS 12.7.6, Xcode 14.2 e iPhone 14 simulado con iOS 16.2 se construyeron
+los tests con `xcodebuild build-for-testing` y se ejecutó la suite completa con
+`test-without-building`: **27 pruebas, estado `succeeded`**, 545,955 s. El bundle
+`.xcresult` quedó fuera del repositorio en un directorio temporal. Incluye las
+comprobaciones recientes de Inicio guiado, Equipo, importación/progreso, mapa y
+práctica táctil. Las fixtures son sintéticas y no sustituyen la validación de
+audio, MIDI, VoiceOver ni Dynamic Type en dispositivos físicos.
+
+El paquete IPA Release se compiló y verificó en un directorio temporal separado
+de `dist/ios-device`: versión 1.0, build 901, arm64, 129 MIDI, 10 sonidos, 3 loops,
+LICENSE y atribución incluidos. SHA-256:
+`ba2558b30246cb3817468062b13bf47d26fa61915ec7581dee6f60d67b091d82`. No se
+instaló en el iPad.
+
+La suite completa de 27 casos también pasó en iPhone 14 simulado con iOS 16.2
+(`.xcresult` temporal `xroll-ui-full.xcresult`). En iPad (10.ª generación) simulado
+pasaron los dos casos táctiles de pads grandes/rotación y frase de ocho sonidos
+(`xroll-ui-ipad-touch.xcresult`). En iPhone SE (3.ª generación) simulado pasaron
+Inicio guiado, la frase de ocho sonidos y los dos casos táctiles de rotación. Los
+casos de pads táctiles y rotación también pasaron en iPhone SE e iPad con Dynamic
+Type en «Accesibilidad XXXL» (`xroll-ui-iphone-se-dynamic-type.xcresult` y
+`xroll-ui-ipad-dynamic-type.xcresult`). La suite completa en iPad superó el timeout
+local de 600 s sin resultado válido; los resultados específicos anteriores sí
+son bundles válidos y consultados con `xcresulttool`.
+
 ## Pendientes
 
 - [ ] En la versión 1.0 (build 16), comparar el mapa ferroviario con macOS: quince estaciones conectadas por vías, tren en la parada actual, Jazz básico/intermedio, reto de estación y mismas acciones y premios.

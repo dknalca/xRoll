@@ -165,6 +165,18 @@ Ambas devuelven el número de intentos y conservan los filtros y la precisión d
 historial. Las copias portables se crean mediante CSV/JSON; los ficheros WAL y
 SHM pertenecen a SQLite y no se tratan como una exportación independiente.
 
+Las instantáneas de historial también se construyen en una conexión de solo
+lectura en segundo plano: contienen hasta 1.000 intentos para las vistas
+recientes, los diagnósticos y los sellos. La evidencia curricular se compacta
+mientras SQLite la lee; conserva dos intentos por condición, suficientes para
+calcular los premios que exigen dos pases sin decodificar todo el historial en
+main. La importación JSON procesa un objeto cada vez, valida datos anidados y
+usa savepoint: cualquier objeto malformado revierte el lote completo.
+
+Al leer bases antiguas se filtran los `HitRecord` con índices/tiempos fuera de
+rango y contextos inválidos. Los datos heredados corruptos no provocan un acceso
+fuera de rango ni se promocionan a evidencia de ritmo completo.
+
 `PracticeConfiguration.guided` comparte tempo de aprendizaje y duración inicial.
 Los coordinadores aplican ritmo completo, Integrar y guía completa en la entrada
 guiada. iOS distingue Inicio de Preparación con `showsExercisePreparation`;

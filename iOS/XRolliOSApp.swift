@@ -242,6 +242,10 @@ final class iOSPracticeModel: ObservableObject {
     @Published private(set) var learningRecovery: CourseLearningRecovery?
     @Published private(set) var touchPracticePads = [PadMapV2.Pad]()
     @Published private(set) var recentAttempts = [PracticeAttempt]()
+    @Published private(set) var historicalDiagnostics: HistoricalDiagnostics?
+    @Published private(set) var masterySeals = [MasterySeal]()
+    @Published private(set) var filteredProgressAttempts = [PracticeAttempt]()
+    private var progressReadGeneration = UUID()
     @Published var selectedProgressExerciseID = ""
     @Published var minimumProgressScore = 0.0
     @Published private(set) var courseStatus = ""
@@ -275,11 +279,14 @@ final class iOSPracticeModel: ObservableObject {
     @Published private(set) var isExportingProgress = false
     @Published private(set) var progressExportMessage = ""
     @Published private(set) var progressImportMessage = ""
+    @Published private(set) var isImportingProgress = false
     @Published private(set) var coachingGoals = [CoachingGoal]()
     @Published private(set) var coachingFeedback = ""
     @Published private(set) var canReturnToFullGroove = false
     @Published private(set) var dailyPracticePlan: DailyPracticePlan?
     @Published private(set) var dailyPracticeMessage = ""
+    @Published private(set) var trainingPersistenceError = ""
+    private var failedTrainingWrites = [String: String]()
     @Published private(set) var pulseTrainingStage: PulseTrainingStage?
     @Published private(set) var pulseDriftMessage = ""
     @Published private(set) var pulseDriftReport: PulseDriftReport?
@@ -917,6 +924,7 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     func startPractice(rehearsal: Bool = false) {
+        guard !isImportingProgress else { status = "Espera a que termine la importación del historial."; return }
         cancelResultTransition()
         // La finalización procesa el score en una cola serial y publica el
         // resultado un turno después. No admitas otra sesión hasta que esa
@@ -1691,30 +1699,18 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     var selectedExerciseAttempts: [PracticeAttempt] {
-        filteredProgressAttempts.filter { selectedProgressExerciseID.isEmpty || $0.exerciseID == selectedProgressExerciseID }.reversed()
-    }
-
-    var filteredProgressAttempts: [PracticeAttempt] {
-        minimumProgressScore <= 0 ? recentAttempts : recentAttempts.filter { $0.score >= minimumProgressScore }
-    }
-
-    var historicalDiagnostics: HistoricalDiagnostics? {
-        let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
-        return HistoricalDiagnosticsBuilder.build(attempts: selectedExerciseAttempts, exercisesByID: byID)
-    }
-
-    var masterySeals: [MasterySeal] {
-        guard let exercise = exercises.first(where: { $0.id == selectedProgressExerciseID }) else { return [] }
-        return MasteryEvaluator.seals(exercise: exercise, attempts: selectedExerciseAttempts)
+        filteredProgressAttempts.reversed()
     }
 
     func selectProgressExercise(_ exerciseID: String) {
         guard exercises.contains(where: { $0.id == exerciseID }) else { return }
         selectedProgressExerciseID = exerciseID
+        refreshCourseProgress()
     }
 
     func setMinimumProgressScore(_ score: Double) {
         minimumProgressScore = [0, 50, 70, 90].contains(score) ? score : 0
+        refreshCourseProgress()
     }
 
     func prepareProgressExport(format: String) {
@@ -1741,29 +1737,20 @@ final class iOSPracticeModel: ObservableObject {
     }
 
     func importProgress(from url: URL) {
-        progressImportMessage = ""
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let attempts = try decoder.decode([PracticeAttempt].self, from: data)
-            guard !attempts.isEmpty else {
-                progressImportMessage = "El archivo no contiene intentos de práctica."
-                return
+        guard !isImportingProgress else { return }
+        guard let progressStore else { progressImportMessage = "El historial todavía no está disponible."; return }
+        isImportingProgress = true
+        progressImportMessage = "Importando el historial… Puedes seguir navegando."
+        progressStore.importJSONInBackground(from: url) { [weak self] result in
+            guard let self else { return }
+            self.isImportingProgress = false
+            switch result {
+            case .success(let count):
+                self.refreshCourseProgress()
+                self.progressImportMessage = count == 0 ? "No había intentos nuevos; el archivo está vacío o ya estaba importado."
+                    : "Se importaron \(count) intentos."
+            case .failure(let error): self.progressImportMessage = "No se pudo importar el historial: \(error.localizedDescription)"
             }
-            guard let progressStore else {
-                progressImportMessage = "El historial todavía no está disponible."
-                return
-            }
-            let importedCount = try progressStore.importAttempts(attempts)
-            refreshCourseProgress()
-            progressImportMessage = importedCount == 0
-                ? "No había intentos nuevos; este historial ya estaba importado."
-                : "Se importaron \(importedCount) intentos."
-        } catch {
-            progressImportMessage = "No se pudo importar el historial: \(error.localizedDescription)"
         }
     }
 
@@ -1808,15 +1795,7 @@ final class iOSPracticeModel: ObservableObject {
         guard let imported = pendingImportedMap,
               let sourceID = selectedMIDISourceID,
               let source = midiSources.first(where: { $0.uniqueID == sourceID }) else { return }
-        let rebound = PadMapV2(
-            id: imported.id,
-            name: imported.name,
-            preset: .custom,
-            orientation: imported.orientation,
-            device: .init(name: source.name, uid: Int(sourceID)),
-            created: imported.created,
-            pads: imported.pads
-        )
+        let rebound = imported.rebound(to: .init(name: source.name, uid: Int(sourceID)))
         do {
             try savePhysicalPadMap(rebound)
             physicalMIDIMap = rebound
@@ -1841,17 +1820,9 @@ final class iOSPracticeModel: ObservableObject {
     func reloadCommunityExercises() {
         guard let kit else { return }
         let directory = applicationSupportDirectory.appendingPathComponent("community-exercises", isDirectory: true)
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        var loaded = [Exercise]()
-        var knownIDs = Set(bundledExercises.map(\.id))
-        for (index, url) in files.filter({ ["mid", "midi"].contains($0.pathExtension.lowercased()) })
-            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).enumerated() {
-            guard let exercise = try? MIDIExerciseLoader.load(url: url, kit: kit, level: bundledExercises.count + index + 1),
-                  knownIDs.insert(exercise.id).inserted else { continue }
-            loaded.append(exercise)
-        }
-        communityExercises = loaded
-        exercises = bundledExercises + loaded
+        do { communityExercises = try ResourceCatalog().loadCommunityExercises(in: directory, kit: kit, bundled: bundledExercises) }
+        catch { communityExercises = []; exerciseImportMessage = "No se pudieron leer los MIDI importados: \(error.localizedDescription)" }
+        exercises = bundledExercises + communityExercises
     }
 
     func importCommunityExercise(from url: URL) {
@@ -1883,6 +1854,8 @@ final class iOSPracticeModel: ObservableObject {
             syncTempoStepIndex()
             selectedTab = .practice
             exerciseImportMessage = "Importado: \(exercise.title). Queda disponible en MIDI importados, fuera del curso oficial."
+            let warnings = PedagogicalMIDIValidator.warnings(for: exercise)
+            if !warnings.isEmpty { exerciseImportMessage += " Aviso didáctico: \(warnings.joined(separator: " "))" }
         } catch {
             exerciseImportMessage = "No se pudo importar el MIDI: \(error.localizedDescription)"
         }
@@ -2525,7 +2498,7 @@ final class iOSPracticeModel: ObservableObject {
             repeatLastExercise()
             return
         }
-        coachingBaselineAttempt = ((try? progressStore?.attempts(filter: .init(exerciseID: selectedExercise?.id), limit: 100)) ?? [])
+        coachingBaselineAttempt = recentAttempts.filter { $0.exerciseID == selectedExercise?.id }
             .first(where: { $0.trainingContext.evaluationScope == .fullPattern && $0.trainingContext.practiceConditions != nil })
         coachingReturnConditions = coachingBaselineAttempt?.trainingContext.practiceConditions ?? PracticeConditions(
             bpm: selectedBPM, repeats: selectedRepeats, selectedSounds: Set(selectedExercise?.notes.map(\.sound) ?? []),
@@ -2570,7 +2543,7 @@ final class iOSPracticeModel: ObservableObject {
 
     func startPulseTraining() {
         guard let exercise = selectedExercise else { return }
-        let attempts = (try? progressStore?.attempts(filter: .init(exerciseID: exercise.id), limit: 100)) ?? recentAttempts
+        let attempts = recentAttempts.filter { $0.exerciseID == exercise.id }
         pulseTrainingStage = PulseTrainingPlan.nextStage(after: attempts, exerciseID: exercise.id, exercise: exercise)
         if previousPulseLoopEnabled == nil { previousPulseLoopEnabled = loopEnabled }
         loopEnabled = false
@@ -2593,8 +2566,7 @@ final class iOSPracticeModel: ObservableObject {
         let today = Calendar.current.startOfDay(for: Date())
         var plan = dailyPracticePlan
         if plan?.day != today {
-            let attempts = (try? progressStore?.attempts(limit: 100)) ?? recentAttempts
-            plan = DailyPracticePlanner.makePlan(exercises: bundledExercises, attempts: attempts, dueGoals: coachingGoals,
+            plan = DailyPracticePlanner.makePlan(exercises: bundledExercises, attempts: recentAttempts, dueGoals: coachingGoals,
                                                 preferredChallengeExerciseID: courseRecommendation?.exerciseID, now: Date())
         }
         guard var plan, let block = plan.currentBlock else {
@@ -2604,7 +2576,7 @@ final class iOSPracticeModel: ObservableObject {
         }
         plan.markStarted()
         dailyPracticePlan = plan
-        try? progressStore?.saveTrainingState(plan, forKey: "daily-practice-plan")
+        persistTrainingState(plan, forKey: "daily-practice-plan")
         prepareDailyBlock(block)
     }
 
@@ -2615,7 +2587,7 @@ final class iOSPracticeModel: ObservableObject {
         }
         plan.markStarted()
         dailyPracticePlan = plan
-        try? progressStore?.saveTrainingState(plan, forKey: "daily-practice-plan")
+        persistTrainingState(plan, forKey: "daily-practice-plan")
         prepareDailyBlock(block)
     }
 
@@ -2624,7 +2596,7 @@ final class iOSPracticeModel: ObservableObject {
         _ = plan.completeBlock(block.id, skipped: true)
         dailyPracticePlan = plan
         dailyPracticeMessage = plan.isComplete ? "Rutina diaria finalizada; bloque omitido." : "Bloque omitido. Puedes continuar con el siguiente."
-        try? progressStore?.saveTrainingState(plan, forKey: "daily-practice-plan")
+        persistTrainingState(plan, forKey: "daily-practice-plan")
     }
 
     private func prepareDailyBlock(_ block: DailyPracticeBlock) {
@@ -2661,14 +2633,14 @@ final class iOSPracticeModel: ObservableObject {
                 let outcome = CoachingAnalyzer.reviewOutcome(for: coachingGoals[index].recommendation, score: score)
                 if outcome != .insufficientEvidence {
                     coachingGoals[index].recordReview(successful: outcome == .resolved)
-                    try? progressStore?.saveTrainingState(coachingGoals, forKey: "coaching-goals")
+                    persistTrainingState(coachingGoals, forKey: "coaching-goals")
                 }
             }
         }
         dailyPracticePlan = plan
         activeDailyBlockID = nil
         dailyPracticeMessage = plan.isComplete ? "Sesión diaria completada. Buen trabajo." : "Bloque terminado. Continúa con el siguiente cuando quieras."
-        try? progressStore?.saveTrainingState(plan, forKey: "daily-practice-plan")
+        persistTrainingState(plan, forKey: "daily-practice-plan")
     }
 
     private func saveCoachingGoal(exerciseID: String, recommendation: CoachingRecommendation, conditions: PracticeConditions?) {
@@ -2677,7 +2649,24 @@ final class iOSPracticeModel: ObservableObject {
                 && $0.recommendation.step == recommendation.step && $0.state != .confirmed
         }) else { return }
         coachingGoals.append(CoachingGoal(exerciseID: exerciseID, recommendation: recommendation, baselineConditions: conditions))
-        try? progressStore?.saveTrainingState(coachingGoals, forKey: "coaching-goals")
+        persistTrainingState(coachingGoals, forKey: "coaching-goals")
+    }
+
+    private func persistTrainingState<Value: Encodable>(_ value: Value, forKey key: String) {
+        do {
+            guard let progressStore else { throw ProgressStoreError.sqlite("El historial no está disponible.") }
+            try progressStore.saveTrainingState(value, forKey: key)
+            failedTrainingWrites.removeValue(forKey: key)
+        } catch { failedTrainingWrites[key] = error.localizedDescription }
+        trainingPersistenceError = failedTrainingWrites.isEmpty ? ""
+            : "Hay cambios de rutina o repaso solo en memoria, sin guardar. " + failedTrainingWrites.values.sorted().joined(separator: " ")
+    }
+
+    func retryTrainingPersistence() {
+        if failedTrainingWrites["coaching-goals"] != nil { persistTrainingState(coachingGoals, forKey: "coaching-goals") }
+        if failedTrainingWrites["daily-practice-plan"] != nil, let plan = dailyPracticePlan {
+            persistTrainingState(plan, forKey: "daily-practice-plan")
+        }
     }
 
     private func coachingComparisonMessage(_ comparison: CoachingComparison, sound: String) -> String {
@@ -2804,16 +2793,18 @@ final class iOSPracticeModel: ObservableObject {
                 )
             )
             do {
-                if let progressStore {
-                    try progressStore.record(attempt)
-                    worldVictory = courseGraph?.worldVictory(completing: CourseAttemptEvidence(attempt: attempt),
-                        previousEvidence: courseEvidence)
-                    nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
-                        evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
-                    if let lesson = courseGraph?.node(for: exercise.id)?.exercise {
-                        learningRecovery = CourseLessonCriteria.recovery(for: lesson, attempt: CourseAttemptEvidence(attempt: attempt), evidence: courseEvidence)
-                    }
+                guard let progressStore else { throw ProgressStoreError.sqlite("El historial no está disponible.") }
+                try progressStore.record(attempt)
+                worldVictory = courseGraph?.worldVictory(completing: CourseAttemptEvidence(attempt: attempt),
+                    previousEvidence: courseEvidence)
+                nextCampaignLevel = courseGraph?.campaignContinuation(after: CourseAttemptEvidence(attempt: attempt),
+                    evidence: courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+                if let lesson = courseGraph?.node(for: exercise.id)?.exercise {
+                    learningRecovery = CourseLessonCriteria.recovery(for: lesson, attempt: CourseAttemptEvidence(attempt: attempt), evidence: courseEvidence)
                 }
+                courseEvidence = CourseAttemptEvidence.compacted(courseEvidence + [CourseAttemptEvidence(attempt: attempt)])
+                courseLevels = courseGraph?.states(evidence: courseEvidence) ?? []
+                campaignWorlds = courseGraph?.worlds(evidence: courseEvidence, states: courseLevels) ?? []
             }
             catch { status = "Sesión finalizada; no se pudo guardar el progreso: \(error.localizedDescription)" }
             refreshCourseProgress()
@@ -3426,21 +3417,40 @@ final class iOSPracticeModel: ObservableObject {
 
     private func refreshCourseProgress() {
         guard let progressStore else { return }
-        do {
-            recentAttempts = try progressStore.attempts(filter: .init(), limit: 1_000)
-            courseEvidence = try progressStore.courseEvidence()
-            courseLevels = courseGraph?.states(evidence: courseEvidence) ?? []
-            campaignWorlds = courseGraph?.worlds(evidence: courseEvidence) ?? []
-            if let exercise = selectedExercise, !isExerciseAvailable(exercise),
-             let next = courseGraph?.nodes.first(where: { isExerciseAvailable($0.exercise) })?.exercise {
-                selectedExerciseID = next.id
-                selectPendingTempo(for: next)
-                savePracticePreferences()
-            }
-            courseStatus = courseGraph == nil ? "No se pudo leer el currículo integrado de los MIDI." : ""
-        } catch {
-            courseStatus = "No se pudo cargar el progreso: \(error.localizedDescription)"
+        let filter = ProgressFilter(exerciseID: selectedProgressExerciseID.isEmpty ? nil : selectedProgressExerciseID,
+            minimumScore: minimumProgressScore > 0 ? minimumProgressScore : nil)
+        let generation = UUID()
+        progressReadGeneration = generation
+        // Las fixtures de simulador preparan unos pocos intentos antes de crear
+        // la vista. Su carga determinista no forma parte del binario Release.
+        #if DEBUG && targetEnvironment(simulator)
+        if uiTestingDirectory != nil {
+            do { applyProgressSnapshot(try progressStore.loadSnapshot(exercises: exercises, graph: courseGraph,
+                filter: filter, selectedExerciseID: selectedProgressExerciseID)) }
+            catch { courseStatus = "No se pudo cargar el progreso: \(error.localizedDescription)" }
+            return
         }
+        #endif
+        progressStore.loadSnapshotInBackground(exercises: exercises, graph: courseGraph, filter: filter,
+            selectedExerciseID: selectedProgressExerciseID.isEmpty ? nil : selectedProgressExerciseID,
+            diagnosticExerciseID: selectedProgressExerciseID.isEmpty ? nil : selectedProgressExerciseID) { [weak self] result in
+            guard let self, self.progressReadGeneration == generation else { return }
+            switch result {
+            case .success(let snapshot): self.applyProgressSnapshot(snapshot)
+            case .failure(let error): self.courseStatus = "No se pudo cargar el progreso: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func applyProgressSnapshot(_ snapshot: ProgressSnapshot) {
+        recentAttempts = snapshot.recentAttempts
+        filteredProgressAttempts = snapshot.filteredAttempts
+        historicalDiagnostics = snapshot.diagnostics
+        masterySeals = snapshot.masterySeals
+        courseEvidence = snapshot.courseEvidence
+        courseLevels = snapshot.courseLevels
+        campaignWorlds = snapshot.campaignWorlds
+        courseStatus = courseGraph == nil ? "No se pudo leer el currículo integrado de los MIDI." : ""
     }
 
     private func savePracticePreferences() {
@@ -5626,6 +5636,13 @@ private final class TouchGridView: UIView {
         updateAccessibilityFrames()
     }
 
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
+            setNeedsDisplay()
+        }
+    }
+
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
         let layout = grid
@@ -5664,7 +5681,9 @@ private final class TouchGridView: UIView {
                 context.strokePath()
             }
             let label = (padLabels[pad.id] ?? pad.sound.replacingOccurrences(of: "_", with: " ")).uppercased()
-            let fontSize = min(CGFloat(18), max(CGFloat(10), frame.width / 8))
+            let baseFontSize = min(CGFloat(18), max(CGFloat(10), frame.width / 8))
+            let scaledFontSize = UIFontMetrics(forTextStyle: .caption1).scaledValue(for: baseFontSize, compatibleWith: traitCollection)
+            let fontSize = min(max(8, frame.height / 2 - 9), max(10, scaledFontSize))
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .center
             paragraph.lineBreakMode = .byWordWrapping

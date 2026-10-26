@@ -307,6 +307,10 @@ public final class AudioRouteMonitor {
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain
     )
+    private var observedDevice: AudioDeviceID?
+    private var deviceAddresses = [kAudioDevicePropertyNominalSampleRate, kAudioDevicePropertyBufferFrameSize].map {
+        AudioObjectPropertyAddress(mSelector: $0, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    }
 
     public init(onChange: @escaping () -> Void) {
         self.onChange = onChange
@@ -316,7 +320,25 @@ public final class AudioRouteMonitor {
         AudioObjectAddPropertyListenerBlock(object, &defaultOutputAddress, .main, listener)
     }
 
+    /// Se llama desde main al seleccionar la salida. También observa cambios
+    /// hechos por otras apps sin cambiar el UID del dispositivo.
+    public func observe(deviceID: AudioDeviceID?) {
+        guard observedDevice != deviceID else { return }
+        if let previous = observedDevice {
+            for index in deviceAddresses.indices {
+                AudioObjectRemovePropertyListenerBlock(previous, &deviceAddresses[index], .main, listener)
+            }
+        }
+        observedDevice = deviceID
+        if let deviceID {
+            for index in deviceAddresses.indices {
+                AudioObjectAddPropertyListenerBlock(deviceID, &deviceAddresses[index], .main, listener)
+            }
+        }
+    }
+
     deinit {
+        observe(deviceID: nil)
         let object = AudioObjectID(kAudioObjectSystemObject)
         AudioObjectRemovePropertyListenerBlock(object, &devicesAddress, .main, listener)
         AudioObjectRemovePropertyListenerBlock(object, &defaultOutputAddress, .main, listener)

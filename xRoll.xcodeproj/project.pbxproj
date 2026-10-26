@@ -21,6 +21,7 @@
 		A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */; };
 		A1000000000000000000000C /* ../Sources/XRollPads/CourseRailwayMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* ../Sources/XRollPads/CourseRailwayMap.swift */; };
 		A1000000000000000000000D /* ../Sources/XRollPads/RailwayArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* ../Sources/XRollPads/RailwayArtwork.swift */; };
+		A1000000000000000000000E /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* LICENSE */; };
 		D10000000000000000000001 /* XRollCore/SystemInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* XRollCore/SystemInspection.swift */; };
 		D10000000000000000000002 /* XRollCore/RhythmScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* XRollCore/RhythmScoring.swift */; };
 		D10000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */; };
@@ -79,6 +80,7 @@
 		A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/DrummerQuotes.swift; sourceTree = "<group>"; };
 		A2000000000000000000000D /* ../Sources/XRollPads/CourseRailwayMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/CourseRailwayMap.swift; sourceTree = "<group>"; };
 		A2000000000000000000000E /* ../Sources/XRollPads/RailwayArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/RailwayArtwork.swift; sourceTree = "<group>"; };
+		A2000000000000000000000F /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		D20000000000000000000001 /* XRollCore/SystemInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/SystemInspection.swift; sourceTree = "<group>"; };
 		D20000000000000000000002 /* XRollCore/RhythmScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/RhythmScoring.swift; sourceTree = "<group>"; };
 		D20000000000000000000003 /* XRollCore/LatencyRecordingAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XRollCore/LatencyRecordingAnalysis.swift; sourceTree = "<group>"; };
@@ -160,6 +162,7 @@
 		A40000000000000000000003 /* Project Resources */ = {
 			isa = PBXGroup;
 			children = (
+				A2000000000000000000000F /* LICENSE */,
 				A20000000000000000000003 /* Resources/Kits */,
 				A20000000000000000000004 /* data/exercises */,
 				A20000000000000000000008 /* Resources/Loops */,
@@ -304,6 +307,7 @@
 				A10000000000000000000004 /* data/exercises in Resources */,
 				A10000000000000000000006 /* Assets.xcassets in Resources */,
 				A10000000000000000000007 /* Resources/Loops in Resources */,
+				A1000000000000000000000E /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

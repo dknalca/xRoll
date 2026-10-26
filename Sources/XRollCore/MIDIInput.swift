@@ -253,15 +253,12 @@ private final class MIDIInputCallbackContext {
             .advanced(by: packetOffset)
             .assumingMemoryBound(to: MIDIPacket.self)
         for _ in 0..<packetList.pointee.numPackets {
-            let eventPacket = packet.pointee
-            withUnsafeBytes(of: eventPacket.data) { bytes in
-                delivery.enqueue(
-                    hostTime: eventPacket.timeStamp,
-                    callbackHostTime: AudioClock.currentHostTime(),
-                    bytes: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                    length: eventPacket.length
-                )
-            }
+            // La región prestada puede superar los 256 bytes del campo Swift.
+            let dataOffset = MemoryLayout<MIDIPacket>.offset(of: \.data)!
+            delivery.enqueue(hostTime: packet.pointee.timeStamp,
+                callbackHostTime: AudioClock.currentHostTime(),
+                bytes: UnsafeRawPointer(packet).advanced(by: dataOffset).assumingMemoryBound(to: UInt8.self),
+                length: packet.pointee.length)
             packet = UnsafePointer(MIDIPacketNext(packet))
         }
     }
@@ -277,7 +274,8 @@ private final class MIDIEventDelivery {
     private var thread: Thread?
 
     init(onNoteOn: @escaping (MIDINoteOn) -> Void) throws {
-        guard let queue = xroll_realtime_queue_create(1_024) else {
+        // Unos 4 MiB preasignados para 64 paquetes de hasta UInt16.max bytes.
+        guard let queue = xroll_realtime_queue_create(64) else {
             throw MIDIInputError.queueAllocationFailure
         }
         self.queue = queue
@@ -315,7 +313,7 @@ private final class MIDIEventDelivery {
     }
 
     private func drain() {
-        var bytes = Array(repeating: UInt8.zero, count: 256)
+        var bytes = Array(repeating: UInt8.zero, count: Int(XROLL_MAX_PACKET_BYTES))
         while !Thread.current.isCancelled {
             var hostTime: UInt64 = 0
             var callbackHostTime: UInt64 = 0

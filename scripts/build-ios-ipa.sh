@@ -3,8 +3,8 @@
 set -euo pipefail
 
 project_root=${0:A:h:h}
-output_directory="$project_root/dist/ios-device"
-derived_data="$project_root/dist/ios-build"
+output_directory=${XROLL_IOS_OUTPUT_DIRECTORY:-"$project_root/dist/ios-device"}
+derived_data=${XROLL_IOS_DERIVED_DATA:-"$project_root/dist/ios-build"}
 build_number="${XROLL_BUILD_NUMBER:-2}"
 
 if (( $# != 0 )); then
@@ -58,8 +58,12 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     names = set(archive.namelist())
     kit_prefix = prefix + "Kits/hiphop_basic/"
     kit = json.loads(archive.read(kit_prefix + "kit.json"))
+    if prefix + "LICENSE" not in names:
+        raise SystemExit("Falta el aviso de licencia MIT en el bundle.")
     if not all(kit_prefix + sound["file"] in names for sound in kit["sounds"]):
         raise SystemExit("Faltan samples declarados por el kit.")
+    if prefix + "Loops/ATTRIBUTION.md" not in names:
+        raise SystemExit("Falta la atribución de audio en el bundle.")
     exercises = sum(name.startswith(prefix + "exercises/") and name.endswith(".mid") for name in names)
     loops = sum(name.startswith(prefix + "Loops/") and name.endswith(".wav") for name in names)
     if exercises == 0 or loops == 0 or prefix + "embedded.mobileprovision" in names:
