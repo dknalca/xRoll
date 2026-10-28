@@ -7,6 +7,21 @@ xRoll te dice con cuanta precision lo hiciste y si vas adelantado o atrasado.
 
 Pensado para quien empieza de cero.
 
+## Vídeos de presentación
+
+Dos recorridos de 30 segundos muestran la interfaz de xRoll y una demostración
+de la práctica. La versión para iOS corresponde al port en desarrollo; ambas
+grabaciones muestran versiones de desarrollo de la aplicación.
+
+| macOS | iPhone (desarrollo) |
+|:---:|:---:|
+| [![Ver presentación de xRoll para macOS](docs/media/macos-portada.jpg)](docs/media/xroll-macos.mp4) | [![Ver presentación de xRoll para iPhone](docs/media/ios-portada.jpg)](docs/media/xroll-ios.mp4) |
+| [Ver o descargar vídeo de macOS](docs/media/xroll-macos.mp4) | [Ver o descargar vídeo de iPhone](docs/media/xroll-ios.mp4) |
+
+La batería es una banda sonora creada con los samples propios de xRoll, no el
+audio sincronizado de los golpes mostrados. Los resultados de iOS son datos de
+demostración.
+
 ## Vista rápida
 
 La aplicación reúne preparación, práctica, diagnóstico y configuración del

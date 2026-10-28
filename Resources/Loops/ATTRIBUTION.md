@@ -36,3 +36,10 @@ pueden distribuirse con la aplicación bajo MIT.
 
 Los cuatro loops incluidos son material propio del autor y pueden distribuirse
 con la aplicación bajo MIT.
+
+## Vídeos de presentación
+
+| Fichero | Autor y origen del audio | Licencia |
+|---|---|---|
+| `docs/media/xroll-macos.mp4` | Arreglo de batería creado para el vídeo con samples originales de `hiphop_basic` | MIT |
+| `docs/media/xroll-ios.mp4` | Arreglo de batería creado para el vídeo con samples originales de `hiphop_basic` | MIT |
