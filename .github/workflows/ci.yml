@@ -16,7 +16,9 @@ jobs:
         run: xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
   ios-navigation:
     runs-on: macos-15
-    timeout-minutes: 20
+    # La compilación limpia y las 30 pruebas pueden agotar 20 minutos en CI.
+    # Deja margen para guardar el xcresult y cerrar el runner correctamente.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Probar navegación en simulador
