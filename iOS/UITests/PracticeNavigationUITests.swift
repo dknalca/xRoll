@@ -29,7 +29,7 @@ final class PracticeNavigationUITests: XCTestCase {
         tap(start)
         XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.staticTexts["practice.bpm"].label, "68 BPM")
-        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+        XCTAssertFalse(app.staticTexts["practice.stage"].exists, "Inicio no debe imponer una demostración.")
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad.")).count, 2)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Inicio guiado · ritmo completo preparado"
@@ -130,6 +130,51 @@ final class PracticeNavigationUITests: XCTestCase {
         wait(for: [transition], timeout: 15)
         XCTAssertEqual(pads.allElementsBoundByIndex.map(\.identifier), ids)
         XCTAssertEqual(app.staticTexts["practice.bpm"].label, "120 BPM")
+    }
+
+    func testRehearsalCanBeDisabledAndThePreferenceSurvivesRelaunch() {
+        launch("rehearsal-preparation")
+        let toggle = app.switches["practice.rehearsalEnabled"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
+        XCTAssertEqual(toggle.value as? String, "1")
+        tap(toggle)
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.terminate()
+
+        launch("rehearsal-preference-restored")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
+        XCTAssertEqual(toggle.value as? String, "0")
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["practice.stage"].exists)
+    }
+
+    func testRestartAfterPausingARehearsalDoesNotReplayTheDemonstration() {
+        launch("rehearsal-restart")
+        tap(app.buttons["preparation.start"])
+        XCTAssertTrue(app.staticTexts["practice.stage"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
+        tap(app.buttons["Pausar práctica"])
+        tap(app.buttons["Reiniciar la vuelta"])
+        XCTAssertTrue(app.staticTexts["practice.title"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["practice.stage"].exists)
+        // El callback de la referencia anterior tampoco debe sustituir la escena nueva.
+        Thread.sleep(forTimeInterval: 7)
+        XCTAssertFalse(app.staticTexts["practice.stage"].exists)
+        let kick = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "practice.pad.kick.")).firstMatch
+        tap(kick)
+        XCTAssertEqual(app.staticTexts["practice.touch.lastHit"].label, "Bombo")
+    }
+
+    func testExplicitRehearsalRemainsAvailableWhenAutomaticReferenceIsDisabled() {
+        launch("rehearsal-disabled")
+        let toggle = app.switches["practice.rehearsalEnabled"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
+        XCTAssertEqual(toggle.value as? String, "0")
+        tap(app.descendants(matching: .any).matching(identifier: "preparation.customize").firstMatch)
+        tap(app.buttons["preparation.rehearse"])
+        XCTAssertTrue(app.staticTexts["practice.stage"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["practice.stage"].label, "Juntos · sin puntuar")
     }
 
     func testStoppingDuringRehearsalDoesNotCreditBarsOrRestartFromADelayedCallback() {

@@ -454,10 +454,16 @@ struct PreparationHome: View {
             } else {
                 objectivePanel
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(model.trainingPhase == .integrate ? "Escucha una vuelta y después toca siguiendo las notas. El ritmo y las ayudas ya están preparados."
+                    Text(model.trainingPhase == .integrate ? (model.rehearsalEnabled
+                         ? "Escucha una vuelta y después toca siguiendo las notas. El ritmo y las ayudas ya están preparados."
+                         : "Empieza a tocar tras la cuenta de entrada, sin demostración previa.")
                          : "La práctica usará tus opciones de personalización.")
                         .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
                     Text("Toca cuando cada nota llegue a la línea.")
+                        .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                    Toggle("Escuchar una vuelta antes de tocar", isOn: $model.rehearsalEnabled)
+                        .accessibilityIdentifier("practice.rehearsalEnabled")
+                    Text("Se recuerda tu elección. Reiniciar o reanudar no repite la demostración.")
                         .font(.caption).foregroundColor(StudioDesign.textSecondary)
                     ActionButton(model.trainingPhase == .discover ? "Escuchar sin puntuar" : "Vamos a tocar", prominence: .primary) { model.startFromPreparation() }
                     if !model.hasCalibrationForCurrentProfile {
@@ -813,7 +819,9 @@ struct OnboardingHome: View {
                     Text(exercise.metadata?.objective ?? "Aprende este ritmo y mantén el pulso.")
                         .font(.studioBody).foregroundColor(StudioDesign.textSecondary).fixedSize(horizontal: false, vertical: true)
                     Text(model.needsHomeSetup ? "Primero dejaremos tu equipo listo. Te acompañamos paso a paso."
-                         : "El ritmo, la duración y las ayudas ya están preparados. Escucha una vuelta y después toca tú.")
+                         : (model.rehearsalEnabled
+                            ? "El ritmo, la duración y las ayudas ya están preparados. Escucha una vuelta y después toca tú."
+                            : "El ritmo, la duración y las ayudas ya están preparados. Toca tras la cuenta de entrada."))
                         .font(.subheadline).foregroundColor(StudioDesign.textSecondary)
                     ActionButton(model.needsHomeSetup ? "Preparar mi equipo"
                                  : (exercise.metadata?.flags.contains("checkpoint") == true ? CourseWorld.challengeActionTitle : "Vamos a tocar"), prominence: .primary) {

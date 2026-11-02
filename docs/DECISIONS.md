@@ -853,3 +853,40 @@ encima del rango no demuestra dominio musical. Separar precisión, duración y
 repetición mantiene retos progresivos sin sacar la ruta de su tempo. La
 regresión comprueba rangos, tempos por estación, premios, restauración con BPM
 compartido y migración de evidencia antigua.
+
+## D-059 - El bundle macOS se distribuye sin firma ni notarización
+
+`dist/xRoll.app` permanece sin firma Developer ID y sin notarización en todos los
+canales de distribución macOS previstos por el proyecto. La primera apertura se
+documenta como una autorización puntual en Gatekeeper: Control-clic → **Abrir** o
+la opción **Abrir igualmente** de Seguridad y privacidad/Privacidad y seguridad.
+No se desactiva Gatekeeper globalmente. Los scripts de empaquetado no añaden
+firma ni pasos de notarización.
+
+Esta decisión pertenece a macOS. El IPA de iOS mantiene su propio proceso de
+sideloading y puede requerir que la herramienta de instalación lo vuelva a firmar.
+La documentación dirigida a desarrollo no debe presentar la firma/notarización
+de macOS como un requisito futuro ni pedir credenciales de Apple Developer.
+
+**Por qué:** el propietario elige distribuir la aplicación macOS sin firma; las
+instrucciones para la persona usuaria explican cómo autorizar esa copia concreta
+con Gatekeeper en vez de modificar la seguridad global del sistema.
+
+## D-060 - Referencia inicial optativa y reintentos sin demostración
+
+«Escuchar una vuelta antes de tocar» es una preferencia persistente en Preparación
+y en Ajustes/Opciones de macOS e iOS. Empieza apagada y se respeta desde Inicio,
+la preparación de Integrar y el rescate correctivo/regreso al groove. Sustituye
+la referencia automática por defecto de D-057: repetir una escucha obligatoria
+entorpece los intentos sucesivos cuando el usuario ya conoce el ritmo.
+
+Repetir, reiniciar y reanudar comienzan con la cuenta de entrada pero sin volver
+a reproducir la referencia, aunque el intento inicial la incluyera. Esto cambia
+el reinicio completo del recorrido de D-055, no su barrera de generación ni la
+cancelación de callbacks/audio anteriores. Después de una demostración elegida
+manualmente, «Empezar práctica» tampoco vuelve a demostrar el mismo patrón.
+
+«Escuchar demostración» y «Escuchar y tocar una vuelta juntos» siguen disponibles
+como acciones explícitas de una sola vez, sin activar la preferencia global.
+Los retos finales no añaden referencia automática y la calibración conserva su
+clic y sus requisitos. No se alteran scoring, duración acreditable ni historial.

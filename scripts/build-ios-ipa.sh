@@ -5,10 +5,10 @@ set -euo pipefail
 project_root=${0:A:h:h}
 output_directory=${XROLL_IOS_OUTPUT_DIRECTORY:-"$project_root/dist/ios-device"}
 derived_data=${XROLL_IOS_DERIVED_DATA:-"$project_root/dist/ios-build"}
-build_number="${XROLL_BUILD_NUMBER:-2}"
+build_number="${XROLL_BUILD_NUMBER:-4}"
 
 if (( $# != 0 )); then
-    print -u2 "Uso: XROLL_BUILD_NUMBER=2 zsh scripts/build-ios-ipa.sh"
+    print -u2 "Uso: XROLL_BUILD_NUMBER=4 zsh scripts/build-ios-ipa.sh"
     exit 2
 fi
 if [[ "$build_number" != <-> ]]; then

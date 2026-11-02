@@ -70,21 +70,15 @@ subdivisión, vuelta y transición. No existen targets SwiftPM separados llamado
 
 ## Estado de práctica
 
-```swift
-enum PracticePhase {
-    case preparing
-    case preview
-    case countIn
-    case playing
-    case paused
-    case completing
-    case finished(SessionResult)
-}
-```
+Preparación, demostración, cuenta de entrada, práctica, pausa y resultado son
+fases conceptuales, no casos de un enum `PracticePhase` implementado. Los
+coordinadores de macOS e iOS mantienen sus propios indicadores y tokens; la
+sesión y su puntuación viven en `XRollCore`.
 
 SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo,
 matching y score permanecen en `XRollCore`; el feedback visual se consume al
-inicio de un frame.
+inicio de un frame. Para recorrer el código desde una acción de usuario, consulta
+[Guía de lectura del código](GUIA_LECTURA_CODIGO.md).
 
 ## Fuente de verdad del contenido
 
@@ -151,6 +145,14 @@ del primer objetivo. La escena de referencia tiene realce visual automático y s
 sustituye por la escena evaluada al terminar; la transición está ligada al token
 o generación de la sesión. `flushScheduledSounds(stoppingAtHostTime:)` recorta
 las últimas colas sin cancelar eventos futuros. La calibración no usa referencia.
+La preferencia `xRoll.rehearsalEnabled` empieza apagada en ambas plataformas;
+los reintentos y reanudaciones no heredan la referencia del intento anterior
+(D-060). `ExerciseTiming` calcula las duraciones sin construir las notas de una
+timeline; `PracticeRehearsalPlan` y `ExerciseTimeline` comparten esa aritmética.
+El cierre y la estimación de la próxima sesión también usan `ExerciseTiming`.
+La timeline ordena solo el patrón con su offset y después expande las vueltas;
+los índices siguen identificando la nota original y los empates mantienen el mismo
+orden. Las pruebas lo comparan con la expansión/ordenación global anterior.
 
 `PracticeConfiguration.correctiveContext` recorta el contexto del rescate a los
 compases de la célula y traslada sus pasos conservando objetivos y offset audible.

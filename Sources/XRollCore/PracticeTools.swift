@@ -10,14 +10,14 @@ public struct PracticeRehearsalPlan: Equatable {
     public let scoringStartMilliseconds: Double
 
     public init(exercise: Exercise, reference: Exercise? = nil, countInBars: Int = 2, enabled: Bool) {
-        let timeline = ExerciseTimeline(exercise: exercise)
-        countInMilliseconds = timeline.barDurationMilliseconds * Double(min(4, max(1, countInBars)))
+        let timing = ExerciseTiming(exercise: exercise)
+        countInMilliseconds = timing.barDurationMilliseconds * Double(min(4, max(1, countInBars)))
         referenceStartMilliseconds = countInMilliseconds
         if enabled {
             let source = reference ?? exercise
             let oneRound = PracticeConfiguration(exercise: source, bpm: exercise.bpm, repeats: 1).applying(to: source)
             referenceExercise = oneRound
-            referenceEndMilliseconds = countInMilliseconds + ExerciseTimeline(exercise: oneRound).patternDurationMilliseconds
+            referenceEndMilliseconds = countInMilliseconds + ExerciseTiming(exercise: oneRound).patternDurationMilliseconds
             scoringStartMilliseconds = referenceEndMilliseconds + countInMilliseconds
         } else {
             referenceExercise = nil
@@ -118,7 +118,7 @@ public struct PracticeCompletion: Equatable {
 
     public init(exercise: Exercise, elapsedMilliseconds: Double) {
         totalBars = exercise.bars * exercise.repeats
-        let barDuration = ExerciseTimeline(exercise: exercise).barDurationMilliseconds
+        let barDuration = ExerciseTiming(exercise: exercise).barDurationMilliseconds
         completedBars = Int(max(0, min(Double(totalBars), floor(elapsedMilliseconds / barDuration))))
     }
 
@@ -882,7 +882,7 @@ public enum NextSessionPlanner {
             title: exercise.title,
             bpm: bpm,
             repeats: repeats,
-            estimatedDurationMilliseconds: ExerciseTimeline(exercise: configured).patternDurationMilliseconds * Double(repeats),
+            estimatedDurationMilliseconds: ExerciseTiming(exercise: configured).patternDurationMilliseconds * Double(repeats),
             kind: kind,
             reason: reason
         )

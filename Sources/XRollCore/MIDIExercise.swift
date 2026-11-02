@@ -32,8 +32,8 @@ public enum MIDIExerciseError: LocalizedError {
     }
 }
 
-/// Minimal Standard MIDI File reader for community exercises. It intentionally
-/// uses only portable MIDI data: track name, tempo, time signature and note-on.
+/// Lee ejercicios MIDI comunitarios con los datos portables que necesita xRoll:
+/// nombre de pista, tempo, compás y golpes Note On.
 public enum MIDIExerciseLoader {
     public static let maximumFileBytes = 32 * 1_024 * 1_024
     public static let maximumBars = 256
@@ -111,8 +111,13 @@ public enum MIDIExerciseLoader {
             )
         }
         guard !notes.isEmpty else { throw MIDIExerciseError.noPlayableNotes }
-        let lastTick = max(endTick, hits.map(\.tick).max() ?? 0)
-        let rawBarCount = max(1, ceil(Double(lastTick) / (Double(division) * 4)))
+        // El fin de pista marca un límite exclusivo: si cae justo al final de
+        // un compás no añade otro vacío. En cambio, un golpe en ese mismo tick
+        // pertenece al compás siguiente. Usamos el paso ya cuantizado para que
+        // la tolerancia de rejilla tampoco deje un golpe fuera de la duración.
+        let barsThroughTrackEnd = ceil(Double(endTick) / (Double(division) * 4))
+        let barsThroughLastNote = Double((notes.map(\.step).max() ?? 0) / grid + 1)
+        let rawBarCount = max(1, barsThroughTrackEnd, barsThroughLastNote)
         guard rawBarCount.isFinite else { throw MIDIExerciseError.invalidFile("duración MIDI no finita") }
         guard rawBarCount <= Double(maximumBars) else {
             let reportedBars = rawBarCount >= Double(Int.max) ? Int.max : Int(rawBarCount)

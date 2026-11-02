@@ -72,6 +72,11 @@ Toda pieza de audio anadida al repositorio debe registrarse en
 Resources/Loops/ATTRIBUTION.md en el mismo commit. Sin excepciones: reconstruir
 la procedencia meses despues es imposible.
 
+La app macOS se distribuye intencionalmente sin firma ni notarización (D-059).
+No recomiendes firmarla ni notarizarla; remite a las instrucciones de autorización
+puntual de Gatekeeper. La firma que una herramienta de sideloading aplica al IPA
+de iOS es un flujo separado.
+
 ## Estructura
 
 ```

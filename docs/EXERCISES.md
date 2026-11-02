@@ -37,6 +37,11 @@ anadir otra voz.
 
 ## Reparto de manos
 
+El criterio siguiente describe los datos históricos de mano conservados en los
+ejercicios. La práctica actual no los muestra como instrucciones: identifica cada
+nota por su sonido (D-034). Las posiciones físicas de Equipo siguen saliendo
+del mapa de pads.
+
 Los ficheros de ejemplo usan este criterio: **bombo mano izquierda, caja mano
 derecha, y el charles con la mano que quede libre.**
 

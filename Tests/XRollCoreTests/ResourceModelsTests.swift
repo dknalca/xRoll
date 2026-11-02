@@ -705,6 +705,39 @@ final class ResourceModelsTests: XCTestCase {
         wait(for: [cancelled, finished], timeout: 2)
     }
 
+    func testTouchHostTimeAdmissionKeepsPadIdentityAndRejectsTouchesFromBeforeRestart() {
+        let exercise = Exercise(format: 1, id: "touch-generation", title: "Toque", family: "test", level: 1,
+            bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0,
+            notes: [.init(step: 0, sound: "kick", target: .init(type: .pad, value: "r0c1"))])
+        let ingress = PracticeSessionIngress()
+        let base = AudioClock.currentHostTime()
+        let admission = AudioClock.hostTime(afterMilliseconds: 1_000, from: base)
+        let start = AudioClock.hostTime(afterMilliseconds: 2_000, from: base)
+        let generation = UUID()
+        ingress.begin(PracticeSession(exercise: exercise), generation: generation,
+                      startHostTime: start, admissionHostTime: admission)
+
+        XCTAssertNil(ingress.submit(sound: "kick", hostTime: base, role: "kick_left", padID: "r0c1", velocity: 96) { _, _ in
+            XCTFail("Un toque anterior al inicio de la generación no debe procesarse.")
+        })
+        let delivered = expectation(description: "toque de la generación actual")
+        XCTAssertEqual(ingress.submit(sound: "kick", hostTime: start, role: "kick_left", padID: "r0c1", velocity: 96) { returned, result in
+            XCTAssertEqual(returned, generation)
+            XCTAssertEqual(result.scoredHit?.judgement, .perfect)
+            XCTAssertEqual(result.scoredHit?.hit.padID, "r0c1")
+            XCTAssertEqual(result.scoredHit?.hit.role, "kick_left")
+            XCTAssertEqual(result.scoredHit?.hit.velocity, 96)
+            delivered.fulfill()
+        }, generation)
+        let finished = expectation(description: "cerrar el toque admitido")
+        ingress.finish { _, score in
+            XCTAssertEqual(score?.hits.count, 1)
+            XCTAssertEqual(score?.percentage, 100)
+            finished.fulfill()
+        }
+        wait(for: [delivered, finished], timeout: 2)
+    }
+
     func testHostTimeIngressFinalScoreDoesNotWaitForPresentation() {
         let exercise = Exercise(format: 1, id: "delayed-ui", title: "Interfaz ocupada", family: "test", level: 1,
             bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1, kit: "kit", loop: nil, offset: 0,
@@ -1585,6 +1618,45 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(whale.stepRange, 5...7)
         XCTAssertTrue(whale.coachingCue.contains("«y»"))
         XCTAssertTrue(whale.coachingCue.contains("snare"))
+    }
+
+    func testHistoricalDiagnosticsUsesTheMedianForAnEvenNumberOfOffsets() throws {
+        let exercise = Exercise(format: 1, id: "median", title: "Mediana", family: "test", level: 1,
+                                bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+                                kit: "kit", loop: nil, offset: 0,
+                                notes: [.init(step: 0, sound: "kick"), .init(step: 4, sound: "kick")])
+        let score = RhythmScorer.score(timeline: ExerciseTimeline(exercise: exercise), bpm: 80, grid: 16,
+                                       hits: [.init(sound: "kick", timeMilliseconds: -20),
+                                              .init(sound: "kick", timeMilliseconds: 770)])
+        let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 80, score: score.percentage,
+                                      stars: score.stars, perfect: score.perfectCount, good: score.goodCount,
+                                      regular: score.regularCount, miss: score.misses.count, extra: score.extraCount,
+                                      meanOffsetMilliseconds: score.meanOffsetMilliseconds, hitRecords: HitRecord.records(from: score))
+        let diagnostic = try XCTUnwrap(HistoricalDiagnosticsBuilder.build(attempts: [attempt], exercisesByID: [exercise.id: exercise]).bySound.first)
+        XCTAssertEqual(try XCTUnwrap(diagnostic.medianOffsetMilliseconds), 0, accuracy: 0.001)
+        XCTAssertEqual(diagnostic.timingLabel, "centrado")
+    }
+
+    func testHistoricalTransitionsSkipExtraHits() throws {
+        let exercise = Exercise(format: 1, id: "transitions", title: "Transiciones", family: "test", level: 1,
+                                bpm: 80, meter: [4, 4], bars: 1, grid: 16, repeats: 1,
+                                kit: "kit", loop: nil, offset: 0,
+                                notes: [.init(step: 0, sound: "kick"), .init(step: 4, sound: "snare")])
+        let score = RhythmScorer.score(timeline: ExerciseTimeline(exercise: exercise), bpm: 80, grid: 16,
+                                       hits: [.init(sound: "kick", timeMilliseconds: 0),
+                                              .init(sound: "clap", timeMilliseconds: 300),
+                                              .init(sound: "snare", timeMilliseconds: 750),
+                                              .init(sound: "clap", timeMilliseconds: 900)])
+        let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: .init(), bpm: 80, score: score.percentage,
+                                      stars: score.stars, perfect: score.perfectCount, good: score.goodCount,
+                                      regular: score.regularCount, miss: score.misses.count, extra: score.extraCount,
+                                      meanOffsetMilliseconds: score.meanOffsetMilliseconds, hitRecords: HitRecord.records(from: score))
+        let diagnostics = HistoricalDiagnosticsBuilder.build(attempts: [attempt], exercisesByID: [exercise.id: exercise])
+        let transition = try XCTUnwrap(diagnostics.byTransition.first)
+        XCTAssertEqual(diagnostics.byTransition.count, 1)
+        XCTAssertEqual(transition.label, "kick → snare")
+        XCTAssertEqual(transition.expected, 1)
+        XCTAssertEqual(transition.successful, 1)
     }
 
     func testCoachingAnalyzerRequiresRepeatedSameDirectionTimingEvidence() {
@@ -3223,6 +3295,51 @@ final class ResourceModelsTests: XCTestCase {
         XCTAssertEqual(exercise.bpm, 120)
     }
 
+    func testCommunityMIDIRejectsExerciseIDWithEmbeddedNUL() throws {
+        var track = tempoTrack(notes: [(0, 36)])
+        track.removeLast(4)
+        for text in ["xroll/1 id=audit\0otro", "xroll/1 chapter=test", "xroll/1 position=1"] {
+            let bytes = Array(text.utf8)
+            track += [0, 0xFF, 0x01, UInt8(bytes.count)] + bytes
+        }
+        track += [0, 0xFF, 0x2F, 0]
+        let url = try writeCommunityMIDI(track: track)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1))
+    }
+
+    func testCommunityMIDIKeepsNoteAtTheStartOfTheNextBar() throws {
+        // El último Note On y el fin de pista comparten el tick del compás 2.
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36), (1_920, 38)]))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let exercise = try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)
+        XCTAssertEqual(exercise.bars, 2)
+        XCTAssertEqual(exercise.notes.map(\.step), [0, 16])
+    }
+
+    func testCommunityMIDIEndOfTrackAtBarBoundaryDoesNotAddAnEmptyBar() throws {
+        var track = tempoTrack(notes: [(0, 36)])
+        track.removeLast(4)
+        track += vlq(1_920) + [0xFF, 0x2F, 0x00]
+        let url = try writeCommunityMIDI(track: track)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let exercise = try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)
+        XCTAssertEqual(exercise.bars, 1)
+    }
+
+    func testCommunityMIDIQuantizedNoteNearTheNextBarFitsItsTimeline() throws {
+        // Un tick de tolerancia se redondea al primer paso del compás siguiente.
+        let url = try writeCommunityMIDI(track: tempoTrack(notes: [(0, 36), (1_919, 38)]))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let exercise = try MIDIExerciseLoader.load(url: url, kit: communityKit(), level: 1)
+        XCTAssertEqual(exercise.bars, 2)
+        XCTAssertEqual(exercise.notes.map(\.step), [0, 16])
+    }
+
     func testCommunityMIDIRejectsOversizedFile() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("xroll-oversized-\(UUID().uuidString).mid")
         XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
@@ -3267,7 +3384,7 @@ final class ResourceModelsTests: XCTestCase {
     }
 
     func testCommunityMIDIRejectsPatternsLongerThanTheSupportedLimit() throws {
-        let notes = (0..<257).map { _ in (delta: 1_920, note: UInt8(36)) }
+        let notes = (0..<257).map { index in (delta: index == 0 ? 0 : 1_920, note: UInt8(36)) }
         let url = try writeCommunityMIDI(track: tempoTrack(notes: notes))
         defer { try? FileManager.default.removeItem(at: url) }
 

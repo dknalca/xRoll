@@ -32,7 +32,7 @@ let unexpectedArguments = arguments.enumerated().filter { index, argument in
     argument != "--log-events" && argument != "--source" && argument != "--map" && index != sourceArgumentIndex.map({ $0 + 1 }) && index != mapArgumentIndex.map({ $0 + 1 })
 }
 guard unexpectedArguments.isEmpty else {
-    fputs("Uso: swift run xroll-play-kit [--source <uid>] [--map <archivo.padmap>] [--log-events]\\n", stderr)
+    fputs("Uso: swift run xroll-play-kit [--source <uid>] [--map <archivo.padmap>] [--log-events]\n", stderr)
     exit(64)
 }
 
@@ -64,13 +64,13 @@ do {
                 DispatchQueue.main.async { print("\(soundID): canal \(event.channel), nota \(event.note), velocidad \(event.velocity)") }
             }
         } catch {
-            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\\n", stderr) }
+            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\n", stderr) }
         }
     }
 
     if let sourceID {
         guard let source = MIDIInspector.source(withUniqueID: sourceID) else {
-            fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\\n", stderr)
+            fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\n", stderr)
             exit(64)
         }
         try input.connect(source: source)
@@ -84,6 +84,6 @@ do {
     }
     RunLoop.current.run()
 } catch {
-    fputs("No se puede iniciar el kit: \(error.localizedDescription)\\n", stderr)
+    fputs("No se puede iniciar el kit: \(error.localizedDescription)\n", stderr)
     exit(1)
 }

@@ -3,6 +3,7 @@ import Foundation
 public enum ResourceValidationError: LocalizedError, Equatable {
     case unsupportedFormat(Int)
     case emptyIdentifier(String)
+    case invalidIdentifier(String)
     case duplicateSound(String)
     case unknownSound(String)
     case invalidMeter([Int])
@@ -24,6 +25,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "Formato no compatible: \(format)."
         case .emptyIdentifier(let name):
             return "Falta el identificador \(name)."
+        case .invalidIdentifier(let name):
+            return "El identificador \(name) contiene un carácter nulo."
         case .duplicateSound(let sound):
             return "El sonido \(sound) aparece mas de una vez."
         case .unknownSound(let sound):
@@ -149,6 +152,8 @@ public struct Exercise: Codable, Equatable {
     public func validate(availableSounds: Set<String>) throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
         guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
+        // Este ID se guarda como texto SQLite y debe sobrevivir a su paso por C.
+        guard !id.utf8.contains(0) else { throw ResourceValidationError.invalidIdentifier("del ejercicio") }
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("título del ejercicio") }
         guard !family.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("familia del ejercicio") }
         guard !kit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("kit del ejercicio") }

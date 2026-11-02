@@ -68,26 +68,27 @@ public enum LatencyRecordingAnalysis {
         thresholdRatio: Float = 0.12,
         minimumSeparationMilliseconds: Double = 2
     ) -> [RecordingTransient] {
-        guard let maximum = samples.max(), maximum > 0, sampleRate > 0 else { return [] }
+        let maximum = samples.reduce(Float.zero) { max($0, abs($1)) }
+        guard maximum > 0, sampleRate > 0 else { return [] }
         let threshold = maximum * thresholdRatio
         let separation = max(1, Int(sampleRate * minimumSeparationMilliseconds / 1_000))
         var result: [RecordingTransient] = []
         var index = 1
 
         while index + 1 < samples.count {
-            guard samples[index] >= threshold,
-                  samples[index] >= samples[index - 1],
-                  samples[index] >= samples[index + 1] else {
+            guard abs(samples[index]) >= threshold,
+                  abs(samples[index]) >= abs(samples[index - 1]),
+                  abs(samples[index]) >= abs(samples[index + 1]) else {
                 index += 1
                 continue
             }
 
             let end = min(samples.count, index + separation)
-            let localPeak = samples[index..<end].enumerated().max { $0.element < $1.element }
+            let localPeak = samples[index..<end].enumerated().max { abs($0.element) < abs($1.element) }
             let peakIndex = index + (localPeak?.offset ?? 0)
             result.append(RecordingTransient(
                 timeSeconds: Double(peakIndex) / sampleRate,
-                amplitude: samples[peakIndex]
+                amplitude: abs(samples[peakIndex])
             ))
             index = peakIndex + separation
         }
@@ -101,7 +102,8 @@ public enum LatencyRecordingAnalysis {
         envelopeMilliseconds: Double = 1,
         minimumSeparationMilliseconds: Double = 200
     ) -> [RecordingTransient] {
-        guard let maximum = samples.max(), maximum > 0, sampleRate > 0 else { return [] }
+        let maximum = samples.reduce(Float.zero) { max($0, abs($1)) }
+        guard maximum > 0, sampleRate > 0 else { return [] }
 
         let windowSize = max(1, Int(sampleRate * envelopeMilliseconds / 1_000))
         let separation = max(1, Int(minimumSeparationMilliseconds / envelopeMilliseconds))
@@ -111,7 +113,7 @@ public enum LatencyRecordingAnalysis {
 
         while start < samples.count {
             let end = min(samples.count, start + windowSize)
-            let peak = samples[start..<end].max() ?? 0
+            let peak = samples[start..<end].reduce(Float.zero) { max($0, abs($1)) }
             envelope.append((sample: start, amplitude: peak))
             start = end
         }

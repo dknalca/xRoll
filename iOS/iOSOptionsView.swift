@@ -16,6 +16,10 @@ struct iOSOptionsView: View {
                         Text("Preferencias que se conservan entre prácticas.")
                             .font(.subheadline).foregroundStyle(iOSStudioDesign.secondary)
                         iOSStudioPanel {
+                            Toggle("Escuchar una vuelta antes de tocar", isOn: $model.rehearsalEnabled)
+                                .accessibilityIdentifier("practice.rehearsalEnabled")
+                            Text("Reiniciar o reanudar omite la demostración y mantiene la cuenta de entrada.")
+                                .font(.caption).foregroundStyle(iOSStudioDesign.secondary)
                             Toggle("Escuchar la claqueta", isOn: Binding(get: { model.metronomeEnabled }, set: { model.setMetronomeEnabled($0) }))
                             Toggle("Usar acompañamiento", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
                             Text("Puedes empezar con estos ajustes. El tono, la mezcla y los datos técnicos están en Opciones avanzadas.")

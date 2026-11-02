@@ -16,7 +16,12 @@ un dispositivo concreto.
 
 ## Primera sesión
 
-1. Abre `dist/xRoll.app` o ejecuta `swift run xroll-pads` desde la raíz.
+1. En macOS, abre `dist/xRoll.app`. El bundle se distribuye sin firma: si
+   Gatekeeper lo bloquea, Control-clic en Finder → **Abrir** → **Abrir**. Si esa
+   opción no aparece, intenta abrirlo una vez y autorízalo en **Seguridad y
+   privacidad → General → Abrir igualmente**. En macOS reciente usa
+   **Ajustes del Sistema → Privacidad y seguridad**. Autoriza solo xRoll; no
+   desactives Gatekeeper. También puedes ejecutar `swift run xroll-pads` desde la raíz.
 2. En **Inicio**, verás el próximo ritmo y lo que vas a aprender. Si falta
    configuración, pulsa **Preparar mi equipo**.
 3. Sigue el paso visible: prueba un sonido y pulsa **Lo escucho**; después
@@ -26,13 +31,24 @@ un dispositivo concreto.
    ruta ya está preparada, la app omite los pasos resueltos.
    En Mac, la instrucción indica qué tecla usar y permanece visible durante el ajuste.
 5. Pulsa **Vamos a tocar**: el ritmo completo, el tempo y las ayudas ya están
-   preparados. Toca una vuelta con referencia y, tras otra cuenta, continúa tú.
+   preparados. Empieza tras la cuenta de entrada, sin demostración obligatoria.
+
+**Escuchar una vuelta antes de tocar** permite activar la referencia inicial en
+Preparación o en **Preferencias** (Mac) / **Opciones** (iOS). Empieza apagada y
+recuerda tu elección. Al repetir, reiniciar o reanudar no vuelve a sonar la
+demostración: solo se mantiene la cuenta de entrada. Para escucharla una sola vez,
+usa **Escuchar demostración** o **Escuchar y tocar una vuelta juntos**.
 
 **Personalizar mi práctica** conserva los controles de tempo, voces, duración y
 fases, cerrados inicialmente. **Más herramientas** reúne otras rutinas; **Opciones
 avanzadas** guarda layouts, mapas y ajustes técnicos. Siguen disponibles cuando
 quieras investigarlos. Desde **Curso** puedes elegir otra lección y abrir su
 propia preparación; las opciones que elijas allí se respetan al empezar.
+
+En macOS, la barra de menús ofrece **xRoll → Preferencias…** (⌘,), **Equipo →
+Pads y layout…** y **Equipo → Audio y latencia…**. El menú **Ir** abre Inicio,
+Curso, Mi equipo y Progreso con ⌘1–⌘4. Estos accesos se desactivan durante una
+práctica o demostración para no interrumpirla; termina o sal de ella para usarlos.
 
 ## Estaciones y retos finales
 
@@ -88,8 +104,8 @@ estadísticas por sonido. Si aún falta superar el ritmo, la acción principal e
 repetirlo; **Practicar la parte difícil** queda como alternativa opcional y
 menos destacada.
 El rescate mantiene el compás de la célula difícil (o dos si cruza una barra),
-sin obligarte a esperar toda una frase larga entre repeticiones. Escucha y toca
-con la referencia; después practica la célula con acompañamiento. Al terminar,
+sin obligarte a esperar toda una frase larga entre repeticiones. Si has activado
+la referencia inicial, primero puedes escucharla; después practica la célula con acompañamiento. Al terminar,
 **Volver al groove completo** recupera el patrón y tempo anteriores con una
 cuenta de entrada clara. El curso solo se acredita con el patrón completo.
 En una lección pendiente del recorrido, la app prepara el tempo que permite

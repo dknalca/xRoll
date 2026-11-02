@@ -75,7 +75,7 @@ El IPA Release no incluye esas fixtures.
 Desde la raíz, después de las comprobaciones:
 
 ```sh
-XROLL_BUILD_NUMBER=2 zsh scripts/build-ios-ipa.sh
+XROLL_BUILD_NUMBER=4 zsh scripts/build-ios-ipa.sh
 ```
 
 Para generar una copia sin reemplazar `dist/ios-device` ni `dist/ios-build`, se
@@ -86,7 +86,7 @@ El script compila Release para dispositivo en `dist/ios-build`, crea
 `Payload/xRoll.app` y genera `dist/ios-device/xRoll-unsigned.ipa`. Es un único
 IPA arm64 para **iPhone e iPad** (`UIDeviceFamily` 1 y 2), mínimo iOS/iPadOS 16.2.
 `XROLL_BUILD_NUMBER` permite distinguir las compilaciones; su valor predeterminado
-es 2 y no cambia el número guardado en el proyecto.
+es 4 y no cambia el número guardado en el proyecto.
 
 El IPA tiene firma ad-hoc, sin perfil de aprovisionamiento ni certificado de
 desarrollo. AltStore, SideStore o Sideloadly deben volver a firmarlo al instalar.

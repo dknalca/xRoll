@@ -11,6 +11,8 @@
 - Vuelta acompañada opcional en macOS/iOS: referencia sin puntuación, receptores
   iluminados y segunda cuenta antes de tocar por cuenta propia. Salir o pausar
   invalida la transición; la referencia no acredita golpes ni compases.
+- Referencia inicial apagada por defecto y recordada en Preparación/Ajustes;
+  repetir, reiniciar y reanudar omiten la demostración, conservando la cuenta (D-060).
 - Rescate de uno o dos compases con contexto, guía y retorno al groove y tempo
   originales. Las colas de referencia se recortan sin cancelar audio futuro.
 - Exportación completa CSV/JSON por bloques de 256, temporal seguro y contador
@@ -110,7 +112,7 @@
   recortados reutilizables en caché LRU de 64 entradas/4 MiB y pruebas de PCM
   para ráfagas, alternancia de charles, cancelación y reutilización de nodos.
 - Los resultados de checkpoint adelantado identifican el primer bloque pendiente
-  y permiten abrirlo conservando la evidencia. Veintisiete pruebas UI cubren las rutas
+  y permiten abrirlo conservando la evidencia. Treinta pruebas UI cubren las rutas
   de Resultados, preparación y recorrido ferroviario en el simulador iOS.
 - Resultado ofrece una vía opcional al siguiente ejercicio tras dos estrellas en
   ritmo completo, sin acreditar ni saltar requisitos del curso. Las filas del

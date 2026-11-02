@@ -186,5 +186,12 @@ open dist/xRoll.app
 El script incluye los diez WAV de `hiphop_basic` dentro del bundle. Sus
 atribuciones y licencia MIT están en `Resources/Loops/ATTRIBUTION.md`.
 
+El bundle macOS se distribuye intencionalmente sin firma ni notarización. La
+primera vez, en Finder, haz Control-clic en `xRoll.app` → **Abrir** y confirma
+**Abrir**. Si Gatekeeper lo requiere, autorízalo en **Preferencias del Sistema →
+Seguridad y privacidad → General → Abrir igualmente** (en macOS reciente:
+**Ajustes del Sistema → Privacidad y seguridad**). Autoriza xRoll individualmente;
+no desactives Gatekeeper. Consulta [Distribución](docs/DISTRIBUTION.md).
+
 Las notas se redactan al preparar cada versión; no se conserva una plantilla de
 release desactualizada en el repositorio.

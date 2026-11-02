@@ -37,6 +37,13 @@ public enum MIDIExerciseMetadataParser {
     /// `xroll/1` y alguna es incorrecta, lanza en vez de degradar en silencio:
     /// una errata en un ejercicio integrado no debe pasar por "comunitario".
     public static func parse(textEvents: [String]) throws -> MIDIExerciseMetadata? {
+        let values = try collectValues(from: textEvents)
+        guard !values.isEmpty else { return nil }
+        return try makeMetadata(from: values)
+    }
+
+    /// Conserva el orden de los valores repetibles y también las claves futuras.
+    private static func collectValues(from textEvents: [String]) throws -> [String: [String]] {
         var values = [String: [String]]()
         for event in textEvents {
             guard event.hasPrefix("xroll/1 ") else { continue }
@@ -51,8 +58,10 @@ public enum MIDIExerciseMetadataParser {
             }
             values[key, default: []].append(value)
         }
+        return values
+    }
 
-        guard !values.isEmpty else { return nil }
+    private static func makeMetadata(from values: [String: [String]]) throws -> MIDIExerciseMetadata {
         guard let id = try singleValue("id", in: values),
               let chapter = try singleValue("chapter", in: values),
               let positionText = try singleValue("position", in: values),

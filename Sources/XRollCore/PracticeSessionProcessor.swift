@@ -126,6 +126,9 @@ public final class PracticeSessionIngress {
         return generation
     }
 
+    /// Entrada de pruebas o de datos ya expresados en tiempo de sesión. No lleva
+    /// hostTime y no puede verificar si precede a la generación: las entradas
+    /// reales MIDI/táctiles deben usar la variante que recibe `hostTime`.
     @discardableResult
     public func submit(
         _ hit: TimedPadHit,

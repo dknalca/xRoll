@@ -21,7 +21,7 @@
   y Jazz intermedio tienen 12 lecciones; las demás rutas tienen 8. Reggae contiene grooves en todos sus compases.
   Las frases no multiplican la duración inicial. Los umbrales de estrellas se
   comprueban antes del redondeo y después de penalizar golpes extra.
-- `XRollUITests` comprueba veintisiete rutas de navegación en simulador; CI conserva su
+- `XRollUITests` comprueba treinta rutas de navegación en simulador; CI conserva su
   resultado. Los resultados sintéticos no validan calibración ni latencia física.
 - El recorrido se comprueba con una única estación actual y un reto final por
   estación; solo celebra acreditaciones nuevas de patrón completo y se reconstruye
@@ -49,6 +49,14 @@
 - Referencia y cuentas fuera del score y de los compases acreditados; regreso del
   rescate a su tempo original y cancelación sin reactivar la sesión. Las pruebas
   PCM comprueban fin de las colas de referencia y conservación del audio futuro.
+- Referencia inicial desactivable y recordada tras reabrir; reanudación sin repetir
+  la demostración ni reactivar el callback antiguo. La escucha explícita sigue
+  disponible con la preferencia apagada; regresiones de duraciones 12/16 mantienen
+  las fronteras de cuenta, referencia y puntuación sin expandir notas innecesarias.
+- La construcción de timelines se compara con el algoritmo anterior sobre todo
+  el catálogo, varios offsets y repeticiones. Conserva orden, identidad y metadatos
+  de notas simultáneas; el cierre y la recomendación mantienen sus duraciones sin
+  generar timelines auxiliares.
 - Exportación y restauración de 100.005 intentos, filtros, rollback de importación,
   backup anterior intacto ante fallo y escritura de progreso con un lector activo.
 - El historial importado valida registros anidados y condiciones antes del commit;
@@ -97,6 +105,10 @@
 
 ## Pendiente en hardware
 
+- D-060: comprobar el interruptor persistente de referencia inicial en Mac,
+  iPhone e iPad, incluidos reinicio y reanudación durante la demostración; no
+  debe sonar de nuevo ni activarse un callback de la sesión anterior. La cuenta
+  de entrada y la calibración siguen siendo obligatorias donde corresponden.
 - Calibrar de nuevo si cambia la ruta de uso: entrada, salida, frecuencia o
   buffer.
 - Repetir, reiniciar y reanudar en macOS con una ruta sin calibrar debe solicitar
@@ -148,10 +160,16 @@
   cola del charles anterior y no se retrasa; comprobar práctica MIDI, demostración
   y preview en hardware.
 
-## Distribución firmada
+## Distribución macOS sin firma (D-059)
 
-- Firmar y notarizar el bundle macOS con una identidad Developer ID antes de
-  publicar el release o distribuir la aplicación por cualquier canal.
+- Mantener el bundle macOS sin firma ni notarización. No ejecutar `codesign` ni
+  `notarytool` sobre `dist/xRoll.app`.
+- En un Mac limpio, comprobar la primera apertura con Control-clic → **Abrir** y
+  la ruta alternativa **Seguridad y privacidad / Privacidad y seguridad → Abrir
+  igualmente**, según la versión de macOS. No desactivar Gatekeeper globalmente.
+
+## Instalación de desarrollo iOS
+
 - Confirmar un perfil de desarrollo iOS válido antes de cada despliegue en
   hardware; el 6 de octubre de 2026 se instaló el bundle actual con firma
   automática en el iPad de prueba.

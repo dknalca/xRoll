@@ -7,23 +7,23 @@ let sourceIndex = arguments.firstIndex(of: "--source")
 let outputIndex = arguments.firstIndex(of: "--output")
 guard let sourceIndex, arguments.indices.contains(sourceIndex + 1),
       let outputIndex, arguments.indices.contains(outputIndex + 1) else {
-    fputs("Uso: swift run xroll-map-pads --source <uid> --output <archivo.padmap>\\n", stderr)
+    fputs("Uso: swift run xroll-map-pads --source <uid> --output <archivo.padmap>\n", stderr)
     exit(64)
 }
 
 guard let sourceID = MIDIUniqueID(arguments[sourceIndex + 1]) else {
-    fputs("El UID MIDI debe ser un numero entero.\\n", stderr)
+    fputs("El UID MIDI debe ser un numero entero.\n", stderr)
     exit(64)
 }
 let outputURL = URL(fileURLWithPath: arguments[outputIndex + 1])
 let allowedIndexes = Set([sourceIndex, sourceIndex + 1, outputIndex, outputIndex + 1])
 guard arguments.indices.allSatisfy(allowedIndexes.contains) else {
-    fputs("Uso: swift run xroll-map-pads --source <uid> --output <archivo.padmap>\\n", stderr)
+    fputs("Uso: swift run xroll-map-pads --source <uid> --output <archivo.padmap>\n", stderr)
     exit(64)
 }
 
 guard let source = MIDIInspector.source(withUniqueID: sourceID) else {
-    fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\\n", stderr)
+    fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\n", stderr)
     exit(64)
 }
 
@@ -57,7 +57,7 @@ do {
                     print("Mapa guardado en \(outputURL.path).")
                     exit(0)
                 } catch {
-                    fputs("No se pudo guardar el mapa: \(error.localizedDescription)\\n", stderr)
+                    fputs("No se pudo guardar el mapa: \(error.localizedDescription)\n", stderr)
                     exit(1)
                 }
             }
@@ -68,6 +68,6 @@ do {
     printNextStep()
     RunLoop.current.run()
 } catch {
-    fputs("No se pudo iniciar el asistente: \(error.localizedDescription)\\n", stderr)
+    fputs("No se pudo iniciar el asistente: \(error.localizedDescription)\n", stderr)
     exit(1)
 }

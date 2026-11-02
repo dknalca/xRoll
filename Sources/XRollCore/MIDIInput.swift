@@ -91,7 +91,9 @@ public enum MIDIByteDecoder {
     }
 
     /// Decodifica sobre memoria prestada para que el worker MIDI no cree arrays
-    /// intermedios antes de reproducir el golpe.
+    /// intermedios antes de reproducir el golpe. CoreMIDI entrega los mensajes
+    /// completos en cada MIDIPacket, salvo SysEx, que no produce golpes Note On;
+    /// por eso no se comparte running status entre paquetes o fuentes distintas.
     public static func decodeNoteOnEvents(
         bytes: UnsafeBufferPointer<UInt8>,
         hostTime: MIDITimeStamp,

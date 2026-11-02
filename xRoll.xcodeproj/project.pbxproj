@@ -16,6 +16,9 @@
 		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
 		A10000000000000000000007 /* Resources/Loops in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Resources/Loops */; };
 		A10000000000000000000008 /* iOSOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* iOSOptionsView.swift */; };
+		A1000000000000000000000F /* TouchPadLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* TouchPadLayout.swift */; };
+		A10000000000000000000010 /* PulseDriftChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* PulseDriftChart.swift */; };
+		A10000000000000000000011 /* PadTouchGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* PadTouchGrid.swift */; };
 		A10000000000000000000009 /* ../Sources/XRollPads/GameplayVisualSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */; };
 		A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */; };
 		A1000000000000000000000B /* ../Sources/XRollPads/DrummerQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */; };
@@ -75,6 +78,9 @@
 		A20000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000008 /* Resources/Loops */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Loops; sourceTree = "<group>"; };
 		A20000000000000000000009 /* iOSOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSOptionsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* TouchPadLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchPadLayout.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* PulseDriftChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseDriftChart.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* PadTouchGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PadTouchGrid.swift; sourceTree = "<group>"; };
 		A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/GameplayVisualSystem.swift; sourceTree = "<group>"; };
 		A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/XRollBrand.swift; sourceTree = "<group>"; };
 		A2000000000000000000000C /* ../Sources/XRollPads/DrummerQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/XRollPads/DrummerQuotes.swift; sourceTree = "<group>"; };
@@ -147,6 +153,9 @@
 			children = (
 				A20000000000000000000001 /* XRolliOSApp.swift */,
 				A20000000000000000000009 /* iOSOptionsView.swift */,
+				A20000000000000000000010 /* TouchPadLayout.swift */,
+				A20000000000000000000011 /* PulseDriftChart.swift */,
+				A20000000000000000000012 /* PadTouchGrid.swift */,
 				A20000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift */,
 				A2000000000000000000000A /* ../Sources/XRollPads/GameplayVisualSystem.swift */,
 				A2000000000000000000000B /* ../Sources/XRollPads/XRollBrand.swift */,
@@ -321,6 +330,9 @@
 			files = (
 				A10000000000000000000001 /* XRolliOSApp.swift in Sources */,
 				A10000000000000000000008 /* iOSOptionsView.swift in Sources */,
+				A1000000000000000000000F /* TouchPadLayout.swift in Sources */,
+				A10000000000000000000010 /* PulseDriftChart.swift in Sources */,
+				A10000000000000000000011 /* PadTouchGrid.swift in Sources */,
 				A10000000000000000000002 /* ../Sources/XRollPads/PracticeScene.swift in Sources */,
 				A10000000000000000000009 /* ../Sources/XRollPads/GameplayVisualSystem.swift in Sources */,
 				A1000000000000000000000A /* ../Sources/XRollPads/XRollBrand.swift in Sources */,
@@ -415,11 +427,11 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+                CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				MARKETING_VERSION = 1.0;
+                MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -435,11 +447,11 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+                CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				MARKETING_VERSION = 1.0;
+                MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alkbit.xroll;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

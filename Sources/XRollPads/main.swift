@@ -61,6 +61,9 @@ final class Model: ObservableObject {
     @Published private(set) var isExportingProgress = false
     @Published private(set) var isRehearsing = false
     @Published private(set) var practiceIncludesRehearsal = false
+    @Published var rehearsalEnabled = UserDefaults.standard.bool(forKey: "xRoll.rehearsalEnabled") {
+        didSet { UserDefaults.standard.set(rehearsalEnabled, forKey: "xRoll.rehearsalEnabled") }
+    }
     @Published private(set) var equipmentMessage = ""
     @Published private(set) var isRecheckingEquipment = false
     @Published private(set) var equipmentAudioFailed = false
@@ -105,10 +108,23 @@ final class Model: ObservableObject {
     @Published var showingPreparation = false
     @Published var showingCalibrationWarning = false
     @Published private(set) var midiDroppedPackets: UInt64 = 0
-    private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?; private var liveMIDI: LiveMIDIProcessor?; private var bundledExercises = [Exercise]()
-    private var custom: PadMapV2?; private var customRouter: PadMapV2Router?; private var input: MIDIInputSession?
-    private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
-    private let mappingStateLock = NSLock(); private var mappingActiveForMIDI = false
+    var menuNavigationIsAvailable: Bool {
+        practice == nil && practiceScene == nil && previewScene == nil && !isShowingResultTransition && !isFinishingPractice
+    }
+    // Recursos y entrada: la sesión no posee estos servicios.
+    private var kit: KitManifest?
+    private var audio: SampleAudioEngine?
+    private var gm: KitNoteRouter?
+    private var liveMIDI: LiveMIDIProcessor?
+    private var bundledExercises = [Exercise]()
+    private var custom: PadMapV2?
+    private var customRouter: PadMapV2Router?
+    private var input: MIDIInputSession?
+    private var builder: PadMapBuilder?
+    private var keyboardCapture = [String: String]()
+    private var monitor: Any?
+    private let mappingStateLock = NSLock()
+    private var mappingActiveForMIDI = false
     private var midiRefreshTimer: Timer?
     private var midiSetupMonitor: MIDISetupMonitor?
     private var audioRouteMonitor: AudioRouteMonitor?
@@ -131,7 +147,10 @@ final class Model: ObservableObject {
         }
         return manager
     }()
-    private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
+    // La generación y el token impiden que una sesión anterior actualice la actual.
+    private var practice: PracticeSession?
+    private var practiceStartHostTime: UInt64 = 0
+    private var practiceToken = UUID()
     private let practiceIngress = PracticeSessionIngress()
     private var practiceGeneration: UUID?
     private var isFinishingPractice = false
@@ -164,7 +183,10 @@ final class Model: ObservableObject {
     private var lastAutopilotRecommendation: AutopilotRecommendation?
     private var previewToken = UUID()
     private var resultTransitionToken = UUID()
-    private var progressStore: ProgressStore?; private var calibrationOffset: Double = 0; private var calibrationProfileKey: CalibrationProfileKey?; private var calibrating = false
+    private var progressStore: ProgressStore?
+    private var calibrationOffset: Double = 0
+    private var calibrationProfileKey: CalibrationProfileKey?
+    private var calibrating = false
 
     var hasDailyPracticePlanForToday: Bool {
         guard let dailyPracticePlan else { return false }
@@ -403,7 +425,7 @@ final class Model: ObservableObject {
         practiceHelp = .full; gapMetronomeLevel = 0; trainingPhase = .integrate
         transferCheck = false; practiceFragment = 0; practiceStepRange = nil; selectFullRhythm()
         updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
-        startWithRehearsal()
+        if startPractice(rehearsal: rehearsalEnabled) { showingPreparation = false; showingResults = false }
     }
     func recheckEquipment() {
         isRecheckingEquipment = true
@@ -1157,7 +1179,7 @@ final class Model: ObservableObject {
         gapMetronomeLevel = 0
         practiceStepRange = nil
         selectFullRhythm()
-        if startPractice() {
+        if startPractice(rehearsal: rehearsalEnabled && !isCheckpointAssessment) {
             showingPreparation = false
             showingResults = false
         }
@@ -1188,7 +1210,7 @@ final class Model: ObservableObject {
         // together with audio, score and scheduled notes.
         practiceVisualID = UUID()
         practiceScene = nil
-        beginPractice(calibration: calibrating, rehearsal: practiceIncludesRehearsal)
+        beginPractice(calibration: calibrating)
     }
     func pausePractice() {
         guard practice != nil, !isPracticePaused, !isFinishingPractice else { return }
@@ -1204,7 +1226,7 @@ final class Model: ObservableObject {
         // Reprogramar desde el principio evita mezclar golpes anteriores con un
         // reloj y un acompañamiento cuya fase ya no coinciden tras la pausa.
         practiceVisualID = UUID()
-        beginPractice(calibration: calibrating, rehearsal: practiceIncludesRehearsal)
+        beginPractice(calibration: calibrating)
     }
     func moveToSuggestedExercise() {
         guard let next = exercises.first(where: { $0.title == nextExerciseTitle }) else { return }
@@ -1709,7 +1731,7 @@ final class Model: ObservableObject {
         transferCheck = false
         selectedRepeats = 2
         showingResults = false
-        beginPractice(calibration: false, rehearsal: true)
+        beginPractice(calibration: false, rehearsal: rehearsalEnabled)
     }
     private func returnToFullGroove() {
         guard microLessonStage == .isolating else { return }
@@ -1728,7 +1750,7 @@ final class Model: ObservableObject {
         }
         microLessonStage = .integrating
         showingResults = false
-        beginPractice(calibration: false, rehearsal: true)
+        beginPractice(calibration: false, rehearsal: rehearsalEnabled)
     }
     func startTransferPerformance() {
         guard chosen != nil else { return }
@@ -2059,7 +2081,7 @@ final class Model: ObservableObject {
     }
     private func captureKeyboardKey(_ key: String) {
         guard let nextSound = Model.keyboardMappingSounds.dropFirst(keyboardCapture.count).first else { return }
-        guard keyboardCapture[key] == nil else { keyboardMapMessage = "La tecla (key) ya está asignada. Pulsa otra para (displayName(nextSound))."; return }
+        guard keyboardCapture[key] == nil else { keyboardMapMessage = "La tecla \(key) ya está asignada. Pulsa otra para \(displayName(nextSound))."; return }
         keyboardCapture[key] = nextSound
         let remaining = Model.keyboardMappingSounds.count - keyboardCapture.count
         if remaining == 0 {
@@ -2067,7 +2089,7 @@ final class Model: ObservableObject {
             saveKeyboardMap()
             keyboardMapping = false
             keyboardCapture = [:]
-            keyboardMapMessage = "Teclado guardado. Ya puedes practicar con esas seis teclas."
+            keyboardMapMessage = "Teclado guardado. Ya puedes practicar con esas diez teclas."
         } else if let following = Model.keyboardMappingSounds.dropFirst(keyboardCapture.count).first {
             keyboardMapMessage = "\(displayName(nextSound)): \(key). Quedan \(remaining). Pulsa la tecla para \(displayName(following))."
         }
@@ -2410,7 +2432,7 @@ final class Model: ObservableObject {
         // voces, tempo, duración ni ayudas al pulsar la acción principal.
         if trainingPhase == .discover {
             previewExercise()
-        } else if startPractice(rehearsal: trainingPhase == .integrate && !isCheckpointAssessment) {
+        } else if startPractice(rehearsal: rehearsalEnabled && trainingPhase == .integrate && !isCheckpointAssessment) {
             showingPreparation = false
         }
     }
@@ -2736,105 +2758,6 @@ private struct PracticeHome: View {
 
 #endif
 
-private struct PracticePreview: View {
-    @ObservedObject var model: Model
-    let scene: PracticeScene
-    @Environment(\.accessibilityReduceMotion) private var reducesMotion
-
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [Color(red: 0.025, green: 0.04, blue: 0.09), Color(red: 0.075, green: 0.025, blue: 0.15)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
-            VStack(spacing: 18) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("DEMOSTRACIÓN GUIADA").font(.caption.bold()).foregroundColor(.cyan)
-                        Text(model.currentExerciseTitle).font(.title2.bold())
-                        Text("Observa una vuelta: aquí no se puntúa ningún golpe.").font(.caption).foregroundColor(.white.opacity(0.65))
-                    }
-                    Spacer()
-                    ActionButton("Volver", prominence: .secondary) { model.stopPreview() }
-                    ActionButton("Empezar a tocar", prominence: .primary) {
-                        model.stopPreview()
-                        if model.trainingPhase == .discover { model.setTrainingPhase(.integrate) }
-                        model.startFromPreparation()
-                    }
-                }
-                SpriteView(scene: scene)
-                StagePanel {
-                    HStack(spacing: 5) {
-                        Text("CÓMO USARLO").font(.caption.bold()).foregroundColor(.cyan)
-                        ContextInfoButton(title: "Demostración guiada", detail: "xRoll toca el patrón para que observes los carriles y escuches la relación entre los sonidos. Aquí no tienes que golpear nada ni se registra una puntuación.")
-                    }
-                    Text("Mira qué carril llega a la línea y escucha cómo encajan los golpes. Cuando lo tengas claro, pulsa Empezar a tocar.")
-                        .font(.subheadline).foregroundColor(.white.opacity(0.75))
-                }
-            }
-            .padding(24).foregroundColor(.white)
-        }
-        .onAppear { scene.setReducesMotion(reducesMotion) }
-        .onChange(of: reducesMotion) { scene.setReducesMotion($0) }
-    }
-}
-
-private struct PracticeRun: View {
-    @ObservedObject var model: Model
-    let scene: PracticeScene
-    @Environment(\.accessibilityReduceMotion) private var reducesMotion
-    var body: some View {
-        ZStack {
-            StudioDesign.canvas.ignoresSafeArea()
-            VStack(spacing: 8) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(model.practiceIncludesRehearsal ? (model.isRehearsing ? "JUNTOS · SIN PUNTUAR" : "AHORA TÚ · SIGUE EL RITMO") : "EN DIRECTO").font(.system(size: 9, weight: .bold, design: .rounded)).tracking(1.2).foregroundColor(StudioDesign.accent)
-                            .accessibilityIdentifier("practice.stage")
-                        Text(model.currentExerciseTitle).font(.headline.weight(.semibold)).foregroundColor(StudioDesign.textPrimary).lineLimit(1)
-                    }
-                    Spacer()
-                    Text("\(model.currentPracticeBPM) BPM · \(model.currentPracticeRepeats) vueltas")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundColor(StudioDesign.textSecondary)
-                        .padding(.horizontal, 11).padding(.vertical, 7)
-                        .background(StudioDesign.surfaceRaised, in: Capsule())
-                    ActionButton("Pausar", prominence: .secondary) { model.pausePractice() }
-                }
-                if model.isCalibrationPractice {
-                    Text(model.equipmentCalibrationPrompt).font(.subheadline.weight(.semibold))
-                        .foregroundColor(StudioDesign.accent).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if model.practiceStepRange != nil || !model.isFullRhythmSelection {
-                    Text(model.whaleTargetMessage.isEmpty ? "Tú: \(model.selectedPlayerSounds.map(model.displayName).sorted().joined(separator: " y ")) · gris: acompañamiento" : model.whaleTargetMessage)
-                        .font(.caption.weight(.semibold)).foregroundColor(StudioDesign.regular).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ZStack(alignment: .top) {
-                    SpriteView(scene: scene).id(model.practiceVisualID)
-                    if model.isPracticePaused {
-                        ZStack {
-                            Color.black.opacity(0.68)
-                            VStack(spacing: 14) {
-                                Image(systemName: "pause.circle.fill").font(.system(size: 42)).foregroundColor(StudioDesign.accent)
-                                Text("Práctica en pausa").font(.title2.bold())
-                                Text("Al reanudar, el intento comenzará de nuevo con la cuenta de entrada para mantener audio, notas y puntuación sincronizados.")
-                                    .font(.subheadline).foregroundColor(StudioDesign.textSecondary).multilineTextAlignment(.center).frame(maxWidth: 440)
-                                HStack(spacing: 10) {
-                                    ActionButton("Terminar sesión", prominence: .secondary) { model.leaveActiveScreen() }
-                                    ActionButton("Reanudar desde el inicio", prominence: .primary) { model.resumePractice() }
-                                }
-                            }
-                            .padding(28)
-                            .background(StudioDesign.surfaceRaised.opacity(0.96), in: RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(StudioDesign.accent.opacity(0.22), lineWidth: 1))
-                        }
-                    }
-                }
-                .frame(maxHeight: .infinity)
-            }.padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 8)
-        }.foregroundColor(.white)
-        .onAppear { scene.setReducesMotion(reducesMotion) }
-        .onChange(of: reducesMotion) { scene.setReducesMotion($0) }
-    }
-}
-
 private struct ProgressHome: View {
     @ObservedObject var model: Model
     var body: some View {
@@ -2873,30 +2796,68 @@ private struct ProgressHome: View {
             Text(model.exportMessage).font(.caption).foregroundColor(.white.opacity(0.65))
             StagePanel {
                 HStack(spacing: 5) { Text("HISTORIAL RECIENTE").font(.studioLabel).foregroundColor(StudioDesign.accent); ContextInfoButton(title: "Historial reciente", detail: "Cada fila muestra: nombre del ritmo, tempo, puntuación, estrellas y desviación media en milisegundos. Un valor negativo llegó antes; uno positivo, después.") }
-                if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65)) }
-                else { ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in HStack { Text(model.exercises.first(where: { $0.id == attempt.exerciseID })?.title ?? attempt.exerciseID).frame(maxWidth: .infinity, alignment: .leading).lineLimit(1); Text("\(attempt.bpm) BPM").frame(width: 70, alignment: .leading); Text(String(format: "%.0f %%", attempt.score)).frame(width: 55, alignment: .leading).foregroundColor(attempt.score >= 70 ? StudioDesign.accent : StudioDesign.regular); Text("★ \(attempt.stars)").frame(width: 40, alignment: .leading); Text(attempt.meanOffsetMilliseconds.map { String(format: "%+.0f ms", $0) } ?? "—").font(.caption).foregroundColor(StudioDesign.textSecondary).frame(width: 58, alignment: .trailing) }.padding(.vertical, 4) } }
+                if model.recentAttempts.isEmpty {
+                    Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65))
+                } else {
+                    ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in
+                        attemptRow(attempt)
+                    }
+                }
             }
             Spacer()
         }.foregroundColor(.white).padding(28).frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
+
+    private func attemptRow(_ attempt: PracticeAttempt) -> some View {
+        let title = model.exercises.first(where: { $0.id == attempt.exerciseID })?.title ?? attempt.exerciseID
+        let timing = attempt.meanOffsetMilliseconds.map { String(format: "%+.0f ms", $0) } ?? "—"
+        return HStack {
+            Text(title).frame(maxWidth: .infinity, alignment: .leading).lineLimit(1)
+            Text("\(attempt.bpm) BPM").frame(width: 70, alignment: .leading)
+            Text(String(format: "%.0f %%", attempt.score))
+                .frame(width: 55, alignment: .leading)
+                .foregroundColor(attempt.score >= 70 ? StudioDesign.accent : StudioDesign.regular)
+            Text("★ \(attempt.stars)").frame(width: 40, alignment: .leading)
+            Text(timing).font(.caption).foregroundColor(StudioDesign.textSecondary)
+                .frame(width: 58, alignment: .trailing)
+        }.padding(.vertical, 4)
+    }
 }
 
 private struct ProgressMetric: View {
-    let title: String; let value: String; let detail: String; let tint: Color; let info: String
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+    let info: String
+
     var body: some View {
-        StagePanel { HStack(spacing: 5) { Text(title).font(.studioLabel).foregroundColor(tint); ContextInfoButton(title: title.capitalized, detail: info) }; Text(value).font(.title3.bold()).lineLimit(2); Text(detail).font(.caption2).foregroundColor(StudioDesign.textSecondary) }
+        StagePanel {
+            HStack(spacing: 5) {
+                Text(title).font(.studioLabel).foregroundColor(tint)
+                ContextInfoButton(title: title.capitalized, detail: info)
+            }
+            Text(value).font(.title3.bold()).lineLimit(2)
+            Text(detail).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
     }
 }
 
 private struct DiagnosticList: View {
-    let title: String; let items: [HistoricalDiagnostic]
+    let title: String
+    let items: [HistoricalDiagnostic]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased()).font(.caption2.bold()).foregroundColor(StudioDesign.textMuted)
-            if let item = items.first { Text("\(item.label) · \(Int(item.accuracy.rounded())) %").font(.caption).foregroundColor(StudioDesign.textPrimary); Text(item.timingLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary) }
-            else { Text("Aún sin datos").font(.caption).foregroundColor(StudioDesign.textSecondary) }
+            if let item = items.first {
+                Text("\(item.label) · \(Int(item.accuracy.rounded())) %").font(.caption).foregroundColor(StudioDesign.textPrimary)
+                Text(item.timingLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+            } else {
+                Text("Aún sin datos").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -3034,7 +2995,8 @@ private struct LayoutPresetPreview: View {
 
 private struct MappingHome: View {
     @ObservedObject var model: Model
-    @State private var showsAdvanced = false
+    @Binding var showsAdvanced: Bool
+    let layoutNavigationRequest: UUID?
     @State private var showsBluetooth = false
     var body: some View {
         ZStack {
@@ -3042,6 +3004,7 @@ private struct MappingHome: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 14) {
             Text("Mi equipo").font(.largeTitle.bold())
+            if layoutNavigationRequest != nil { layoutPanel }
             equipmentWizard
             DisclosureGroup(isExpanded: $showsAdvanced) {
             VStack(alignment: .leading, spacing: 14) {
@@ -3065,16 +3028,7 @@ private struct MappingHome: View {
                     if model.mapping { Button("Omitir este sonido") { model.skipMappingSound() }.buttonStyle(.borderless).foregroundColor(.cyan) }
                     Text(model.mapMessage.isEmpty ? "La asignación se guarda al terminar. Puedes omitir sonidos que no tenga tu controlador." : model.mapMessage).font(.caption).foregroundColor(.white.opacity(0.65)).padding(.top, 5)
                 }
-                StagePanel {
-                    Text("Layout de pads").font(.headline)
-                    Text("Pulsa directamente la tarjeta que quieras usar. Las notas físicas no se mueven.").font(.caption).foregroundColor(.white.opacity(0.65))
-                    Text("Entrada activa: \(model.selectedMIDIName)").font(.caption2).foregroundColor(StudioDesign.accent)
-                    LayoutPresetChooser(selection: $model.selectedLayoutPreset, onUse: model.useLayout)
-                    HStack { ActionButton("Aplicar layout seleccionado", prominence: .secondary) { model.applyLayoutPreset() }; ActionButton("Restaurar xRoll Core", prominence: .quiet) { model.restoreCoreLayout() } }
-                    HStack { ActionButton("Importar") { model.importLayout() }; ActionButton("Exportar") { model.exportLayout() } }
-                    Text(model.mapMessage.isEmpty ? "Selecciona arriba tu controlador MIDI antes de aplicar un layout." : model.mapMessage).font(.caption2).foregroundColor(.white.opacity(0.70))
-                    Text("«Restaurar xRoll Core» devuelve la distribución inicial sin cambiar las notas MIDI de tu controlador.").font(.caption2).foregroundColor(.white.opacity(0.58))
-                }
+                if layoutNavigationRequest == nil { layoutPanel }
             }
             // Va debajo de los controles: no se recorta al abrir la app en una
             // ventana estrecha y la rejilla conserva celdas cómodas de tocar.
@@ -3096,6 +3050,19 @@ private struct MappingHome: View {
             .tint(StudioDesign.accent)
         }.foregroundColor(.white).padding(28).frame(maxWidth: 760, alignment: .leading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var layoutPanel: some View {
+        StagePanel {
+            Text("Layout de pads").font(.headline)
+            Text("Pulsa directamente la tarjeta que quieras usar. Las notas físicas no se mueven.").font(.caption).foregroundColor(.white.opacity(0.65))
+            Text("Entrada activa: \(model.selectedMIDIName)").font(.caption2).foregroundColor(StudioDesign.accent)
+            LayoutPresetChooser(selection: $model.selectedLayoutPreset, onUse: model.useLayout)
+            HStack { ActionButton("Aplicar layout seleccionado", prominence: .secondary) { model.applyLayoutPreset() }; ActionButton("Restaurar xRoll Core", prominence: .quiet) { model.restoreCoreLayout() } }
+            HStack { ActionButton("Importar") { model.importLayout() }; ActionButton("Exportar") { model.exportLayout() } }
+            Text(model.mapMessage.isEmpty ? "Selecciona un controlador MIDI en Mi equipo antes de aplicar un layout." : model.mapMessage).font(.caption2).foregroundColor(.white.opacity(0.70))
+            Text("«Restaurar xRoll Core» devuelve la distribución inicial sin cambiar las notas MIDI de tu controlador.").font(.caption2).foregroundColor(.white.opacity(0.58))
         }
     }
 
@@ -3280,6 +3247,11 @@ private struct SettingsHome: View {
                     }
                     StagePanel {
                         Text("Preferencias de práctica").font(.headline)
+                        Group {
+                            Toggle("Escuchar una vuelta antes de tocar", isOn: $model.rehearsalEnabled)
+                            Text("Se recuerda tu elección. Reiniciar o reanudar omite la demostración y mantiene la cuenta de entrada.")
+                                .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                        }
                         Toggle("Metrónomo al comenzar", isOn: $model.metronomeEnabled)
                         Toggle("Loop de acompañamiento al comenzar", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
                         HStack(spacing: 8) {
@@ -3346,11 +3318,55 @@ private struct SettingsHome: View {
     }
 }
 
+private struct MenuNavigationRequest {
+    let destination: String
+    let advancedEquipment: Bool
+}
+
+private final class MenuNavigation: ObservableObject {
+    @Published var isAvailable = false
+    let requests = PassthroughSubject<MenuNavigationRequest, Never>()
+
+    func open(_ destination: String, _ advancedEquipment: Bool = false) {
+        guard isAvailable else { return }
+        requests.send(MenuNavigationRequest(destination: destination, advancedEquipment: advancedEquipment))
+    }
+}
+
+private struct XRollCommands: Commands {
+    @ObservedObject var navigation: MenuNavigation
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("Preferencias…") { navigation.open("settings") }
+                .keyboardShortcut(",", modifiers: .command)
+                .disabled(!navigation.isAvailable)
+        }
+        CommandMenu("Ir") {
+            Button("Inicio") { navigation.open("home") }.keyboardShortcut("1", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Curso") { navigation.open("course") }.keyboardShortcut("2", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Mi equipo") { navigation.open("pads") }.keyboardShortcut("3", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Progreso") { navigation.open("progress") }.keyboardShortcut("4", modifiers: .command).disabled(!navigation.isAvailable)
+            Divider()
+            Button("Redobles") { navigation.open("fills") }.disabled(!navigation.isAvailable)
+        }
+        CommandMenu("Equipo") {
+            Button("Pads y layout…") { navigation.open("pads", true) }.disabled(!navigation.isAvailable)
+            Button("Audio y latencia…") { navigation.open("audio") }.disabled(!navigation.isAvailable)
+            Button("Preparar y calibrar equipo…") { navigation.open("pads") }.disabled(!navigation.isAvailable)
+        }
+    }
+}
+
 private struct ContentView: View {
+    @ObservedObject var menuNavigation: MenuNavigation
     @StateObject private var model = Model()
     @State private var section = "home"
     @State private var sidebarCollapsed = false
     @State private var showsMoreTools = false
+    @State private var showsEquipmentAdvanced = false
+    @State private var layoutNavigationRequest: UUID?
+    @State private var window: NSWindow?
     @State private var showsLaunchBrand = true
     @Environment(\.accessibilityReduceMotion) private var reducesMotion
     var body: some View {
@@ -3365,7 +3381,18 @@ private struct ContentView: View {
                 studioShell.transition(.opacity)
             }
         }
-        .background(WindowResizeSupport())
+        .background(WindowResizeSupport(window: $window))
+        .onChange(of: window) { _ in updateMenuAvailability() }
+        .onChange(of: model.menuNavigationIsAvailable) { _ in updateMenuAvailability() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            if notification.object as? NSWindow === window { updateMenuAvailability() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
+            if notification.object as? NSWindow === window { menuNavigation.isAvailable = false }
+        }
+        .onReceive(menuNavigation.requests) { request in
+            if window?.isKeyWindow == true { navigate(request.destination, request.advancedEquipment) }
+        }
         .frame(minWidth: 960, minHeight: 650)
         .safeAreaInset(edge: .top) {
             if !model.trainingPersistenceError.isEmpty {
@@ -3416,7 +3443,7 @@ private struct ContentView: View {
                 else if section == "home" { OnboardingHome(model: model, showPads: { section = "pads" }) }
                 else if section == "progress" { ProgressHome(model: model) }
                 else if section == "fills" { FillsHome(model: model) }
-                else if section == "pads" { MappingHome(model: model) }
+                else if section == "pads" { MappingHome(model: model, showsAdvanced: $showsEquipmentAdvanced, layoutNavigationRequest: layoutNavigationRequest) }
                 else if section == "audio" { AudioLatencyHome(model: model) }
                 else if section == "settings" { SettingsHome(model: model) }
                 else { PracticeHome(model: model) }
@@ -3424,18 +3451,30 @@ private struct ContentView: View {
         }
     }
     private func nav(_ title: String, _ icon: String, _ id: String) -> some View {
-        Button { model.leaveActiveScreen(); section = id } label: {
+        Button { navigate(id, false) } label: {
             Group { if sidebarCollapsed { Image(systemName: icon).frame(maxWidth: .infinity) } else { Label(title, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading) } }
                 .font(.subheadline.weight(.medium)).padding(.horizontal, sidebarCollapsed ? 2 : 10).padding(.vertical, 8).background(section == id ? StudioDesign.accent.opacity(0.15) : Color.clear).foregroundColor(section == id ? StudioDesign.accent : StudioDesign.textSecondary).clipShape(RoundedRectangle(cornerRadius: 8))
         }.buttonStyle(.plain).help(title)
     }
+    private func navigate(_ destination: String, _ advancedEquipment: Bool) {
+        guard model.menuNavigationIsAvailable else { return }
+        model.leaveActiveScreen()
+        showsEquipmentAdvanced = destination == "pads" && advancedEquipment
+        layoutNavigationRequest = advancedEquipment ? UUID() : nil
+        section = destination
+    }
+    private func updateMenuAvailability() {
+        if window?.isKeyWindow == true { menuNavigation.isAvailable = model.menuNavigationIsAvailable }
+    }
 }
 
 private struct WindowResizeSupport: NSViewRepresentable {
+    @Binding var window: NSWindow?
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
+            if self.window !== window { self.window = window }
             window.styleMask.insert(.resizable)
             window.minSize = NSSize(width: 960, height: 650)
             window.standardWindowButton(.zoomButton)?.isEnabled = true
@@ -3443,6 +3482,12 @@ private struct WindowResizeSupport: NSViewRepresentable {
     }
 }
 
-private struct XRollPadsApp: App { var body: some Scene { WindowGroup("xRoll") { ContentView() } } }
+private struct XRollPadsApp: App {
+    @StateObject private var menuNavigation = MenuNavigation()
+    var body: some Scene {
+        WindowGroup("xRoll") { ContentView(menuNavigation: menuNavigation) }
+            .commands { XRollCommands(navigation: menuNavigation) }
+    }
+}
 
 XRollPadsApp.main()

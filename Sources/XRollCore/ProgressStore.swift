@@ -79,7 +79,10 @@ public struct PracticeAttempt: Codable, Equatable {
     /// Rechaza datos de historial inválidos antes de convertirlos a enteros
     /// SQLite. Un archivo importado debe producir un error, no cerrar la app.
     fileprivate func validateForStorage() throws {
+        // SQLite recibe el identificador como cadena C terminada en cero. Un
+        // NUL intermedio lo truncaría y podría atribuir el intento a otro ritmo.
         guard !exerciseID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !exerciseID.utf8.contains(0),
               timestamp.timeIntervalSince1970.isFinite,
               bpm > 0, Int32(exactly: bpm) != nil,
               score.isFinite, (0...100).contains(score), (0...3).contains(stars),
@@ -195,60 +198,6 @@ public final class ProgressStore {
 
     public enum ExportFormat: String { case csv, json }
 
-    private struct AttemptImportIdentity: Hashable {
-        let exerciseID: String
-        let timestamp: Double
-        let bpm: Int
-        let score: Double
-        let stars: Int
-        let perfect: Int
-        let good: Int
-        let regular: Int
-        let miss: Int
-        let extra: Int
-        let meanOffsetMilliseconds: Double?
-
-        init(_ attempt: PracticeAttempt) {
-            exerciseID = attempt.exerciseID
-            timestamp = attempt.timestamp.timeIntervalSince1970
-            bpm = attempt.bpm
-            score = attempt.score
-            stars = attempt.stars
-            perfect = attempt.perfect
-            good = attempt.good
-            regular = attempt.regular
-            miss = attempt.miss
-            extra = attempt.extra
-            meanOffsetMilliseconds = attempt.meanOffsetMilliseconds
-        }
-
-        init(
-            exerciseID: String,
-            timestamp: Double,
-            bpm: Int,
-            score: Double,
-            stars: Int,
-            perfect: Int,
-            good: Int,
-            regular: Int,
-            miss: Int,
-            extra: Int,
-            meanOffsetMilliseconds: Double?
-        ) {
-            self.exerciseID = exerciseID
-            self.timestamp = timestamp
-            self.bpm = bpm
-            self.score = score
-            self.stars = stars
-            self.perfect = perfect
-            self.good = good
-            self.regular = regular
-            self.miss = miss
-            self.extra = extra
-            self.meanOffsetMilliseconds = meanOffsetMilliseconds
-        }
-    }
-
     public init(url: URL) throws {
         databaseURL = url
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -360,16 +309,17 @@ public final class ProgressStore {
     @discardableResult
     public func importAttempts(_ importedAttempts: [PracticeAttempt]) throws -> Int {
         guard !importedAttempts.isEmpty else { return 0 }
-        var knownAttempts = try existingAttemptImportIdentities()
         try execute("SAVEPOINT import_progress")
         do {
+            let existing = try prepareImportCandidates()
+            defer { sqlite3_finalize(existing) }
             let statement = try prepareAttemptInsert()
             defer { sqlite3_finalize(statement) }
             let encoder = JSONEncoder()
             var importedCount = 0
             for attempt in importedAttempts {
                 try attempt.validateForStorage()
-                guard knownAttempts.insert(AttemptImportIdentity(attempt)).inserted else { continue }
+                guard try !containsAttempt(attempt, using: existing) else { continue }
                 try insertAttempt(attempt, using: statement, encoder: encoder)
                 importedCount += 1
             }
@@ -382,29 +332,29 @@ public final class ProgressStore {
         }
     }
 
-    private func existingAttemptImportIdentities() throws -> Set<AttemptImportIdentity> {
-        let statement = try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms FROM attempts")
-        defer { sqlite3_finalize(statement) }
-        var result = Set<AttemptImportIdentity>()
+    private func prepareImportCandidates() throws -> OpaquePointer? {
+        try prepare("SELECT exercise_id, timestamp, bpm, score, stars, perfect, good, regular, miss, extra, mean_offset_ms, sound_stats_json, hit_records_json, training_context_json FROM attempts WHERE exercise_id = ? AND timestamp = ? AND bpm = ? AND score = ? AND stars = ? AND perfect = ? AND good = ? AND regular = ? AND miss = ? AND extra = ? AND mean_offset_ms IS ?")
+    }
+
+    /// El resumen localiza candidatos con el índice; solo el intento completo
+    /// identifica un duplicado, pues su contexto puede acreditar otro progreso.
+    private func containsAttempt(_ attempt: PracticeAttempt, using statement: OpaquePointer?) throws -> Bool {
+        sqlite3_reset(statement)
+        sqlite3_clear_bindings(statement)
+        sqlite3_bind_text(statement, 1, attempt.exerciseID, -1, sqliteTransient)
+        sqlite3_bind_double(statement, 2, attempt.timestamp.timeIntervalSince1970)
+        sqlite3_bind_int(statement, 3, Int32(attempt.bpm))
+        sqlite3_bind_double(statement, 4, attempt.score)
+        for (offset, value) in [attempt.stars, attempt.perfect, attempt.good, attempt.regular, attempt.miss, attempt.extra].enumerated() {
+            sqlite3_bind_int(statement, Int32(5 + offset), Int32(value))
+        }
+        if let offset = attempt.meanOffsetMilliseconds { sqlite3_bind_double(statement, 11, offset) }
+        else { sqlite3_bind_null(statement, 11) }
         while true {
             let status = sqlite3_step(statement)
-            if status == SQLITE_DONE { return result }
-            guard status == SQLITE_ROW, let exerciseID = sqlite3_column_text(statement, 0) else { throw error() }
-            result.insert(AttemptImportIdentity(
-                exerciseID: String(cString: exerciseID),
-                timestamp: sqlite3_column_double(statement, 1),
-                bpm: Int(sqlite3_column_int(statement, 2)),
-                score: sqlite3_column_double(statement, 3),
-                stars: Int(sqlite3_column_int(statement, 4)),
-                perfect: Int(sqlite3_column_int(statement, 5)),
-                good: Int(sqlite3_column_int(statement, 6)),
-                regular: Int(sqlite3_column_int(statement, 7)),
-                miss: Int(sqlite3_column_int(statement, 8)),
-                extra: Int(sqlite3_column_int(statement, 9)),
-                meanOffsetMilliseconds: sqlite3_column_type(statement, 10) == SQLITE_NULL
-                    ? nil
-                    : sqlite3_column_double(statement, 10)
-            ))
+            if status == SQLITE_DONE { return false }
+            guard status == SQLITE_ROW else { throw error() }
+            if readAttempt(statement) == attempt { return true }
         }
     }
 
@@ -653,7 +603,7 @@ public final class ProgressStore {
         defer { try? file.close() }
         try execute("SAVEPOINT import_json")
         do {
-            let existing = try prepare("SELECT 1 FROM attempts WHERE exercise_id = ? AND timestamp = ? AND bpm = ? AND score = ? AND stars = ? AND perfect = ? AND good = ? AND regular = ? AND miss = ? AND extra = ? AND mean_offset_ms IS ? LIMIT 1")
+            let existing = try prepareImportCandidates()
             defer { sqlite3_finalize(existing) }
             let insert = try prepareAttemptInsert()
             defer { sqlite3_finalize(insert) }
@@ -663,20 +613,7 @@ public final class ProgressStore {
             try ProgressJSONStream.read(file) { data in
                 let attempt = try decoder.decode(PracticeAttempt.self, from: data)
                 try attempt.validateForStorage()
-                sqlite3_reset(existing)
-                sqlite3_clear_bindings(existing)
-                sqlite3_bind_text(existing, 1, attempt.exerciseID, -1, sqliteTransient)
-                sqlite3_bind_double(existing, 2, attempt.timestamp.timeIntervalSince1970)
-                sqlite3_bind_int(existing, 3, Int32(attempt.bpm))
-                sqlite3_bind_double(existing, 4, attempt.score)
-                for (offset, value) in [attempt.stars, attempt.perfect, attempt.good, attempt.regular, attempt.miss, attempt.extra].enumerated() {
-                    sqlite3_bind_int(existing, Int32(5 + offset), Int32(value))
-                }
-                if let offset = attempt.meanOffsetMilliseconds { sqlite3_bind_double(existing, 11, offset) }
-                else { sqlite3_bind_null(existing, 11) }
-                let status = sqlite3_step(existing)
-                guard status == SQLITE_DONE || status == SQLITE_ROW else { throw error() }
-                if status == SQLITE_DONE {
+                if try !containsAttempt(attempt, using: existing) {
                     try insertAttempt(attempt, using: insert, encoder: encoder)
                     count += 1
                 }

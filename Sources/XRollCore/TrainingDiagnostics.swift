@@ -229,8 +229,7 @@ public enum CoachingAnalyzer {
             if early >= minimumIssues && early * 2 >= offsets.count { issue = .early; count = early }
             else if late >= minimumIssues && late * 2 >= offsets.count { issue = .late; count = late }
             else { return nil }
-            let sorted = offsets.sorted()
-            let median = sorted[sorted.count / 2]
+            let median = CalibrationEstimator.median(offsets)
             return CoachingRecommendation(sound: key.sound, step: key.step, issue: issue, opportunities: records.count, issueCount: count, medianOffsetMilliseconds: median)
         }
         return candidates.sorted { lhs, rhs in
@@ -299,6 +298,9 @@ public struct CoachingComparison: Equatable {
             if rightMisses < leftMisses { outcome = .improved }
             else if rightMisses > leftMisses { outcome = .declined }
             else { outcome = .similar }
+        } else if leftOffsets.count < minimumOpportunities || rightOffsets.count < minimumOpportunities {
+            // Las oportunidades falladas no aportan un desfase comparable.
+            outcome = .insufficientEvidence
         } else {
             let missChange = rightMisses - leftMisses
             let offsetChange = (rightMedian ?? 0) - (leftMedian ?? 0)
@@ -317,7 +319,7 @@ public struct CoachingComparison: Equatable {
 
     private static func median(_ sorted: [Double]) -> Double? {
         guard !sorted.isEmpty else { return nil }
-        return sorted[sorted.count / 2]
+        return CalibrationEstimator.median(sorted)
     }
 }
 
@@ -395,7 +397,7 @@ public enum PulseDriftAnalyzer {
         let points = grouped.keys.sorted().compactMap { pulseIndex -> PulseDriftPoint? in
             guard let values = grouped[pulseIndex]?.map({ $0.1 }).sorted(), !values.isEmpty else { return nil }
             let bar = pulseIndex / 4, beat = pulseIndex % 4
-            return PulseDriftPoint(pulseIndex: pulseIndex, medianOffsetMilliseconds: values[values.count / 2],
+            return PulseDriftPoint(pulseIndex: pulseIndex, medianOffsetMilliseconds: CalibrationEstimator.median(values),
                                    metronomeAudible: GapMetronomePattern.isAudible(bar: bar, beat: beat, level: gapLevel))
         }
         let silent = points.filter { !$0.metronomeAudible }
@@ -527,7 +529,7 @@ public enum HistoricalDiagnosticsBuilder {
                 }
                 return 60_000 / Double(attempt.bpm) * 4 * Double(bars)
             }
-            for (index, record) in records.enumerated() {
+            for record in records {
                 add(record, label: record.expectedSound, to: &sounds)
                 add(record, label: record.hand.map { "Mano \($0)" }, to: &hands)
                 add(record, label: record.role ?? ((record.target?.type == .role) ? record.target?.value : nil), to: &roles)
@@ -545,15 +547,24 @@ public enum HistoricalDiagnosticsBuilder {
                    let loop = Int(exactly: floor(expectedTime / patternMilliseconds)), loop < Int.max {
                     add(record, label: "Vuelta \(loop + 1)", to: &loops)
                 }
-                if let next = records.dropFirst(index + 1).first(where: { $0.expectedSound != nil })?.expectedSound,
-                   let sound = record.expectedSound { add(record, label: "\(sound) → \(next)", to: &transitions) }
+            }
+            // Recorremos hacia atrás para recordar el siguiente objetivo. Los
+            // extras no tienen objetivo y se saltan, sin volver a explorar la
+            // cola completa por cada golpe de un historial largo.
+            var nextSound: String?
+            for record in records.reversed() {
+                guard let sound = record.expectedSound else { continue }
+                if let nextSound { add(record, label: "\(sound) → \(nextSound)", to: &transitions) }
+                nextSound = sound
             }
         }
         func result(_ values: [String: Accumulator]) -> [HistoricalDiagnostic] {
             values.map { label, value in
-                let ordered = value.offsets.sorted()
+                // Con una cantidad par hay que promediar los dos valores
+                // centrales: elegir solo el superior puede inventar un retraso.
+                let median = value.offsets.isEmpty ? nil : CalibrationEstimator.median(value.offsets)
                 return HistoricalDiagnostic(label: label, expected: value.expected, successful: value.successful, missed: value.missed,
-                                            medianOffsetMilliseconds: ordered.isEmpty ? nil : ordered[ordered.count / 2])
+                                            medianOffsetMilliseconds: median)
             }.sorted { lhs, rhs in lhs.accuracy == rhs.accuracy ? lhs.label < rhs.label : lhs.accuracy < rhs.accuracy }
         }
         return HistoricalDiagnostics(bySound: result(sounds), byHand: result(hands), byRole: result(roles), byPad: result(pads), bySubdivision: result(subdivisions), byLoop: result(loops), byTransition: result(transitions))
@@ -634,7 +645,7 @@ public enum MasteryEvaluator {
         func passes(_ attempt: PracticeAttempt) -> Bool {
             guard attempt.score >= 85 else { return false }
             let offsets = attempt.hitRecords.compactMap(\.offsetMilliseconds).map(abs).sorted()
-            return offsets.isEmpty || offsets[offsets.count / 2] <= 20
+            return offsets.isEmpty || CalibrationEstimator.median(offsets) <= 20
         }
         let relevant = attempts.filter {
             $0.exerciseID == exercise.id && $0.trainingContext.evaluationScope == .fullPattern

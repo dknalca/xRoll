@@ -3,9 +3,9 @@
 La integración continua compila y prueba los cambios de `main` y los pull
 requests, incluida una compilación genérica iOS sin firma. Al publicar una
 etiqueta `v*`, GitHub Actions vuelve a ejecutar los chequeos, valida los recursos
-y compila iOS antes de crear un borrador de release con notas generadas;
-la distribución firmada de macOS y el IPA de iOS siguen siendo operaciones
-locales.
+y compila iOS antes de crear un borrador de release con notas generadas. El bundle
+de macOS se distribuye deliberadamente sin firma ni notarización (D-059). El IPA
+de iOS y sus requisitos de instalación son independientes de Gatekeeper.
 
 ## Publicación de una versión
 
@@ -16,26 +16,34 @@ locales.
 3. Comprueba que toda muestra nueva está anotada en
    `Resources/Loops/ATTRIBUTION.md` y que su licencia permite la distribución.
 4. Integra el commit de release en `main`; después crea y sube una etiqueta,
-   por ejemplo `git tag -a v0.1.0 -m 'xRoll 0.1.0'` y
-   `git push origin v0.1.0`.
+   por ejemplo `git tag -a v0.4.0 -m 'xRoll 0.4.0'` y
+   `git push origin v0.4.0`.
 5. Revisa y publica el borrador de GitHub Actions; adjunta `dist/xRoll.app` o su
    archivo comprimido cuando corresponda.
 
-## Firma y notarización
+## Primera apertura de la app macOS sin firma
 
-Para entregar la aplicación sin avisos de Gatekeeper hace falta una cuenta
-Apple Developer y un certificado `Developer ID Application`. No se guarda
-ninguna identidad, contraseña ni token en este repositorio.
+Al no estar firmada ni notarizada, Gatekeeper pedirá autorizar xRoll la primera
+vez. Autoriza solo esta aplicación; no desactives Gatekeeper globalmente.
 
-Con la identidad instalada en el llavero, firma el bundle local:
+En macOS 12:
 
-```sh
-codesign --force --deep --options runtime --sign 'Developer ID Application: TU NOMBRE' dist/xRoll.app
-ditto -c -k --sequesterRsrc --keepParent dist/xRoll.app dist/xRoll.zip
-xcrun notarytool submit dist/xRoll.zip --keychain-profile xroll-notary --wait
-xcrun stapler staple dist/xRoll.app
-```
+1. En Finder, localiza `xRoll.app` y haz Control-clic sobre la aplicación.
+2. Elige **Abrir** y vuelve a pulsar **Abrir** en el aviso de Gatekeeper.
+3. Si no aparece esa opción, intenta abrirla una vez; después ve a **Preferencias
+   del Sistema → Seguridad y privacidad → General** y pulsa **Abrir igualmente**
+   para xRoll. Confirma la acción en el diálogo siguiente.
 
-La cuenta de Apple y el perfil `xroll-notary` solo se configuran en el Mac que
-publica la versión. No se almacenan credenciales de firma o notarización en el
-repositorio.
+En versiones recientes de macOS, la opción equivalente está en **Ajustes del
+Sistema → Privacidad y seguridad → Seguridad → Abrir igualmente**. Puede ser
+necesario intentar abrir la app antes de que aparezca el botón.
+
+Una vez autorizada esa copia de xRoll, ábrela normalmente desde Finder. Si se
+descarga una versión nueva, macOS puede volver a solicitar autorización.
+
+## Distribución de iOS
+
+La compilación genérica iOS de CI no lleva firma. El IPA de sideloading se genera
+localmente con `scripts/build-ios-ipa.sh` y su firma ad-hoc se reemplaza al
+instalarlo con Sideloadly/AltStore. Este flujo corresponde al requisito de
+instalación de iOS; no implica firmar ni notarizar la app macOS.

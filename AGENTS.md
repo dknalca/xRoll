@@ -9,6 +9,7 @@
 - La práctica táctil iOS usa solo los sonidos activos del ejercicio en una rejilla virtual compacta (D-048). Equipo y el mapeo MIDI conservan las 16 posiciones físicas; no apliques la compactación al controlador real.
 - La autopista de práctica también dibuja solo los sonidos presentes en la timeline y añade avisos de entrada, cierre y última vuelta (D-052); no reserva carriles para sonidos ausentes.
 - Inicio prioriza una práctica guiada y Equipo muestra solo el paso pendiente. Personalización y controles técnicos empiezan plegados; conserva su acceso explícito y las elecciones de preparación (D-057).
+- La app macOS se distribuye intencionalmente sin firma ni notarización (D-059). No recomiendes firmarla ni notarizarla; remite a las instrucciones de autorización puntual de Gatekeeper. La firma de instalación iOS es un flujo distinto.
 
 ## Build y pruebas (desde la raíz)
 

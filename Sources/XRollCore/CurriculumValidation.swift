@@ -32,10 +32,21 @@ public enum CurriculumValidator {
             guard let metadata = exercise.metadata else { throw CurriculumValidationError.missingMetadata(exercise.id) }
             return metadata
         }
+        try validateUniqueIDs(metadata)
+        try validateChapters(metadata)
+        try validateKnownPrerequisites(metadata)
+        try validateFastStart(metadata)
+        try validateAcyclicPrerequisites(metadata)
+    }
+
+    private static func validateUniqueIDs(_ metadata: [MIDIExerciseMetadata]) throws {
         var identifiers = Set<String>()
         for item in metadata {
             guard identifiers.insert(item.id).inserted else { throw CurriculumValidationError.duplicateID(item.id) }
         }
+    }
+
+    private static func validateChapters(_ metadata: [MIDIExerciseMetadata]) throws {
         for (_, chapter) in Dictionary(grouping: metadata, by: \.chapter) {
             let positions = chapter.map(\.position).sorted()
             guard positions == Array(1...chapter.count) else {
@@ -50,15 +61,23 @@ public enum CurriculumValidator {
                 throw CurriculumValidationError.checkpointNotLast(chapter: chapter[0].chapter)
             }
         }
+    }
+
+    private static func validateKnownPrerequisites(_ metadata: [MIDIExerciseMetadata]) throws {
         let knownIDs = Set(metadata.map(\.id))
         for item in metadata {
             for prerequisite in item.prerequisites where !knownIDs.contains(prerequisite) {
                 throw CurriculumValidationError.unknownPrerequisite(exerciseID: item.id, prerequisiteID: prerequisite)
             }
         }
+    }
+
+    private static func validateFastStart(_ metadata: [MIDIExerciseMetadata]) throws {
         let fastStartCount = metadata.filter { $0.flags.contains("fast-start") }.count
         guard fastStartCount == 1 else { throw CurriculumValidationError.invalidFastStartCount(fastStartCount) }
+    }
 
+    private static func validateAcyclicPrerequisites(_ metadata: [MIDIExerciseMetadata]) throws {
         let prerequisites = Dictionary(uniqueKeysWithValues: metadata.map { ($0.id, $0.prerequisites) })
         var visiting = Set<String>()
         var visited = Set<String>()

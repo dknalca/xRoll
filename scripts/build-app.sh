@@ -32,7 +32,7 @@ cat > "$output/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>xRoll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.3.0</string>
+  <key>CFBundleShortVersionString</key><string>0.4.0</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSBluetoothAlwaysUsageDescription</key><string>xRoll usa Bluetooth para buscar y conectar tus pads MIDI inalámbricos.</string>
 </dict></plist>

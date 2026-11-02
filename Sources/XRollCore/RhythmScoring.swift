@@ -10,6 +10,19 @@ public struct ScheduledExerciseNote: Equatable {
     public let timeMilliseconds: Double
 }
 
+/// Duraciones musicales sin expandir ni ordenar las notas de cada vuelta.
+struct ExerciseTiming {
+    let stepDurationMilliseconds: Double
+    let barDurationMilliseconds: Double
+    let patternDurationMilliseconds: Double
+
+    init(exercise: Exercise) {
+        stepDurationMilliseconds = 60_000 / Double(exercise.bpm) * 4 / Double(exercise.grid)
+        barDurationMilliseconds = stepDurationMilliseconds * Double(exercise.grid)
+        patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
+    }
+}
+
 public struct ExerciseTimeline: Equatable {
     public let stepDurationMilliseconds: Double
     /// Duración de un compás. La escena usa este valor para mostrar una sola
@@ -20,31 +33,53 @@ public struct ExerciseTimeline: Equatable {
     public let notes: [ScheduledExerciseNote]
 
     public init(exercise: Exercise) {
-        stepDurationMilliseconds = 60_000 / Double(exercise.bpm) * 4 / Double(exercise.grid)
-        barDurationMilliseconds = stepDurationMilliseconds * Double(exercise.grid)
-        patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
+        // El MIDI guarda posiciones musicales; la sesión necesita instantes en
+        // milisegundos para comparar los golpes con cada vuelta del patrón.
+        let timing = ExerciseTiming(exercise: exercise)
+        stepDurationMilliseconds = timing.stepDurationMilliseconds
+        barDurationMilliseconds = timing.barDurationMilliseconds
+        patternDurationMilliseconds = timing.patternDurationMilliseconds
         bars = exercise.bars
 
-        var scheduled: [ScheduledExerciseNote] = []
+        guard exercise.repeats != 0 else { notes = []; return }
         let totalSteps = exercise.bars * exercise.grid
+        let pattern = exercise.notes.enumerated().map { noteIndex, note in
+            let shiftedStep = (note.step + exercise.offset) % totalSteps
+            return ScheduledExerciseNote(
+                index: noteIndex,
+                step: shiftedStep,
+                sound: note.sound,
+                hand: note.hand,
+                target: note.target,
+                velocity: note.velocity,
+                timeMilliseconds: Double(shiftedStep) * timing.stepDurationMilliseconds
+            )
+        }.sorted {
+            if $0.timeMilliseconds == $1.timeMilliseconds { return $0.index < $1.index }
+            return $0.timeMilliseconds < $1.timeMilliseconds
+        }
+        if exercise.repeats == 1 { notes = pattern; return }
+
+        // Las notas validadas quedan dentro de una frase. Cada vuelta empieza
+        // después de la anterior: basta ordenar el patrón una vez y expandirlo.
+        var scheduled: [ScheduledExerciseNote] = []
+        scheduled.reserveCapacity(exercise.notes.count * exercise.repeats)
         for repeatIndex in 0..<exercise.repeats {
-            for (noteIndex, note) in exercise.notes.enumerated() {
-                let shiftedStep = (note.step + exercise.offset) % totalSteps
+            let indexOffset = repeatIndex * exercise.notes.count
+            let timeOffset = Double(repeatIndex) * patternDurationMilliseconds
+            for note in pattern {
                 scheduled.append(ScheduledExerciseNote(
-                    index: repeatIndex * exercise.notes.count + noteIndex,
-                    step: shiftedStep,
+                    index: indexOffset + note.index,
+                    step: note.step,
                     sound: note.sound,
                     hand: note.hand,
                     target: note.target,
                     velocity: note.velocity,
-                    timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(shiftedStep) * stepDurationMilliseconds
+                    timeMilliseconds: timeOffset + note.timeMilliseconds
                 ))
             }
         }
-        notes = scheduled.sorted {
-            if $0.timeMilliseconds == $1.timeMilliseconds { return $0.index < $1.index }
-            return $0.timeMilliseconds < $1.timeMilliseconds
-        }
+        notes = scheduled
     }
 
     /// Devuelve posiciones contiguas de la línea temporal sin recorrer notas
@@ -201,9 +236,8 @@ public enum RhythmJudgement: String, Codable, Equatable {
     public var value: Double {
         switch self {
         case .perfect: return 1
-        // A regular hit is still a correctly placed hit. It should encourage a
-        // beginner to improve timing, not make a mostly correct pattern feel
-        // like a failure.
+        // Un golpe Regular aún cuenta: anima a mejorar sin tratar como fallo
+        // un patrón que se ha tocado mayoritariamente en su sitio.
         case .good: return 0.85
         case .regular: return 0.7
         case .miss, .extra: return 0
@@ -377,6 +411,8 @@ final class IncrementalRhythmScorer {
     }
 
     private func rescoreAndReturnLatestHit(_ hit: TimedPadHit, inputIndex: Int) -> ScoredPadHit {
+        // Si un evento llega tarde a la cola con un hostTime anterior, rehacemos
+        // las asociaciones en orden temporal para conservar el resultado batch.
         let (_, indexed) = RhythmScorer.scoreIndexed(
             timeline: timeline,
             bpm: bpm,
@@ -509,8 +545,8 @@ public enum RhythmScorer {
 
     static func makeScore(timeline: ExerciseTimeline, results: [ScoredPadHit], misses: [ScheduledExerciseNote]) -> ExerciseScore {
         let earned = results.reduce(0) { $0 + $1.judgement.value }
-        // Extras must matter, but a single accidental tap should not outweigh
-        // the credit earned by a valid, if loose, hit.
+        // Un toque extra penaliza, pero no debe anular por sí solo el crédito de
+        // un golpe válido aunque tenga poca precisión.
         let penalty = Double(results.filter { $0.judgement == .extra }.count) * 0.25
         let possible = Double(timeline.notes.count)
         let percentage = possible == 0 ? 0 : min(100, max(0, (earned - penalty) / possible * 100))
