@@ -14,7 +14,11 @@ while index < arguments.count {
     case "--exercise" where index + 1 < arguments.count:
         filter.exerciseID = arguments[index + 1]; index += 2
     case "--minimum-score" where index + 1 < arguments.count:
-        filter.minimumScore = Double(arguments[index + 1]); index += 2
+        guard let score = Double(arguments[index + 1]), score.isFinite, (0...100).contains(score) else {
+            fputs("--minimum-score requiere un porcentaje entre 0 y 100.\n", stderr)
+            exit(2)
+        }
+        filter.minimumScore = score; index += 2
     default:
         printUsage(); exit(2)
     }
@@ -25,12 +29,13 @@ let database = appSupport.appendingPathComponent("xRoll/progress.sqlite")
 let output = URL(fileURLWithPath: path).standardizedFileURL
 do {
     let store = try ProgressStore(url: database)
+    let count: Int
     switch output.pathExtension.lowercased() {
-    case "csv": try store.exportCSV(to: output, filter: filter)
-    case "json": try store.exportJSON(to: output, filter: filter)
+    case "csv": count = try store.exportCSV(to: output, filter: filter)
+    case "json": count = try store.exportJSON(to: output, filter: filter)
     default: print("El archivo debe terminar en .csv o .json."); exit(2)
     }
-    print("Progreso exportado en \(output.path)")
+    print("\(count == 1 ? "Se exportó 1 intento" : "Se exportaron \(count) intentos") en \(output.path)")
 } catch {
     fputs("No se pudo exportar: \(error.localizedDescription)\n", stderr)
     exit(1)

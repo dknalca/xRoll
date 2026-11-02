@@ -6,8 +6,6 @@ Estas ilustraciones versionadas resumen las pantallas del flujo. Los textos y
 colores siguen la interfaz actual; no contienen datos de usuario ni estado de
 un dispositivo concreto.
 
-![Pantalla de inicio real de xRoll](assets/xroll-home.png)
-
 ![Preparación](assets/preparation.svg)
 
 ![Práctica](assets/practice.svg)
@@ -18,13 +16,65 @@ un dispositivo concreto.
 
 ## Primera sesión
 
-1. Abre `dist/xRoll.app` o ejecuta `swift run xroll-pads` desde la raíz.
-2. Conecta el M-Vave antes de abrir la aplicación. Si no aparece, usa
-   **Pads y layout** para elegir la entrada y asignar los sonidos que
-   tenga tu controlador; puedes omitir los que no uses.
-3. En **Curso**, elige un bloque y un ejercicio. Ajusta BPM y vueltas si hace falta.
-4. Usa **Escuchar y colocar** para oír el patrón. Después pulsa
-   **Empezar práctica**. Hay dos compases para prepararse.
+1. En macOS, abre `dist/xRoll.app`. El bundle se distribuye sin firma: si
+   Gatekeeper lo bloquea, Control-clic en Finder → **Abrir** → **Abrir**. Si esa
+   opción no aparece, intenta abrirlo una vez y autorízalo en **Seguridad y
+   privacidad → General → Abrir igualmente**. En macOS reciente usa
+   **Ajustes del Sistema → Privacidad y seguridad**. Autoriza solo xRoll; no
+   desactives Gatekeeper. También puedes ejecutar `swift run xroll-pads` desde la raíz.
+2. En **Inicio**, verás el próximo ritmo y lo que vas a aprender. Si falta
+   configuración, pulsa **Preparar mi equipo**.
+3. Sigue el paso visible: prueba un sonido y pulsa **Lo escucho**; después
+   comprueba los pads. Puedes usar teclado en Mac o pantalla en iPhone/iPad.
+   Con un controlador, reconoce sus 16 posiciones siguiendo la indicación.
+4. Pulsa **Empezar ajuste guiado** y toca al ritmo del clic para calibrar. Si la
+   ruta ya está preparada, la app omite los pasos resueltos.
+   En Mac, la instrucción indica qué tecla usar y permanece visible durante el ajuste.
+5. Pulsa **Vamos a tocar**: el ritmo completo, el tempo y las ayudas ya están
+   preparados. Empieza tras la cuenta de entrada, sin demostración obligatoria.
+
+**Escuchar una vuelta antes de tocar** permite activar la referencia inicial en
+Preparación o en **Preferencias** (Mac) / **Opciones** (iOS). Empieza apagada y
+recuerda tu elección. Al repetir, reiniciar o reanudar no vuelve a sonar la
+demostración: solo se mantiene la cuenta de entrada. Para escucharla una sola vez,
+usa **Escuchar demostración** o **Escuchar y tocar una vuelta juntos**.
+
+**Personalizar mi práctica** conserva los controles de tempo, voces, duración y
+fases, cerrados inicialmente. **Más herramientas** reúne otras rutinas; **Opciones
+avanzadas** guarda layouts, mapas y ajustes técnicos. Siguen disponibles cuando
+quieras investigarlos. Desde **Curso** puedes elegir otra lección y abrir su
+propia preparación; las opciones que elijas allí se respetan al empezar.
+
+En macOS, la barra de menús ofrece **xRoll → Preferencias…** (⌘,), **Equipo →
+Pads y layout…** y **Equipo → Audio y latencia…**. El menú **Ir** abre Inicio,
+Curso, Mi equipo y Progreso con ⌘1–⌘4. Estos accesos se desactivan durante una
+práctica o demostración para no interrumpirla; termina o sal de ella para usarlos.
+
+## Estaciones y retos finales
+
+El curso tiene quince estaciones. Cada una contiene niveles y un reto final que
+reúne sus ritmos. Al aprobar un nivel de la estación actual con patrón completo y al
+menos 70 %, pulsa **Continuar**; al llegar al reto, pulsa **Preparar reto final**.
+Su preparación usa el tempo de aprendizaje y el ritmo completo.
+
+Al completar una estación aparece una celebración con las estrellas del intento y
+**Siguiente parada**, que abre la primera estación pendiente. El progreso anterior
+se conserva. Puedes abrir otra estación para explorar o repetir un nivel conocido.
+El mapa, los textos y las acciones son comunes en Mac e iPhone.
+
+### Jazz básico e intermedio
+
+**Jazz básico** tiene ocho lecciones: ride de swing, bombo, acompañamiento de
+caja/aro, diálogo y fill ternario. **Jazz intermedio** tiene doce y desarrolla
+charles en dos y cuatro, comping, aperturas, silencios, fills y trading fours.
+Cada curso termina con su propio reto de estación y conserva el avance al 70 %.
+
+### Tocar en la pantalla del iPhone o iPad
+
+Sin MIDI aparecen solo los sonidos del ejercicio, con botones más grandes y
+nombres del kit. Por ejemplo, bombo y caja requieren dos botones. El panel se
+adapta al girar y los botones permanecen fijos durante toda la frase. En Equipo
+puedes seguir consultando la rejilla física completa del layout.
 
 ## Redobles y transiciones
 
@@ -41,7 +91,7 @@ En Preparación elige la fase que necesitas:
 - **Aislar:** al iniciar la práctica reduce el tempo 20 %, usa dos vueltas y
   trabaja una voz.
 - **Integrar:** devuelve el patrón completo a su contexto.
-- **Transferir:** acompaña el charles sin verlo ni puntuarlo.
+- **Transferir:** toca el patrón completo sin guía visual.
 
 El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
 3+1 compases, 2+2 o sólo un pulso ancla. Empieza siempre por guía total.
@@ -50,15 +100,40 @@ El selector **Gap Metronome** retira la claqueta después de la cuenta inicial:
 
 **Calentamiento recomendado** selecciona un nivel nuevo o un resultado bajo.
 Al terminar, xRoll guarda el porcentaje, estrellas, juicios, desfase medio y
-estadísticas por sonido. **Corregir sonido** abre una práctica corta de la voz
-con menor acierto; Ghost Coach explica la prioridad.
+estadísticas por sonido. Si aún falta superar el ritmo, la acción principal es
+repetirlo; **Practicar la parte difícil** queda como alternativa opcional y
+menos destacada.
+El rescate mantiene el compás de la célula difícil (o dos si cruza una barra),
+sin obligarte a esperar toda una frase larga entre repeticiones. Si has activado
+la referencia inicial, primero puedes escucharla; después practica la célula con acompañamiento. Al terminar,
+**Volver al groove completo** recupera el patrón y tempo anteriores con una
+cuenta de entrada clara. El curso solo se acredita con el patrón completo.
+En una lección pendiente del recorrido, la app prepara el tempo que permite
+avanzar. Si cuesta, **Reintentar** activa la guía completa y baja ligeramente el
+tempo en una práctica más corta. Cuando mejora, **Continuar** acerca el mismo
+ejercicio a su objetivo en pasos de dos o cuatro BPM. No tienes que elegir el
+tipo de apoyo; el ritmo solo se supera al cumplir su tempo y el 70 %.
 El gráfico representa, en orden cronológico, los 20 intentos más recientes del
 ejercicio elegido.
 
 Las ayudas cambian solo la guía visual: incluso con ayuda **Reducida**, todas
-las notas del ritmo completo siguen siendo objetivos puntuables. Los intentos
-por voces, fragmento o transferencia se guardan como práctica parcial y no
-desbloquean el curso.
+las notas del ritmo completo siguen siendo objetivos puntuables. Puedes
+seleccionar cualquier ejercicio y tempo del curso. La acción guiada usa el tempo
+de referencia de la lección; para acreditarla, toca el ritmo completo y alcanza
+el 70 %. En las rutas de género ese tempo es fijo y musical (por ejemplo, 90 BPM
+en Hip-hop): los premios suben precisión, duración y repeticiones, no velocidad.
+En el tronco técnico los retos de velocidad siguen siendo opcionales. Los premios
+de velocidad anteriores al cambio aparecen como «Histórico». Si ya conoces un
+bloque, puedes hacer su prueba de ritmo completo sin tocar cada ejercicio básico;
+una prueba adelantada queda guardada y cuenta cuando la ruta previa esté
+superada. Los intentos por voces, fragmento o corrección no acreditan el curso.
+En el recorrido, aprobar con una estrella al 70 % ya permite continuar; los retos
+de velocidad permanecen disponibles en Preparación.
+
+En cada ejercicio se muestra el premio de tempo más alto conseguido. Cuando ya
+se han ganado trofeos, estos sustituyen a las estrellas en la fila. Los ejercicios
+MIDI comunitarios se importan desde **Curso → MIDI importados**; su formato y
+límites están en [COMMUNITY_MIDI.md](COMMUNITY_MIDI.md).
 
 Para conservar una copia legible de los datos:
 
@@ -67,7 +142,12 @@ swift run xroll-export-progress ~/Desktop/progreso.csv
 swift run xroll-export-progress ~/Desktop/progreso.json --exercise hh_04 --minimum-score 75
 ```
 
-La exportación no altera los datos locales.
+La exportación incluye todos los intentos del filtro elegido y muestra cuántos
+se han guardado. No hay un límite de 100.000 intentos y la interfaz sigue
+disponible mientras se prepara la copia. Si falla, conserva el archivo anterior.
+En iOS puedes compartir el resultado e importar JSON desde Progreso; al repetir
+una importación se omiten los duplicados. La exportación no altera los intentos
+locales. Usa CSV/JSON para una copia portable del historial.
 
 ## Recuperación
 
@@ -78,6 +158,8 @@ La exportación no altera los datos locales.
   a hacer el mapeo del M-Vave.
 - **La puntuación parece adelantada o atrasada:** ejecuta **Calibración guiada**
   con la misma salida de audio que usarás al practicar.
+- La calibración reproduce su claqueta de referencia aunque el metrónomo de
+  práctica esté desactivado en **Opciones**.
 
 ## Accesibilidad
 

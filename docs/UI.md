@@ -2,59 +2,92 @@
 
 ## Notacion
 
-Notas cayendo en vertical hacia una linea de golpe situada cerca del borde
-inferior, pero no pegada: hace falta hueco para ver la nota aterrizar y su
-destello de juicio.
+Notas que viajan por una autopista trapezoidal hacia una línea de golpe fija,
+cerca del borde inferior. La coordenada temporal permanece lineal; la perspectiva
+solo estrecha la pista y escala las notas hacia el horizonte.
 
 **Perspectiva suave.** La justa para dar profundidad y anticipacion. Una fuga
 dramatica convierte la parte alta de la pantalla en papilla, porque la
 perspectiva comprime el tiempo al fondo y las notas lejanas se apelotonan justo
 donde quieres leer subdivisiones.
 
-**Lineas de pulso y subdivision** cruzando todos los carriles. Son lo que
-neutraliza esa compresion: con la rejilla dibujada, el ojo lee "justo despues del
-tercer tiempo" en lugar de "a treinta y ocho pixeles".
+**Marcas de pulso y subdivisión** siguen la geometría de la pista. La distancia
+temporal entre marcas no cambia con la perspectiva: el ojo puede leer "justo
+después del tercer tiempo" sin estimar píxeles.
 
 **Anticipacion: dos compases.**
 
 ## Carriles
 
-La ejecución usa dieciséis posiciones, una por pad físico. Los diez sonidos
-ocupan su posición y los seis pads libres se ven como huecos apagados. No se
-comprimen, porque hacerlo cambiaria las distancias relativas del controlador.
+La autopista muestra un carril por sonido presente en la sesión. Los sonidos que
+no participan no ocupan espacio: al haber menos carriles son más anchos y las
+notas se leen antes. La distribución se fija al preparar la práctica y se
+mantiene durante toda la frase, incluidos los compases en los que un sonido
+guarda silencio.
 
-En los 1280 puntos de ancho logico de la maquina objetivo quedan unos 80 por
-posicion. La vista de ejecucion ocupa la pantalla completa y no muestra paneles
-laterales; los controles se presentan antes y despues del ejercicio.
+La pista permanece centrada y tiene un ancho máximo según sus voces, medido en
+la línea de golpe: 320/400 pt para una/dos, 600/720 pt para tres/cuatro y
+800/880/960/1.000 pt para cinco a ocho. Nunca supera el 92 % del ancho disponible.
+Ampliar la ventana por encima de ese límite añade márgenes oscuros, no estira los
+carriles. La altura y la anticipación temporal no cambian.
+
+Notas y receptores usan la misma proyección: los receptores se estrechan con la
+pista, mientras las notas tienen un tamaño base máximo de 44 × 34 pt y se reducen
+si falta espacio en el carril. La decoración lateral ocupa solo una franja tenue
+de hasta 96 pt junto a la autopista; con margen suficiente el indicador de vuelta
+queda fuera de los carriles.
 
 **El orden lo dicta el mapeo de pads, no este documento.** La rejilla fisica de
 4x4 se aplana asi: fila inferior de izquierda a derecha, luego la siguiente
 hacia arriba. Si el usuario remapea, los carriles se reordenan solos.
 
-**Los sonidos que no participan en el ejercicio se muestran apagados, no se
-retiran.** Los pads libres tambien conservan su hueco. Retirarlos recolocaria los
-demas y cada ejercicio tendria una geometria distinta, que es lo que destruye la
-memoria espacial.
+Los receptores mantienen el nombre del sonido junto a la línea de golpe. Si el
+carril es ancho se usa el nombre completo del kit; en frases con muchas voces se
+abrevia para conservar la legibilidad.
 
-## Manos
+Esto solo afecta a la escena de práctica. La rejilla física de Equipo conserva
+sus 16 posiciones y el mapeo MIDI no cambia (D-033, D-048). Un golpe extra en un
+pad fuera de la frase sigue mostrando el juicio, aunque no tenga carril.
 
-| Mano | Forma | Color |
+## Avisos de cambio
+
+Antes de una variación importante aparece un aviso breve sobre la autopista y
+una banda de color cruza la rejilla en el momento del cambio:
+
+- «Entra …» cuando aparece por primera vez un sonido nuevo tras el compás inicial;
+  la banda apunta a su primer golpe real, no al comienzo del compás.
+- «Se acerca el cierre» antes del último compás de la última vuelta.
+- «Última vuelta» al empezar la repetición final.
+
+Solo se muestra un aviso a la vez: primero el cambio más próximo y, si coincide
+en el tiempo, la entrada de un sonido tiene prioridad sobre el cierre.
+El aviso anticipa como máximo 2,4 segundos y nunca repite la
+misma indicación en cada vuelta. Es una ayuda visual: no altera notas, matching
+ni puntuación. Un sonido que regresa tras un silencio no genera otra entrada.
+En Transferir se ocultan las entradas y sus nombres; se mantienen los avisos
+de cierre y última vuelta.
+
+## Identidad visual de las notas
+
+| Sonido | Color de referencia |
 |---|---|---|
-| Izquierda | Circulo | Azul `#0072B2` |
-| Derecha | Cuadrado | Naranja `#E69F00` |
+| Bombo | Azul `#26B8FF` |
+| Caja | Coral `#FF5E7A` |
+| Charles cerrado | Verde `#59DB9E` |
+| Charles abierto | Turquesa `#45C7D1` |
 
-Dos formas y las mas distintas posibles: a sesenta pixeles y en movimiento el
-ojo lee siluetas, no vertices, y un pentagono se lee como un circulo.
+Cada nota, carril y receptor comparte el acento del sonido. La silueta es común:
+la práctica no marca mano izquierda/derecha ni imprime L/R sobre las notas.
+El mapa de colores canónico está en `GameplayVisualTheme.soundAccent(_:)`.
 
-La paleta es Okabe-Ito, distinguible en todos los tipos de daltonismo. **El color
-nunca va solo**: siempre acompanado de la forma. Entre un 5 y un 8 por ciento de
-los hombres tiene alguna deficiencia de vision del color, y la codificacion
-redundante lo resuelve a coste cero.
+Las etiquetas de sonido en los receptores y la posición fija del carril refuerzan
+el color. El juicio usa una capa aparte y nunca cambia el color de identidad de
+la nota.
 
-Reparto de responsabilidades, que conviene no mezclar:
+Reparto de responsabilidades:
 
 - **Carril** indica que sonido.
-- **Forma y color juntos** indican que mano.
+- **Color compartido** identifica el sonido en la nota, el carril y el receptor.
 
 ## Cuenta de entrada
 
@@ -64,17 +97,33 @@ Un compas audible.
 dura uno, las notas tendrian que aparecer antes de que empiece la cuenta. Si no,
 la primera nota entra sin preaviso y se falla siempre.
 
-**El desplazamiento visual arranca dos compases antes de la primera nota, y la
-cuenta audible suena durante el ultimo.** Asi el principio se ve venir con la
-misma anticipacion que todo lo demas.
+**El desplazamiento visual arranca dos compases antes de la primera nota.** El
+HUD muestra «Cuenta de entrada» y los pulsos restantes; la claqueta respeta los
+ajustes de la sesión. Así el principio se ve venir con la misma anticipación que
+todo lo demás.
 
 ## Escuchar y colocar
 
 Antes de puntuar, el usuario puede reproducir una vuelta completa en modo previo.
-La app toca el patron, mueve las mismas notas e ilumina las posiciones que se
-deben golpear, pero no registra puntuacion. La pantalla indica la colocacion de
-las manos y permite repetir o empezar. En el primer intento de cada nivel esta
-pantalla se abre automaticamente; despues sigue disponible como opcion.
+La app toca el patrón y mueve las mismas notas sin registrar puntuación. La
+demostración sigue disponible desde Preparación.
+
+«Escuchar y tocar una vuelta juntos» mantiene los pads disponibles: una vuelta
+suena como referencia y realza los receptores al llegar cada nota. El encabezado
+indica «Juntos · sin puntuar». Después se retira la referencia, aparece otra
+cuenta de entrada y comienza «Ahora tú». El intento solo evalúa esa última parte;
+cancelar durante la referencia no guarda una práctica completa. Pausar y reanudar
+reinicia con referencia y cuenta; salir cancela la transición diferida.
+
+## Rescate con contexto
+
+Desde Resultados, «Practicar la parte difícil» conserva como contexto el compás
+de la célula, o dos si cruza una barra. Primero permite escuchar y tocar con la
+referencia; después el jugador toca la célula y la app acompaña las demás notas.
+La guía es completa y el tempo reducido. Al terminar, la acción principal
+«Volver al groove completo» recupera el patrón y tempo originales, con otra
+referencia y una cuenta de entrada. La célula sigue siendo práctica correctiva,
+sin acreditar el curso ni afirmar mejoras respecto al patrón completo.
 
 ## Retroalimentacion
 
@@ -82,12 +131,15 @@ pantalla se abre automaticamente; despues sigue disponible como opcion.
 - Etiqueta e icono de juicio; el color nunca es la unica senal.
 - Flecha izquierda si el golpe fue adelantado y derecha si fue atrasado, junto
   con el desvio en milisegundos.
+- El golpe pulsa el receptor y puede emitir un anillo y pocas partículas dentro
+  de la zona de pads; los efectos no desplazan la línea ni las notas pendientes.
+- Los aciertos consecutivos Perfect/Good hacen respirar los carriles activos y
+  animan las separaciones como ondas progresivamente más rápidas e intensas.
 - Al terminar: puntuacion sobre el total posible, estrellas, y el desvio medio
   redactado en lenguaje llano.
 
-El color de mano permanece en la nota. El juicio se presenta en una capa
-separada para que el naranja de la mano derecha no pueda confundirse con un
-golpe adelantado, convencion que usan otras aplicaciones.
+El color de sonido permanece en la nota. El juicio se presenta en una capa
+separada para no confundir identidad de sonido con precisión temporal.
 
 ## Rendimiento
 
@@ -112,18 +164,111 @@ La especificación detallada está en [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). La e
 
 Durante la ejecución solo se muestran nombre, BPM, vuelta y pausa. El score acumulado y las estrellas no compiten con la siguiente nota.
 
+## Inicio y Equipo guiados
+
+Inicio muestra una próxima práctica, su objetivo y «Vamos a tocar». El tempo de
+aprendizaje, la duración y las ayudas están preparados; si falta equipo, la
+acción lleva al asistente. Los retos conservan su preparación ferroviaria.
+Personalizar comienza cerrado y abre la preparación de ese ritmo. En Preparación,
+los parámetros y las escuchas alternativas están también plegados; la acción
+respeta las opciones elegidas explícitamente. Las rutinas quedan en Más herramientas.
+
+Equipo presenta solo el paso actual: «Escucha un sonido», «Comprueba tus pads»
+y «Toca siguiendo el clic». Una ruta calibrada y disponible muestra Todo listo;
+puede revisarse explícitamente sin borrar el perfil. Confirmar escucha no calibra
+la entrada. Datos MIDI, layouts, mapas y diagnóstico quedan en Opciones avanzadas.
+En iOS, Opciones deja visibles solo claqueta y acompañamiento; el resto se abre
+a petición. En Mac, audio y ajustes se encuentran en Más herramientas.
+
 ## Resultado diagnóstico
 
-Orden:
-1. diagnóstico en lenguaje claro;
-2. precisión, tendencia y consistencia;
-3. microscopio temporal;
-4. resultado por voz/rol/subdivisión;
-5. recomendación y acciones.
+Al completar una estación nueva, la celebración encabeza Resultado: tren,
+estrellas del intento, siguiente parada y «Siguiente parada». Al finalizar
+la línea ofrece «Ver mi recorrido». Los detalles siguen consultables debajo.
+La celebración usa elementos estáticos y no añade movimiento obligatorio.
+Una lección completa pendiente que cuesta ofrece apoyo automático del mismo
+patrón con guía completa, menos repeticiones y cuatro BPM menos. Un buen intento
+lento propone acercarse al objetivo en pasos de 2–4 BPM; no se sustituye por un
+salto al siguiente premio de velocidad. La acreditación sigue ligada al tempo
+objetivo y al 70 %, y las prácticas parciales conservan su flujo específico.
+
+En las rutas de género el panel se llama «Retos de tempo» y explica que la ruta
+tiene un tempo musical fijo. Los seis escalones comparten BPM y muestran su
+precisión y duración; el premio visible solo aparece cuando el intento alcanza
+esa precisión. La comparación de selección usa el escalón, no solo el BPM, para
+que dos premios al mismo tempo no se iluminen ni se confundan a la vez.
+
+El resultado ordinario responde, en este orden:
+1. **Cómo te fue:** porcentaje, estrellas y una frase comprensible;
+2. **Tu siguiente paso:** una recomendación concreta y una acción principal,
+   con la salida al mapa disponible;
+3. **Más opciones**, cerrado inicialmente: retos de tempo, personalización,
+   aislamiento, transferencia y rutinas cuando correspondan;
+4. **Ver detalles del resultado**, cerrado inicialmente: contadores, tendencia,
+   consistencia, microscopio y análisis por sonido.
+
+La recomendación breve se comparte mediante `PracticeResultFeedback`. Exige
+cuatro oportunidades antes de señalar una voz débil y ocho golpes asociados
+para valorar una tendencia temporal general. Para señalar un sonido adelantado
+o atrasado exige también coaching válido, cuatro golpes de esa voz y una
+dirección coherente en al menos tres de cada cuatro. Con poca evidencia lo dice
+explícitamente. Los toques extra pueden explicar un porcentaje bajo aunque los
+golpes asociados estén centrados.
+
+Continuar el curso y el apoyo gradual conservan sus acciones. Fuera de esas
+rutas, un reto de velocidad disponible queda como opción secundaria: la acción
+principal permite consolidar al mismo tempo. Un checkpoint adelantado ofrece
+una sola acción principal para ir a la estación pendiente. Al terminar una
+práctica correctiva, la acción principal devuelve al groove completo.
+
+## Metro del Ritmo
+
+Los quince bloques principales son estaciones conectadas por vías. El tren se
+sitúa en la parada actual. Curso destaca «Empezar nivel N» o «Preparar reto final».
+La estación actual queda abierta; las otras se resumen con su estado y contador.
+El reto final de cada estación se señala con una bandera. Los nombres cortos y
+la numeración son locales a la estación.
+
+Abrir otra estación permite explorar sus niveles. Los retos de tempo y sus premios
+pertenecen al ejercicio; no se confunden con el siguiente nivel del recorrido.
+El reto final reúne las habilidades de la estación y usa el tempo de referencia:
+el tempo musical fijo en rutas de género o el tempo de aprendizaje en el tronco.
+Los premios antiguos de velocidad se etiquetan como «Histórico» y no compiten
+con los actuales de precisión.
+Mapa, premios, acciones y celebraciones se renderizan con las mismas vistas
+compartidas en Mac e iPhone; cada coordinador adapta únicamente la navegación.
+
+### Ilustraciones ferroviarias
+
+La tarjeta del siguiente nivel incluye una escena vectorial de dos vagones,
+ciudad, vías y andén con el número de estación. Cada parada tiene un pequeño
+distintivo musical; al completarla, la escena usa acentos dorados y destellos.
+Los paneles destacados añaden un degradado suave para separar sus planos.
+
+Los dibujos viven en `RailwayArtwork.swift`, compartido entre macOS e iOS.
+Son estáticos, no reciben toques y se ocultan a VoiceOver: nombre, progreso y
+acciones siguen siendo texto accesible. No añaden controles ni aparecen sobre
+la escena de práctica.
 
 ## Layouts
+
+### Práctica táctil iOS
+
+Sin controlador MIDI se muestran solo los botones de los sonidos que debe tocar
+el usuario. Cada sonido ocupa un botón salvo objetivos explícitos por rol/pad.
+La selección incluye todos los compases de la sesión y permanece fija al tocar;
+en calibración se muestra solo el charles. Los nombres salen del kit.
+
+La rejilla es virtual y compacta: ajusta filas y columnas, amplía la última fila
+incompleta y reduce la altura del panel cuando hay pocas voces. En horizontal,
+una a tres voces usan una columna lateral más estrecha para devolver anchura al
+escenario. Dibujo, toques y marcos de VoiceOver comparten la misma geometría.
+Esto no transforma el mapa físico de Equipo ni la entrada MIDI (D-048).
 
 `Equipo → Pads y layout` permite elegir Core, Drum Kit o Mirror. Cada preset
 conserva las notas MIDI físicas aprendidas y actualiza la vista 4×4.
 
-En layouts con duplicados, los 16 carriles se conservan. Una nota por sonido usa un carril recomendado e ilumina alternativas válidas.
+El mapa físico conserva sus 16 posiciones en Equipo, pero la práctica muestra una
+única pista y un único cuadrado objetivo por sonido. Si hay varios pads para el
+bombo, cualquiera sigue resolviendo al mismo sonido y el scoring conserva sus
+objetivos por rol/pad; la vista no duplica la nota en cada pad alternativo.

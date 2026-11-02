@@ -1,23 +1,39 @@
-# xRoll: guía rápida para agentes
+# xRoll: instrucciones para agentes
 
-## Fuentes de verdad
+## Fuentes del proyecto
 
-- Lee `CLAUDE.md` antes de cambiar código. El estado actual y las comprobaciones pendientes están en `docs/IMPLEMENTATION_ROADMAP.md` y `docs/RELEASE_CHECKLIST.md`; `PLAN.md` es histórico.
-- Si `docs/DECISIONS.md` bloquea un cambio, señala la decisión y su motivo en vez de sortearla.
-- Documentación y comentarios en castellano; identificadores de código en inglés. Reglas de producto, audio y contenido: consulta `CLAUDE.md` y los documentos enlazados allí.
+- Antes de tocar código, lee `CLAUDE.md` y consulta `docs/IMPLEMENTATION_ROADMAP.md`, `docs/RELEASE_CHECKLIST.md` y `docs/DECISIONS.md`; no rodees una decisión sin explicar por qué dejó de aplicar.
+- Revisa las decisiones posteriores que sustituyan reglas antiguas: D-033/D-034 cambian el gameplay a una pista por sonido, sin indicación de manos; la rejilla física de Equipo conserva sus 16 posiciones.
+- Documentación y comentarios en castellano; identificadores en inglés.
+- El curso conserva la metáfora ferroviaria: línea, estaciones y reto final de estación. Mapa, acciones y celebraciones deben usar las vistas compartidas de `CourseRailwayMap.swift` en macOS e iOS; consulta D-046 antes de cambiar esta presentación.
+- La práctica táctil iOS usa solo los sonidos activos del ejercicio en una rejilla virtual compacta (D-048). Equipo y el mapeo MIDI conservan las 16 posiciones físicas; no apliques la compactación al controlador real.
+- La autopista de práctica también dibuja solo los sonidos presentes en la timeline y añade avisos de entrada, cierre y última vuelta (D-052); no reserva carriles para sonidos ausentes.
+- Inicio prioriza una práctica guiada y Equipo muestra solo el paso pendiente. Personalización y controles técnicos empiezan plegados; conserva su acceso explícito y las elecciones de preparación (D-057).
+- La app macOS se distribuye intencionalmente sin firma ni notarización (D-059). No recomiendes firmarla ni notarizarla; remite a las instrucciones de autorización puntual de Gatekeeper. La firma de instalación iOS es un flujo distinto.
 
-## Build y pruebas (raíz del repo)
+## Build y pruebas (desde la raíz)
 
-- Es un único paquete SwiftPM, sin dependencias externas, con objetivo macOS 12. CI ejecuta `swift build` y después `swift test`.
-- Para cambios del núcleo/recursos: `swift test --filter XRollCoreTests`.
+- SwiftPM requiere macOS 12+ y no tiene dependencias externas. CI ejecuta `swift build`, `swift test` y `xcodebuild -project xRoll.xcodeproj -scheme xRoll -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`, en ese orden.
+- SwiftPM tiene un target de pruebas, `XRollCoreTests`: `swift test --filter XRollCoreTests`. Para un caso concreto: `swift test --filter ResourceModelsTests/testLoadsTheBundledMIDIExerciseCatalog`. El proyecto Xcode añade `XRollUITests` para navegación en simulador; comando y fixtures en `docs/IOS_BUILD.md`.
 - Tras cambiar `Resources/` o `data/exercises/`, ejecuta `swift run xroll-preflight` antes de probar la app.
-- App: `swift run xroll-pads`. Bundle local: `scripts/build-app.sh` (reconstruye `dist/xRoll.app`; no reutilices una copia antigua). Las demás CLI y sus opciones están en `README.md`.
+- Ejecuta las CLI y `swift run xroll-pads` desde la raíz: buscan `Resources/` y `data/` en el directorio de ejecución, no en recursos SwiftPM. `scripts/build-app.sh` reconstruye `dist/xRoll.app` y reemplaza sus recursos empaquetados.
+- iOS usa `xRoll.xcodeproj`, scheme `xRoll` y deployment target 16.2 (SwiftPM declara 16). Comandos de simulador, firma e instalación: `docs/IOS_BUILD.md`.
+- Para probar en iPhone, genera y verifica `dist/ios-device/xRoll-unsigned.ipa` con `scripts/build-ios-ipa.sh`; el usuario lo instala con Sideloadly. No intentes instalar directamente en el iPhone ni ejecutar el script de despliegue USB.
+- Las opciones de las CLI están en `README.md`. Las pruebas automatizadas no requieren hardware; los diagnósticos MIDI físicos sí.
 
-## Límites de arquitectura que afectan cambios
+## Límites que afectan cambios
 
-- `Sources/XRollCore` contiene el motor y los servicios compartidos; `Sources/XRollPads` contiene la app. `PracticeScene` renderiza estado y emite eventos: no es dueña del reloj ni del scoring.
-- En la ruta CoreMIDI, el callback solo encola paquetes en `XRollRealtimeQueue`; el worker los decodifica y distribuye. No añadas logging ni trabajo pesado al callback.
-- `MIDINoteOn.hostTime` es el instante de entrada canónico para puntuar. Los golpes vivos se reproducen inmediatamente; solo preview, loop y metrónomo se programan a host time futuro.
-- No reconfigures audio mientras el worker MIDI esté activo. Mantén cada `SampleAudioEngine` en un único contexto de control.
-- Las pruebas automatizadas no tienen hardware. Para diagnósticos, identifica el UID con `xroll-preflight`, limita la entrada con `--source <uid>` y usa `--check` cuando no deban esperarse golpes. No uses `--log-events` en diagnósticos de latencia; consulta `docs/LATENCY_PROTOCOL.md`.
-- No afirmes latencia, FPS o precisión sin una medición reproducible. La validación manual pendiente está en `docs/RELEASE_CHECKLIST.md`.
+- `Sources/XRollCore` contiene dominio y servicios; `Sources/XRollPads/main.swift` coordina macOS e `iOS/XRolliOSApp.swift` coordina iOS. `PracticeScene` presenta la línea temporal y feedback; reloj, matching y scoring pertenecen al núcleo.
+- iOS compila las mismas fuentes del núcleo y algunas de `XRollPads` mediante listas explícitas en `xRoll.xcodeproj/project.pbxproj`; al añadir o retirar fuentes compartidas, actualiza también esas listas. `swift build` no comprueba el target iOS.
+- `PracticeSessionIngress` serializa el scoring fuera de la interfaz; al cerrar una generación, procesa primero los golpes admitidos y rechaza los tardíos. Conserva esa barrera al cambiar el ciclo de sesión.
+- El callback `midiReadProc` solo encola paquetes; decodificación y consumidores corren fuera de él. No añadas logging, I/O, espera ni trabajo pesado o asignaciones evitables al callback.
+- `MIDINoteOn.hostTime` es el instante de entrada canónico para puntuar. Los golpes vivos se reproducen inmediatamente; preview, loop y metrónomo usan programación a host time futuro.
+- Suspende la entrada MIDI antes de reconfigurar audio. `SampleAudioEngine` serializa sus nodos y estado mutable; conserva una política explícita de acceso al modificarlo.
+- Para diagnóstico MIDI con hardware, identifica el UID con `xroll-preflight` y usa `--source <uid>`; usa `--check` si no se esperan golpes. Al medir latencia no uses `--log-events`; sigue `docs/LATENCY_PROTOCOL.md`.
+- No afirmes latencia, FPS ni precisión sin medición reproducible. Las comprobaciones manuales pendientes están en `docs/RELEASE_CHECKLIST.md`.
+
+## Contenido
+
+- Los ejercicios integrados y comunitarios son MIDI; no añadas un catálogo JSON paralelo. Los metadatos curriculares viajan en el MIDI y los valida `CurriculumValidator`; consulta `docs/EXERCISES.md`.
+- Las rutas de género usan un tempo musical fijo por estación y premios de precisión/aguante, no la escalera 70–160 (D-058). No introduzcas tempos fuera del rango de la ruta; el tempo se lee del MIDI y `previous-learning-bpm` solo migra historial.
+- Los sonidos y WAV se resuelven desde `kit.json`, sin nombres de audio en código. Registra todo audio añadido en `Resources/Loops/ATTRIBUTION.md` en el mismo commit.

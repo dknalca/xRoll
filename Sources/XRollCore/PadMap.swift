@@ -3,6 +3,7 @@ import Foundation
 public enum PadMapValidationError: LocalizedError, Equatable {
     case unsupportedFormat(Int)
     case emptyDevice
+    case emptyIdentifier(String)
     case invalidChannel(Int)
     case invalidNote(Int)
     case invalidPosition(row: Int, column: Int)
@@ -17,6 +18,7 @@ public enum PadMapValidationError: LocalizedError, Equatable {
         switch self {
         case .unsupportedFormat(let format): return "Formato de mapa no compatible: \(format)."
         case .emptyDevice: return "El mapa no indica el dispositivo."
+        case .emptyIdentifier(let field): return "El campo \(field) no puede estar vacío."
         case .invalidChannel(let channel): return "El canal MIDI \(channel) no es valido."
         case .invalidNote(let note): return "La nota MIDI \(note) no es valida."
         case .invalidPosition(let row, let column): return "La posicion \(row),\(column) queda fuera de la rejilla."
@@ -100,9 +102,11 @@ public struct PadMapRouter {
     private let soundByNoteAndChannel: [String: String]
 
     public init(padMap: PadMap) {
-        soundByNoteAndChannel = Dictionary(
-            uniqueKeysWithValues: padMap.pads.map { ("\($0.number):\($0.channel)", $0.sound) }
-        )
+        var sounds = [String: String]()
+        for pad in padMap.pads where (0...127).contains(pad.number) && (1...16).contains(pad.channel) {
+            sounds["\(pad.number):\(pad.channel)"] = pad.sound
+        }
+        soundByNoteAndChannel = sounds
     }
 
     public func soundID(for event: MIDINoteOn) -> String? {

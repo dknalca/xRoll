@@ -43,6 +43,11 @@ los pads no puede salir rentable.
 Un golpe dentro de la ventana de una nota que **ya fue golpeada** cuenta como
 toque de mas, no como segundo intento.
 
+Durante los compases de entrada se pueden probar los pads: esos golpes se
+reproducen y dan feedback visual, pero no se guardan ni penalizan. La excepción
+es un golpe suficientemente anticipado para quedar dentro de la ventana Regular
+del primer pulso; así se conserva el scoring normal de una entrada adelantada.
+
 ## Asociacion entre golpes y notas
 
 - Un golpe se asocia a la nota pendiente del mismo sonido mas cercana en el
@@ -50,6 +55,10 @@ toque de mas, no como segundo intento.
 - Cada nota solo puede consumir un golpe y cada golpe solo puede consumir una
   nota. Las notas simultaneas de sonidos distintos se resuelven por separado.
 - Una nota pasa a Fallo cuando termina su ventana Regular sin golpe asociado.
+- En la sesión incremental, los fallos vencidos se notifican con el siguiente
+  golpe puntuable posterior al cierre de su ventana; el `hostTime` del golpe
+  decide el vencimiento, no el retraso de presentación. El score final sigue
+  incluyendo toda nota no consumida, aunque no haya otro golpe.
 - En un empate exacto se elige la nota anterior, para que el resultado sea
   determinista.
 
@@ -71,11 +80,16 @@ una puntuacion negativa.
 | Estrellas | Umbral |
 |---|---|
 | 3 | 90 % o mas |
-| 2 | 70 % o mas |
-| 1 | 50 % o mas |
+| 2 | 80 % o mas |
+| 1 | 70 % o mas |
 
-Una estrella al 50 y no al 60 es deliberado: el principiante honesto se lleva
-algo.
+Por debajo del 70 % no se concede ninguna estrella. Los umbrales se aplican al
+porcentaje neto, antes del redondeo visual. La aprobación curricular sigue
+requiriendo el 70 %; las estrellas del intento no elevan ese mínimo. Los retos
+técnicos de velocidad conservan ese umbral. En rutas de género, los premios a
+tempo musical fijo exigen 70/80/90 % para estrellas y 90/95 % más duración y
+repetición para trofeos; véase D-058 y `docs/CURRICULUM.md`.
+Los resultados históricos conservan las estrellas que se guardaron entonces.
 
 ## Adelantado o atrasado
 
@@ -103,6 +117,11 @@ Procedimiento: claqueta constante, el usuario acompana durante unos ocho
 compases, se descartan los primeros y se toma la **mediana** del desvio, no la
 media, para que un golpe perdido no contamine el resultado. Ese valor se resta
 de todas las mediciones posteriores.
+
+El emparejamiento de calibración usa offsets brutos con `CalibrationMatcher`,
+no los golpes aceptados por las ventanas de puntuación. En macOS lo realiza el
+procesador serial de práctica. La guía permanece visible y los silencios de
+Gap Metronome no se aplican durante la calibración.
 
 El desvio bruto se define como `instante_del_golpe - instante_objetivo`: positivo
 significa atrasado y negativo, adelantado. El desvio puntuado es
@@ -142,6 +161,20 @@ leen con una colección de eventos vacía.
 `training_context_json` acompaña a los intentos nuevos con fase D-A-I-T, nivel
 de Gap Metronome y estado de guía visual. Permite evaluar maestría sin inferir
 la intención de una pantalla o una versión concreta de la interfaz.
+Incluye `tempoPolicyVersion` en los intentos nuevos para distinguir la política
+de tempo musical de los resultados históricos. El campo se conserva en SQLite,
+exportación/restauración y cierre parcial; su ausencia no se convierte en una
+versión actual al leer el historial.
+
+Los compases completados se calculan con el host time de cierre y la duración
+real de la sesión. Un abandono no se registra como intento completo ni concede
+premios de duración, aunque su porcentaje de aciertos ya supere el umbral.
+
+El historial JSON conserva la fecha ISO legible y el campo adicional
+`timestampUnixSeconds` para mantener la precisión subsegundo de SQLite y evitar
+duplicados al restaurar el propio archivo. Los archivos antiguos, sin ese campo,
+siguen siendo legibles. La importación valida los campos escalares antes de
+guardarlos y revierte el lote entero si un intento no es válido.
 
 ## Diagnóstico robusto
 
@@ -171,6 +204,13 @@ La asociación es greedy y determinista: cada golpe se compara con la nota
 pendiente más cercana del mismo sonido dentro de la ventana Regular. En un
 empate exacto se consume la nota anterior. Las ventanas recortadas evitan que
 notas consecutivas de la misma voz compartan una zona ambigua.
+
+`PracticeSession` conserva un acumulador incremental para entradas con
+`hostTime` cronológico: indexa objetivos por sonido y busca solo las notas de la
+ventana temporal del golpe. Si llega una marca temporal anterior al máximo visto,
+reconstruye las asociaciones con el scorer batch de referencia; la ruta de audio
+no espera esa reconstrucción. `PracticeSessionIngress` mantiene cada sesión en
+una cola serial y cierra con una barrera antes de producir el resultado final.
 
 ## Simultaneidad
 

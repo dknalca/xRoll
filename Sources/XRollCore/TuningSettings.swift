@@ -19,9 +19,9 @@ public struct PracticeTuning: Codable, Equatable {
     public init(debugEnabled: Bool = false, anticipationBars: Int = 2, perfectWindowMilliseconds: Double = 35, goodWindowMilliseconds: Double = 65, regularWindowMilliseconds: Double = 95, manualTimingOffsetMilliseconds: Double = 0, countInVolume: Double = 0.85, loopVolume: Double = 0.72, metronomePitchSemitones: Double = 0, padFlashMilliseconds: Int = 120, soundVolumes: [String: Double] = [:]) {
         self.debugEnabled = debugEnabled
         self.anticipationBars = min(4, max(1, anticipationBars))
-        self.perfectWindowMilliseconds = min(100, max(5, perfectWindowMilliseconds))
-        self.goodWindowMilliseconds = min(150, max(self.perfectWindowMilliseconds, goodWindowMilliseconds))
-        self.regularWindowMilliseconds = min(250, max(self.goodWindowMilliseconds, regularWindowMilliseconds))
+        self.perfectWindowMilliseconds = min(35, max(5, perfectWindowMilliseconds))
+        self.goodWindowMilliseconds = min(65, max(self.perfectWindowMilliseconds, goodWindowMilliseconds))
+        self.regularWindowMilliseconds = min(95, max(self.goodWindowMilliseconds, regularWindowMilliseconds))
         self.manualTimingOffsetMilliseconds = min(200, max(-200, manualTimingOffsetMilliseconds))
         self.countInVolume = min(1, max(0, countInVolume))
         self.loopVolume = min(1, max(0, loopVolume))

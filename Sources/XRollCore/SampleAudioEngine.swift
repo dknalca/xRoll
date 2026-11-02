@@ -28,63 +28,123 @@ public enum SampleAudioEngineError: LocalizedError {
     }
 }
 
-/// Separa las colas temporales cancelables de los golpes inmediatos. Un golpe
-/// MIDI nunca comparte nodo con una nota programada para el acompañamiento.
-public enum ScheduledAudioDomain: Hashable {
-    case preview
-    case accompaniment
-}
-
 /// Un cerrojo serializa la configuración y los golpes vivos. El render sigue
 /// ocurriendo en Core Audio, fuera de la cola de entrega MIDI y de la interfaz.
 public final class SampleAudioEngine {
+    static func scheduledSegmentFrameCount(sampleFrameCount: AVAudioFrameCount, sampleRate: Double,
+                                           startHostTime: UInt64, chokeHostTime: UInt64) -> AVAudioFrameCount {
+        guard sampleRate.isFinite, sampleRate > 0, chokeHostTime > startHostTime else { return 0 }
+        let interval = AudioClock.milliseconds(from: startHostTime, to: chokeHostTime)
+        let framesUntilChoke = floor(interval * sampleRate / 1_000)
+        guard framesUntilChoke.isFinite, framesUntilChoke > 0 else { return 0 }
+        return AVAudioFrameCount(min(Double(sampleFrameCount), framesUntilChoke))
+    }
+
+    static func scheduledChokeKey(soundID: String, chokeGroup: String?) -> String {
+        if let chokeGroup { return "group:\(chokeGroup)" }
+        return "sound:\(soundID)"
+    }
+
+    static func usesDirectMetronome(pitchCents: Float) -> Bool {
+        abs(pitchCents) < 0.5
+    }
+
+    private struct PendingChokeHit {
+        let soundID: String
+        let hostTime: UInt64
+        let volume: Float
+    }
+
+    private struct ActiveLiveVoice {
+        let soundID: String
+        let node: AVAudioPlayerNode
+        let renderedFramesAtAdmission: AVAudioFramePosition
+
+        var hasRenderedAttack: Bool {
+            guard let time = node.lastRenderTime, time.isSampleTimeValid || time.isHostTimeValid,
+                  let playerTime = node.playerTime(forNodeTime: time), playerTime.isSampleTimeValid else { return false }
+            return playerTime.sampleTime > renderedFramesAtAdmission
+        }
+    }
+
+    private struct PreparedBufferKey: Hashable {
+        let source: ObjectIdentifier
+        let frameCount: AVAudioFrameCount
+        let gain: Float
+    }
+
+    private struct CachedBuffer {
+        let buffer: AVAudioPCMBuffer
+        let byteCount: Int
+    }
+
     private final class LoadedSound {
-        let chokeGroup: String?
+        let chokeKey: String
         let buffer: AVAudioPCMBuffer
         let liveVoices: [AVAudioPlayerNode]
         let scheduledVoices: [AVAudioPlayerNode]
         var nextLiveVoice = 0
         var nextScheduledVoice = 0
 
-        init(chokeGroup: String?, buffer: AVAudioPCMBuffer, liveVoices: [AVAudioPlayerNode], scheduledVoices: [AVAudioPlayerNode]) {
-            self.chokeGroup = chokeGroup
+        init(chokeKey: String, buffer: AVAudioPCMBuffer, liveVoices: [AVAudioPlayerNode], scheduledVoices: [AVAudioPlayerNode]) {
+            self.chokeKey = chokeKey
             self.buffer = buffer
             self.liveVoices = liveVoices
             self.scheduledVoices = scheduledVoices
         }
     }
 
-    private let engine = AVAudioEngine()
+    private let engine: AVAudioEngine
+    private let scheduledTime: (UInt64) -> AVAudioTime
     private let controlLock = NSRecursiveLock()
     private let loopPlayer = AVAudioPlayerNode()
     private let loopTimePitch = AVAudioUnitTimePitch()
     private let metronomePlayer = AVAudioPlayerNode()
+    private let directMetronomePlayer = AVAudioPlayerNode()
     private let metronomeTimePitch = AVAudioUnitTimePitch()
     private let latencyClickPlayer = AVAudioPlayerNode()
     private let voicesPerSound: Int
     private var sounds: [String: LoadedSound] = [:]
+    private var pendingScheduledChokeHits = [String: PendingChokeHit]()
+    private var activeLiveVoices: [String: ActiveLiveVoice] = [:]
     private var samplePlayers: [AVAudioPlayerNode] = []
     private var soundGains: [String: Float] = [:]
+    private var preparedBuffers: [PreparedBufferKey: CachedBuffer] = [:]
+    private var preparedBufferOrder: [PreparedBufferKey] = []
+    private var preparedBufferBytes = 0
+    private var preparedBufferHits = 0
+    private var preparedBufferMisses = 0
+    private let maximumPreparedBufferBytes = 4 * 1_024 * 1_024
+    private let maximumPreparedBufferCount = 64
     private var loopBuffer: AVAudioPCMBuffer?
     private var metronomeBuffer: AVAudioPCMBuffer?
+    private var metronomeAccentBuffer: AVAudioPCMBuffer?
     private var latencyClickBuffer: AVAudioPCMBuffer?
     public private(set) var loopTempo: LoopTempo?
     public private(set) var metronomeSourceName: String?
 
-    // A bounded pool prevents long cymbal tails from making the mixer process
-    // hundreds of simultaneous nodes. Once full, play() steals immediately;
-    // a fresh hit must never wait behind an old tail.
-    public init(voicesPerSound: Int = 6) {
+    /// Pools independientes y acotados para golpes vivos y notas futuras.
+    public convenience init(voicesPerSound: Int = 6) {
+        self.init(engine: AVAudioEngine(), voicesPerSound: voicesPerSound)
+    }
+
+    // Permite verificar el audio con renderizado manual, sin salida física.
+    init(engine: AVAudioEngine, voicesPerSound: Int = 6,
+         scheduledTime: @escaping (UInt64) -> AVAudioTime = { AVAudioTime(hostTime: $0) }) {
+        self.engine = engine
+        self.scheduledTime = scheduledTime
         self.voicesPerSound = max(4, voicesPerSound)
         engine.attach(loopPlayer)
         engine.attach(loopTimePitch)
         engine.attach(metronomePlayer)
+        engine.attach(directMetronomePlayer)
         engine.attach(metronomeTimePitch)
         engine.attach(latencyClickPlayer)
         engine.connect(loopPlayer, to: loopTimePitch, format: nil)
         engine.connect(loopTimePitch, to: engine.mainMixerNode, format: nil)
         engine.connect(metronomePlayer, to: metronomeTimePitch, format: nil)
         engine.connect(metronomeTimePitch, to: engine.mainMixerNode, format: nil)
+        engine.connect(directMetronomePlayer, to: engine.mainMixerNode, format: nil)
         engine.connect(latencyClickPlayer, to: engine.mainMixerNode, format: nil)
     }
 
@@ -95,7 +155,9 @@ public final class SampleAudioEngine {
         samplePlayers.forEach { engine.detach($0) }
         samplePlayers.removeAll()
         sounds.removeAll()
+        activeLiveVoices.removeAll()
         soundGains.removeAll()
+        clearPreparedBuffers()
 
         for sound in kit.sounds {
             let url = directory.appendingPathComponent(sound.file)
@@ -116,19 +178,20 @@ public final class SampleAudioEngine {
             try file.read(into: buffer)
             normalizePeak(buffer)
 
-            // Cymbals sustain for 10–12 seconds and deserve a little more
-            // overlap. Keeping this pool small is intentional: a finger roll
-            // should replace an old tail, never create a delayed audio queue.
+            // Las voces programadas tienen un pool acotado; los sonidos largos
+            // conservan más nodos sin dejar que un re-disparo acumule colas.
             let voiceCount = ["crash", "ride"].contains(sound.id) ? voicesPerSound : min(4, voicesPerSound)
-            let liveVoices = (0..<voiceCount).map { _ -> AVAudioPlayerNode in
+            // Un pool pequeño de voces vivas permite golpes muy rápidos sobre el
+            // mismo sonido sin reciclar el mismo nodo en la misma llamada.
+            let liveVoiceCount = min(4, voicesPerSound)
+            let liveVoices = (0..<liveVoiceCount).map { _ -> AVAudioPlayerNode in
                 let node = AVAudioPlayerNode()
                 engine.attach(node)
                 engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
                 samplePlayers.append(node)
                 return node
             }
-            // Las voces programadas no se roban desde la ruta MIDI. Así, un
-            // golpe nuevo no puede vaciar una cola de acompañamiento futura.
+            // Las voces programadas son independientes de las voces MIDI en vivo.
             let scheduledVoices = (0..<voiceCount).map { _ -> AVAudioPlayerNode in
                 let node = AVAudioPlayerNode()
                 engine.attach(node)
@@ -136,13 +199,24 @@ public final class SampleAudioEngine {
                 samplePlayers.append(node)
                 return node
             }
-            sounds[sound.id] = LoadedSound(
-                chokeGroup: sound.chokeGroup,
+            let loadedSound = LoadedSound(
+                chokeKey: Self.scheduledChokeKey(soundID: sound.id, chokeGroup: sound.chokeGroup),
                 buffer: buffer,
                 liveVoices: liveVoices,
                 scheduledVoices: scheduledVoices
             )
+            sounds[sound.id] = loadedSound
         }
+
+        guard let metronomeFormat = sounds["hihat_closed"]?.buffer.format ?? sounds.values.first?.buffer.format,
+              let regularClick = makeMetronomeClick(format: metronomeFormat, frequency: 1_450),
+              let accentedClick = makeMetronomeClick(format: metronomeFormat, frequency: 2_050) else {
+            throw SampleAudioEngineError.unableToReadSample("claqueta sintetizada")
+        }
+        metronomeBuffer = regularClick
+        metronomeAccentBuffer = accentedClick
+        connectMetronome(format: metronomeFormat)
+        metronomeSourceName = "claqueta sintetizada"
     }
 
     public func start() throws {
@@ -152,6 +226,7 @@ public final class SampleAudioEngine {
         try engine.start()
     }
 
+    #if os(macOS)
     public func setOutputDevice(_ deviceID: AudioDeviceID) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
@@ -177,15 +252,19 @@ public final class SampleAudioEngine {
             throw error
         }
     }
+    #endif
 
     public func stop() {
         controlLock.lock()
         defer { controlLock.unlock() }
         engine.stop()
         sounds.values.flatMap(\.liveVoices).forEach { $0.stop() }
+        activeLiveVoices.removeAll()
         sounds.values.flatMap(\.scheduledVoices).forEach { $0.stop() }
+        pendingScheduledChokeHits.removeAll()
         loopPlayer.stop()
         metronomePlayer.stop()
+        directMetronomePlayer.stop()
     }
 
     /// Cancela solo notas programadas; los golpes vivos siguen disponibles.
@@ -193,7 +272,9 @@ public final class SampleAudioEngine {
         controlLock.lock()
         defer { controlLock.unlock() }
         sounds.values.flatMap(\.scheduledVoices).forEach { $0.stop() }
+        pendingScheduledChokeHits.removeAll()
         metronomePlayer.stop()
+        directMetronomePlayer.stop()
     }
 
     public func loadLoop(url: URL) throws {
@@ -208,8 +289,7 @@ public final class SampleAudioEngine {
         loopTempo = LoopTempoDetector.detect(url: url)
     }
 
-    /// Loads a dedicated click. If absent, scheduleMetronome keeps the kit
-    /// fallback so an old project remains usable.
+    /// Replaces the synthesized click with an optional custom click sample.
     public func loadMetronome(url: URL) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
@@ -219,20 +299,34 @@ public final class SampleAudioEngine {
         }
         try file.read(into: buffer)
         metronomeBuffer = buffer
+        metronomeAccentBuffer = buffer
         metronomeSourceName = url.lastPathComponent
+        connectMetronome(format: buffer.format)
+        clearPreparedBuffers()
+    }
+
+    private func connectMetronome(format: AVAudioFormat) {
+        metronomePlayer.stop()
+        directMetronomePlayer.stop()
+        engine.connect(metronomePlayer, to: metronomeTimePitch, format: format)
+        engine.connect(metronomeTimePitch, to: engine.mainMixerNode, format: format)
+        engine.connect(directMetronomePlayer, to: engine.mainMixerNode, format: format)
     }
 
     public func previewMetronome(volume: Float = 1, pitchCents: Float = 0) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
-        guard let buffer = metronomeBuffer ?? sounds["clap"]?.buffer else {
+        guard let buffer = metronomeBuffer else {
             throw SampleAudioEngineError.soundNotLoaded("metrónomo")
         }
+        let usesDirect = Self.usesDirectMetronome(pitchCents: pitchCents)
+        let player = usesDirect ? directMetronomePlayer : metronomePlayer
         metronomePlayer.stop()
-        metronomeTimePitch.pitch = min(1_200, max(-1_200, pitchCents))
-        metronomePlayer.volume = min(1, max(0, volume))
-        metronomePlayer.scheduleBuffer(buffer, at: nil, options: [.interrupts])
-        metronomePlayer.play()
+        directMetronomePlayer.stop()
+        if !usesDirect { metronomeTimePitch.pitch = min(2_400, max(-2_400, pitchCents)) }
+        player.volume = min(1, max(0, volume))
+        player.scheduleBuffer(buffer, at: nil, options: [.interrupts])
+        player.play()
     }
 
     public func startLoop(atHostTime hostTime: UInt64, targetBPM: Double, volume: Float = 0.72) throws {
@@ -268,29 +362,30 @@ public final class SampleAudioEngine {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
 
-        if let chokeGroup = sound.chokeGroup {
-            sounds.values
-                .filter { $0.chokeGroup == chokeGroup }
-                .flatMap(\.liveVoices)
-                .forEach { $0.stop() }
+        // Rotar separa el nodo que cortamos del que recibe el nuevo ataque.
+        // .interrupts impide encolar el golpe detrás de una cola anterior.
+        let voice = sound.liveVoices[sound.nextLiveVoice]
+        sound.nextLiveVoice = (sound.nextLiveVoice + 1) % sound.liveVoices.count
+        let chokeKey = sound.chokeKey
+        // Solo se corta una cola que ya ha empezado a renderizarse. Dos golpes
+        // admitidos en el mismo quantum (p. ej. un lote MIDI) no deben cancelar
+        // el ataque anterior antes de que Core Audio lo haya consumido.
+        if let previous = activeLiveVoices[chokeKey], previous.node !== voice,
+           previous.node.isPlaying, previous.soundID != soundID || previous.hasRenderedAttack {
+            previous.node.stop()
         }
 
-        // A node queues a buffer if it is already playing, which makes rapid
-        // hits feel swallowed by long crash/tom tails. Prefer an idle voice;
-        // if all are busy, steal the oldest round-robin voice so the new hit is
-        // always immediate.
-        let voice = sound.liveVoices.first(where: { !$0.isPlaying }) ?? sound.liveVoices[sound.nextLiveVoice]
-        if voice.isPlaying { voice.stop() }
-        sound.nextLiveVoice = (sound.nextLiveVoice + 1) % sound.liveVoices.count
+        let renderedFrames = voice.isPlaying
+            ? voice.lastRenderTime.flatMap { time -> AVAudioTime? in
+                guard time.isSampleTimeValid || time.isHostTimeValid else { return nil }
+                return voice.playerTime(forNodeTime: time)
+            }?.sampleTime ?? 0
+            : 0
+        activeLiveVoices[chokeKey] = ActiveLiveVoice(soundID: soundID, node: voice, renderedFramesAtAdmission: renderedFrames)
+
         voice.volume = effectiveVolume(for: soundID, requested: volume)
-        // .interrupts is the critical live-input rule. AVAudioPlayerNode may
-        // otherwise append a buffer behind a tail on some CoreAudio devices;
-        // that produces a burst of late hits. A pad hit always wins over a
-        // previous tail on this voice.
         voice.scheduleBuffer(sound.buffer, at: nil, options: [.interrupts])
-        // Calling play after schedule is intentional even after stealing a
-        // voice: it removes a race between stop() and isPlaying on bursts.
-        voice.play()
+        if !voice.isPlaying { voice.play() }
     }
 
     /// Prepara una señal de diagnóstico de 3,5 kHz fuera de la ruta MIDI. Se
@@ -324,32 +419,182 @@ public final class SampleAudioEngine {
         latencyClickPlayer.play()
     }
 
-    public func schedule(soundID: String, atHostTime hostTime: UInt64, domain: ScheduledAudioDomain = .accompaniment, volume: Float = 1) throws {
+    public func schedule(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1) throws {
         controlLock.lock()
         defer { controlLock.unlock() }
         guard let sound = sounds[soundID] else {
             throw SampleAudioEngineError.soundNotLoaded(soundID)
         }
 
+        let chokeKey = sound.chokeKey
+        if let previous = pendingScheduledChokeHits[chokeKey] {
+            // El evento está en el futuro: recortamos su buffer hasta la
+            // siguiente repetición del sonido o golpe del grupo de choke.
+            try schedule(previous, stoppingAtHostTime: hostTime)
+        }
+        // La ganancia pertenece al evento, no al nodo reutilizado por otros
+        // golpes futuros. Se congela también la mezcla vigente al admitirlo.
+        pendingScheduledChokeHits[chokeKey] = PendingChokeHit(soundID: soundID, hostTime: hostTime,
+            volume: effectiveVolume(for: soundID, requested: volume))
+    }
+
+    /// Completa las voces pendientes después de añadir el patrón entero. Se usa
+    /// antes de que empiece la reproducción, no a mitad de sesión.
+    /// Un final explícito recorta las colas de la referencia sin detener los
+    /// eventos que ya estén programados para la práctica posterior.
+    public func flushScheduledSounds(stoppingAtHostTime endHostTime: UInt64? = nil) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
+        let pending = pendingScheduledChokeHits.values.sorted { $0.hostTime < $1.hostTime }
+        pendingScheduledChokeHits.removeAll()
+        for hit in pending {
+            if let endHostTime { try schedule(hit, stoppingAtHostTime: endHostTime) }
+            else { try scheduleUnchoked(soundID: hit.soundID, atHostTime: hit.hostTime, volume: hit.volume) }
+        }
+    }
+
+    private func schedule(_ hit: PendingChokeHit, stoppingAtHostTime chokeHostTime: UInt64) throws {
+        guard let sound = sounds[hit.soundID] else { throw SampleAudioEngineError.soundNotLoaded(hit.soundID) }
+        let frameCount = Self.scheduledSegmentFrameCount(
+            sampleFrameCount: sound.buffer.frameLength,
+            sampleRate: sound.buffer.format.sampleRate,
+            startHostTime: hit.hostTime,
+            chokeHostTime: chokeHostTime
+        )
+        guard frameCount > 0 else { return }
         let voice = sound.scheduledVoices[sound.nextScheduledVoice]
         sound.nextScheduledVoice = (sound.nextScheduledVoice + 1) % sound.scheduledVoices.count
-        voice.volume = effectiveVolume(for: soundID, requested: volume)
-        voice.scheduleBuffer(sound.buffer, at: AVAudioTime(hostTime: hostTime), options: [])
+        let buffer = try preparedBuffer(from: sound.buffer, frameCount: frameCount, gain: hit.volume)
+        voice.scheduleBuffer(buffer, at: scheduledTime(hit.hostTime), options: [])
         if !voice.isPlaying { voice.play() }
     }
 
-    /// Schedules the click through its own pitch unit so the metronome can be
-    /// tuned without transposing drum pads or the accompaniment.
-    public func scheduleMetronome(soundID: String, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
+    /// Copia un prefijo corto del sample. La nota queda programada en su host
+    /// time y su cola termina justo antes del siguiente golpe del choke group.
+    /// Así el scheduling por adelantado respeta el mismo choke que `play()`.
+    private func preparedBuffer(from source: AVAudioPCMBuffer, frameCount: AVAudioFrameCount, gain: Float) throws -> AVAudioPCMBuffer {
+        guard frameCount > 0 else { throw SampleAudioEngineError.unableToReadSample("segmento de choke") }
+        if frameCount == source.frameLength, gain == 1 { return source }
+        let key = PreparedBufferKey(source: ObjectIdentifier(source), frameCount: frameCount, gain: gain)
+        if let cached = preparedBuffers[key] {
+            preparedBufferHits += 1
+            preparedBufferOrder.removeAll { $0 == key }
+            preparedBufferOrder.append(key)
+            return cached.buffer
+        }
+        preparedBufferMisses += 1
+        guard let trimmed = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: frameCount) else {
+            throw SampleAudioEngineError.unableToReadSample("segmento de choke")
+        }
+        trimmed.frameLength = frameCount
+        let sourceBuffers = UnsafeMutableAudioBufferListPointer(source.mutableAudioBufferList)
+        let destinationBuffers = UnsafeMutableAudioBufferListPointer(trimmed.mutableAudioBufferList)
+        guard sourceBuffers.count == destinationBuffers.count else {
+            throw SampleAudioEngineError.unableToReadSample("segmento de choke")
+        }
+        for index in sourceBuffers.indices {
+            guard let sourceData = sourceBuffers[index].mData, let destination = destinationBuffers[index].mData,
+                  source.frameLength > 0 else {
+                throw SampleAudioEngineError.unableToReadSample("segmento de choke")
+            }
+            let bytesPerFrame = sourceBuffers[index].mDataByteSize / source.frameLength
+            memcpy(destination, sourceData, Int(frameCount * bytesPerFrame))
+        }
+        if trimmed.format.commonFormat == .pcmFormatFloat32 {
+            let fadeFrames = frameCount < source.frameLength ? min(64, Int(frameCount)) : 0
+            let fadeStart = Int(frameCount) - fadeFrames
+            for bufferIndex in destinationBuffers.indices {
+                let audioBuffer = destinationBuffers[bufferIndex]
+                guard let data = audioBuffer.mData else { continue }
+                let channelCount = Int(audioBuffer.mNumberChannels)
+                let samples = data.assumingMemoryBound(to: Float.self)
+                if gain != 1 {
+                    for index in 0..<(Int(frameCount) * channelCount) { samples[index] *= gain }
+                }
+                for frame in 0..<fadeFrames {
+                    let fadeGain = Float(fadeFrames - frame - 1) / Float(max(1, fadeFrames))
+                    for channel in 0..<channelCount {
+                        samples[(fadeStart + frame) * channelCount + channel] *= fadeGain
+                    }
+                }
+            }
+        }
+        let bytes = destinationBuffers.reduce(0) { $0 + Int($1.mDataByteSize) }
+        if bytes <= maximumPreparedBufferBytes {
+            while preparedBuffers.count >= maximumPreparedBufferCount || preparedBufferBytes + bytes > maximumPreparedBufferBytes {
+                let oldest = preparedBufferOrder.removeFirst()
+                if let removed = preparedBuffers.removeValue(forKey: oldest) { preparedBufferBytes -= removed.byteCount }
+            }
+            preparedBuffers[key] = CachedBuffer(buffer: trimmed, byteCount: bytes)
+            preparedBufferOrder.append(key)
+            preparedBufferBytes += bytes
+        }
+        return trimmed
+    }
+
+    private func clearPreparedBuffers() {
+        preparedBuffers.removeAll()
+        preparedBufferOrder.removeAll()
+        preparedBufferBytes = 0
+        preparedBufferHits = 0
+        preparedBufferMisses = 0
+    }
+
+    // Diagnóstico interno verificable sin exponer buffers mutables al llamador.
+    var scheduledBufferCacheStatistics: (count: Int, bytes: Int, hits: Int, misses: Int) {
         controlLock.lock()
         defer { controlLock.unlock() }
-        guard let buffer = metronomeBuffer ?? sounds[soundID]?.buffer else {
-            throw SampleAudioEngineError.soundNotLoaded(soundID)
+        return (preparedBuffers.count, preparedBufferBytes, preparedBufferHits, preparedBufferMisses)
+    }
+
+    private func scheduleUnchoked(soundID: String, atHostTime hostTime: UInt64, volume: Float) throws {
+        guard let sound = sounds[soundID] else { throw SampleAudioEngineError.soundNotLoaded(soundID) }
+
+        let voice = sound.scheduledVoices[sound.nextScheduledVoice]
+        sound.nextScheduledVoice = (sound.nextScheduledVoice + 1) % sound.scheduledVoices.count
+        let buffer = try preparedBuffer(from: sound.buffer, frameCount: sound.buffer.frameLength, gain: volume)
+        voice.scheduleBuffer(buffer, at: scheduledTime(hostTime), options: [])
+        if !voice.isPlaying { voice.play() }
+    }
+
+    /// La claqueta neutra evita el procesador de tono. Los tonos alterados usan
+    /// una ruta independiente para no transponer los pads ni el acompañamiento.
+    public func scheduleMetronome(accented: Bool = false, atHostTime hostTime: UInt64, volume: Float = 1, pitchCents: Float = 0) throws {
+        controlLock.lock()
+        defer { controlLock.unlock() }
+        guard let regularBuffer = metronomeBuffer else {
+            throw SampleAudioEngineError.soundNotLoaded("metrónomo")
         }
-        metronomeTimePitch.pitch = min(1_200, max(-1_200, pitchCents))
-        metronomePlayer.volume = min(1, max(0, volume))
-        metronomePlayer.scheduleBuffer(buffer, at: AVAudioTime(hostTime: hostTime), options: [])
-        if !metronomePlayer.isPlaying { metronomePlayer.play() }
+        let buffer = accented ? (metronomeAccentBuffer ?? regularBuffer) : regularBuffer
+        let usesDirect = Self.usesDirectMetronome(pitchCents: pitchCents)
+        let player = usesDirect ? directMetronomePlayer : metronomePlayer
+        if !usesDirect { metronomeTimePitch.pitch = min(2_400, max(-2_400, pitchCents)) }
+        let prepared = try preparedBuffer(from: buffer, frameCount: buffer.frameLength, gain: min(1, max(0, volume)))
+        player.volume = 1
+        player.scheduleBuffer(prepared, at: scheduledTime(hostTime), options: [])
+        if !player.isPlaying { player.play() }
+    }
+
+    private func makeMetronomeClick(format: AVAudioFormat, frequency: Double) -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
+        guard sampleRate > 0,
+              format.channelCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleRate * 0.018)),
+              let channels = buffer.floatChannelData else { return nil }
+
+        buffer.frameLength = buffer.frameCapacity
+        let frameCount = Int(buffer.frameLength)
+        for frame in 0..<frameCount {
+            let time = Double(frame) / sampleRate
+            let envelope = exp(-time * 210)
+            let fundamental = sin(2 * Double.pi * frequency * time)
+            let overtone = 0.28 * sin(2 * Double.pi * frequency * 2.73 * time)
+            let sample = Float((fundamental + overtone) * envelope * 0.42)
+            for channel in 0..<Int(format.channelCount) {
+                channels[channel][frame] = sample
+            }
+        }
+        return buffer
     }
 
     private func effectiveVolume(for soundID: String, requested: Float) -> Float {

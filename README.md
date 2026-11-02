@@ -7,6 +7,11 @@ xRoll te dice con cuanta precision lo hiciste y si vas adelantado o atrasado.
 
 Pensado para quien empieza de cero.
 
+Inicio propone una próxima práctica y **Vamos a tocar**: ritmo, tempo y ayudas
+ya preparados. **Mi equipo** guía sonido, pads y calibración, mostrando solo el
+paso pendiente. Personalización, rutinas y datos técnicos quedan plegados, pero
+siguen accesibles para quien quiera explorarlos.
+
 ## Vídeos de presentación
 
 Dos recorridos de 30 segundos muestran la interfaz de xRoll y una demostración
@@ -25,26 +30,15 @@ demostración.
 ## Vista rápida
 
 La aplicación reúne preparación, práctica, diagnóstico y configuración del
-controlador en una única ventana. Esta captura muestra el Inicio real de xRoll;
-las imágenes siguientes completan el flujo con estados de práctica y resultado.
-
-<p align="center">
-  <img src="docs/assets/xroll-home.png" alt="Pantalla de inicio real de xRoll" width="1100">
-</p>
-
-<p align="center"><sub>Captura real de la aplicación en macOS. Sin MIDI conectado, xRoll ofrece teclado de respaldo y solicita calibración antes de puntuar.</sub></p>
-
-La pantalla central es una práctica de ritmo: las notas descienden por carriles
-hacia una línea de golpe y el resultado explica qué repetir. Las vistas
-complementarias están versionadas en SVG para que GitHub las muestre nítidas en
-cualquier tamaño.
+controlador en una única ventana. Las láminas SVG siguientes ilustran el flujo;
+la interfaz real puede cambiar entre versiones.
 
 <p align="center">
   <img src="docs/assets/practice.svg" alt="Pantalla de práctica de xRoll" width="900">
 </p>
 
 <p align="center">
-  <strong>Práctica</strong> · carriles, manos y línea de golpe gobernados por el reloj de audio.
+  <strong>Práctica</strong> · carriles por sonido y línea de golpe gobernados por el reloj de audio.
 </p>
 
 <table>
@@ -64,13 +58,22 @@ y tres layouts: **xRoll Core**, **Drum Kit** y **Mirror**. La publicación sigue
 pendiente de una medición reproducible de FPS; consulta
 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
+El repositorio también incluye un port de desarrollo universal para iPhone y
+iPad. La compilación, instalación y validación pendiente en hardware están en
+[docs/IOS_BUILD.md](docs/IOS_BUILD.md) y
+[docs/IOS_HARDWARE_TESTS.md](docs/IOS_HARDWARE_TESTS.md).
+Para probar en iPhone/iPad, genera `dist/ios-device/xRoll-unsigned.ipa` con
+`scripts/build-ios-ipa.sh` e instálalo manualmente con Sideloadly.
+
 ## Desarrollo
 
 El nucleo actual es un paquete Swift sin dependencias externas. Desde la raiz del
 repositorio:
 
 ```
+swift build
 swift test --filter XRollCoreTests
+swift test
 swift run xroll-preflight
 swift run xroll-latency kick
 swift run xroll-latency kick --check
@@ -92,7 +95,8 @@ indicado y sirve para diagnóstico interno de la ruta MIDI-audio.
 palmada 39, tom grave 41, charles cerrado 42, charles abierto 46, tom agudo
 48, crash 49 y ride 51. Para descubrir las notas de
 un controlador que se haya reconfigurado, se inicia una vez con `--log-events`.
-Un `.padmap` valida que cada sonido, posicion y nota/canal solo aparezcan una vez.
+Un `.padmap` permite asignar un sonido a varios pads y valida que los ids,
+posiciones, roles y mensajes MIDI no se repitan.
 `xroll-map-pads` crea ese archivo guiando los sonidos del kit; se pueden omitir
 los que no tenga el controlador.
 
@@ -111,10 +115,14 @@ y tamano de buffer.
 notas se programan contra el reloj de audio, con medio segundo de margen antes
 del primer golpe.
 
-Desde **Practicar**, `Empezar practica` abre la rejilla de dieciseis carriles.
-Las notas llegan a la linea de golpe tras dos compases de anticipacion. Cada
-golpe muestra Perfecto, Bien, Regular o Toque extra, junto con su desviacion y
-si llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
+Desde **Practicar**, `Empezar practica` abre una autopista centrada con un carril
+por sonido activo y ancho limitado según el número de voces.
+Las notas llegan a la linea de golpe tras dos compases de anticipacion. Durante
+esa entrada puedes probar los pads: los golpes fuera de la ventana del primer
+pulso suenan y se iluminan sin entrar en la puntuacion; los golpes que anticipan
+ese pulso dentro de su ventana se evalúan normalmente. Cada golpe puntuable
+muestra Perfecto, Bien, Regular o Toque extra, junto con su desviacion y si
+llego adelantado o atrasado; al terminar se muestra porcentaje y estrellas.
 
 Antes de empezar se pueden ajustar los BPM y las vueltas sin modificar el
 ejercicio original. **Calentamiento recomendado** escoge primero un nivel que
@@ -126,6 +134,14 @@ El historial se puede sacar en CSV o JSON con `xroll-export-progress`. Los
 filtros `--exercise` y `--minimum-score` permiten exportar solo la parte que se
 quiera revisar. Los datos permanecen locales en
 `~/Library/Application Support/xRoll/progress.sqlite`.
+Las exportaciones recorren todo el filtro por bloques, sin truncar el historial,
+y muestran el número de intentos. La interfaz prepara el archivo en segundo
+plano y conserva la copia anterior si falla la escritura.
+
+Desde Preparación, **Escuchar y tocar una vuelta juntos** reproduce una vuelta
+sin puntuación y da paso a la práctica propia tras otra cuenta de entrada. El
+rescate de una parte difícil conserva su compás y acompañamiento y permite
+volver al groove completo con el tempo original.
 
 ## Requisitos
 
@@ -137,11 +153,12 @@ quiera revisar. Los datos permanecen locales en
 ## Caracteristicas
 
 - Notacion vertical con anticipacion de dos compases y vista previa del patron
-- Indicacion de que mano usar, reforzada con forma ademas de color
+- Un carril por sonido activo, con color, nombre y receptor alineados; sin indicación de manos
 - Puntuacion con cuatro niveles de juicio y sistema de tres estrellas
 - Aviso de si el golpe llego pronto o tarde
 - Historial de intentos y curva de progreso
-- Selector de tempo y duración, calentamiento y 77 ejercicios MIDI progresivos
+- Selector de tempo y duración, calentamiento y 129 ejercicios MIDI progresivos
+- Curso libre con ruta recomendada y checkpoints por capítulo
 - Exportación de progreso a CSV y JSON, con filtros
 - Calibracion guiada por cada combinacion de entrada y salida
 - Progresion por escalera: cada nivel introduce una sola dificultad
@@ -183,6 +200,13 @@ open dist/xRoll.app
 
 El script incluye los diez WAV de `hiphop_basic` dentro del bundle. Sus
 atribuciones y licencia MIT están en `Resources/Loops/ATTRIBUTION.md`.
+
+El bundle macOS se distribuye intencionalmente sin firma ni notarización. La
+primera vez, en Finder, haz Control-clic en `xRoll.app` → **Abrir** y confirma
+**Abrir**. Si Gatekeeper lo requiere, autorízalo en **Preferencias del Sistema →
+Seguridad y privacidad → General → Abrir igualmente** (en macOS reciente:
+**Ajustes del Sistema → Privacidad y seguridad**). Autoriza xRoll individualmente;
+no desactives Gatekeeper. Consulta [Distribución](docs/DISTRIBUTION.md).
 
 Las notas se redactan al preparar cada versión; no se conserva una plantilla de
 release desactualizada en el repositorio.

@@ -10,6 +10,19 @@ public struct ScheduledExerciseNote: Equatable {
     public let timeMilliseconds: Double
 }
 
+/// Duraciones musicales sin expandir ni ordenar las notas de cada vuelta.
+struct ExerciseTiming {
+    let stepDurationMilliseconds: Double
+    let barDurationMilliseconds: Double
+    let patternDurationMilliseconds: Double
+
+    init(exercise: Exercise) {
+        stepDurationMilliseconds = 60_000 / Double(exercise.bpm) * 4 / Double(exercise.grid)
+        barDurationMilliseconds = stepDurationMilliseconds * Double(exercise.grid)
+        patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
+    }
+}
+
 public struct ExerciseTimeline: Equatable {
     public let stepDurationMilliseconds: Double
     /// Duración de un compás. La escena usa este valor para mostrar una sola
@@ -20,31 +33,53 @@ public struct ExerciseTimeline: Equatable {
     public let notes: [ScheduledExerciseNote]
 
     public init(exercise: Exercise) {
-        stepDurationMilliseconds = 60_000 / Double(exercise.bpm) * 4 / Double(exercise.grid)
-        barDurationMilliseconds = stepDurationMilliseconds * Double(exercise.grid)
-        patternDurationMilliseconds = stepDurationMilliseconds * Double(exercise.bars * exercise.grid)
+        // El MIDI guarda posiciones musicales; la sesión necesita instantes en
+        // milisegundos para comparar los golpes con cada vuelta del patrón.
+        let timing = ExerciseTiming(exercise: exercise)
+        stepDurationMilliseconds = timing.stepDurationMilliseconds
+        barDurationMilliseconds = timing.barDurationMilliseconds
+        patternDurationMilliseconds = timing.patternDurationMilliseconds
         bars = exercise.bars
 
-        var scheduled: [ScheduledExerciseNote] = []
+        guard exercise.repeats != 0 else { notes = []; return }
         let totalSteps = exercise.bars * exercise.grid
+        let pattern = exercise.notes.enumerated().map { noteIndex, note in
+            let shiftedStep = (note.step + exercise.offset) % totalSteps
+            return ScheduledExerciseNote(
+                index: noteIndex,
+                step: shiftedStep,
+                sound: note.sound,
+                hand: note.hand,
+                target: note.target,
+                velocity: note.velocity,
+                timeMilliseconds: Double(shiftedStep) * timing.stepDurationMilliseconds
+            )
+        }.sorted {
+            if $0.timeMilliseconds == $1.timeMilliseconds { return $0.index < $1.index }
+            return $0.timeMilliseconds < $1.timeMilliseconds
+        }
+        if exercise.repeats == 1 { notes = pattern; return }
+
+        // Las notas validadas quedan dentro de una frase. Cada vuelta empieza
+        // después de la anterior: basta ordenar el patrón una vez y expandirlo.
+        var scheduled: [ScheduledExerciseNote] = []
+        scheduled.reserveCapacity(exercise.notes.count * exercise.repeats)
         for repeatIndex in 0..<exercise.repeats {
-            for (noteIndex, note) in exercise.notes.enumerated() {
-                let shiftedStep = (note.step + exercise.offset) % totalSteps
+            let indexOffset = repeatIndex * exercise.notes.count
+            let timeOffset = Double(repeatIndex) * patternDurationMilliseconds
+            for note in pattern {
                 scheduled.append(ScheduledExerciseNote(
-                    index: repeatIndex * exercise.notes.count + noteIndex,
-                    step: shiftedStep,
+                    index: indexOffset + note.index,
+                    step: note.step,
                     sound: note.sound,
                     hand: note.hand,
                     target: note.target,
                     velocity: note.velocity,
-                    timeMilliseconds: Double(repeatIndex) * patternDurationMilliseconds + Double(shiftedStep) * stepDurationMilliseconds
+                    timeMilliseconds: timeOffset + note.timeMilliseconds
                 ))
             }
         }
-        notes = scheduled.sorted {
-            if $0.timeMilliseconds == $1.timeMilliseconds { return $0.index < $1.index }
-            return $0.timeMilliseconds < $1.timeMilliseconds
-        }
+        notes = scheduled
     }
 
     /// Devuelve posiciones contiguas de la línea temporal sin recorrer notas
@@ -66,6 +101,106 @@ public struct ExerciseTimeline: Equatable {
             else { upper = middle }
         }
         return start..<lower
+    }
+}
+
+/// Aviso breve previo a un cambio relevante del ejercicio. Es una ayuda de
+/// presentación: no altera notas, matching ni puntuación.
+public struct PracticeTransitionCue: Equatable {
+    public enum Kind: Equatable {
+        case soundEnters(String)
+        case closing
+        case lastRound
+    }
+
+    public let kind: Kind
+    /// Momento en el que ocurre el cambio, relativo al inicio de la frase.
+    public let timeMilliseconds: Double
+    /// Ventana durante la que se muestra el aviso.
+    public let leadMilliseconds: Double
+
+    public init(kind: Kind, timeMilliseconds: Double, leadMilliseconds: Double) {
+        self.kind = kind
+        self.timeMilliseconds = timeMilliseconds
+        self.leadMilliseconds = leadMilliseconds
+    }
+}
+
+/// Calcula los cambios importantes de una frase ya programada. Solo anuncia la
+/// primera aparición del patrón: repetir el aviso en cada vuelta distraería más
+/// de lo que ayuda.
+public enum PracticeTransitionCuePlanner {
+    public static func cues(for timeline: ExerciseTimeline) -> [PracticeTransitionCue] {
+        let bar = timeline.barDurationMilliseconds
+        let pattern = timeline.patternDurationMilliseconds
+        guard bar > 0, pattern > 0, timeline.bars > 0, !timeline.notes.isEmpty else { return [] }
+        let lead = min(bar, 2_400)
+        let firstPatternNotes = timeline.notes.prefix { $0.timeMilliseconds < pattern }
+        var soundsByBar = Array(repeating: Set<String>(), count: timeline.bars)
+        var firstTimeByBar = Array(repeating: [String: Double](), count: timeline.bars)
+        for note in firstPatternNotes {
+            let barIndex = min(timeline.bars - 1, max(0, Int(note.timeMilliseconds / bar)))
+            soundsByBar[barIndex].insert(note.sound)
+            let previous = firstTimeByBar[barIndex][note.sound] ?? note.timeMilliseconds
+            firstTimeByBar[barIndex][note.sound] = min(previous, note.timeMilliseconds)
+        }
+
+        var cues = [PracticeTransitionCue]()
+        // Las voces del primer compás forman el groove inicial. Un silencio
+        // posterior no convierte su regreso en la entrada de un sonido nuevo.
+        var seenSounds = soundsByBar[0]
+        if timeline.bars > 1 {
+            for barIndex in 1..<timeline.bars {
+                let entering = soundsByBar[barIndex].subtracting(seenSounds)
+                seenSounds.formUnion(soundsByBar[barIndex])
+                if let sound = entering.min(by: {
+                    let left = firstTimeByBar[barIndex][$0] ?? .greatestFiniteMagnitude
+                    let right = firstTimeByBar[barIndex][$1] ?? .greatestFiniteMagnitude
+                    return left == right ? $0 < $1 : left < right
+                }) {
+                    cues.append(PracticeTransitionCue(
+                        kind: .soundEnters(sound),
+                        timeMilliseconds: firstTimeByBar[barIndex][sound] ?? Double(barIndex) * bar,
+                        leadMilliseconds: lead
+                    ))
+                }
+            }
+        }
+
+        let repeats = max(1, Int(((timeline.notes.last?.timeMilliseconds ?? 0) / pattern).rounded(.down)) + 1)
+        if repeats > 1 {
+            cues.append(PracticeTransitionCue(
+                kind: .lastRound,
+                timeMilliseconds: Double(repeats - 1) * pattern,
+                leadMilliseconds: lead
+            ))
+        }
+        if timeline.bars > 1 {
+            cues.append(PracticeTransitionCue(
+                kind: .closing,
+                timeMilliseconds: Double(repeats - 1) * pattern + Double(timeline.bars - 1) * bar,
+                leadMilliseconds: lead
+            ))
+        }
+
+        var result = [PracticeTransitionCue]()
+        for cue in cues.sorted(by: {
+            $0.timeMilliseconds == $1.timeMilliseconds
+                ? priority($0.kind) < priority($1.kind)
+                : $0.timeMilliseconds < $1.timeMilliseconds
+        }) {
+            if let last = result.last, abs(last.timeMilliseconds - cue.timeMilliseconds) < 0.001 { continue }
+            result.append(cue)
+        }
+        return result
+    }
+
+    private static func priority(_ kind: PracticeTransitionCue.Kind) -> Int {
+        switch kind {
+        case .lastRound: return 0
+        case .soundEnters: return 1
+        case .closing: return 2
+        }
     }
 }
 
@@ -101,9 +236,8 @@ public enum RhythmJudgement: String, Codable, Equatable {
     public var value: Double {
         switch self {
         case .perfect: return 1
-        // A regular hit is still a correctly placed hit. It should encourage a
-        // beginner to improve timing, not make a mostly correct pattern feel
-        // like a failure.
+        // Un golpe Regular aún cuenta: anima a mejorar sin tratar como fallo
+        // un patrón que se ha tocado mayoritariamente en su sitio.
         case .good: return 0.85
         case .regular: return 0.7
         case .miss, .extra: return 0
@@ -201,6 +335,139 @@ public struct ExerciseScore: Equatable {
     public var extraCount: Int { hits.filter { $0.judgement == .extra }.count }
 }
 
+/// Puntúa en tiempo constante respecto al historial para entradas cronológicas.
+/// Si llega un hostTime anterior, usa el scorer de referencia para mantener la
+/// semántica batch y recuperar las asociaciones deterministas.
+final class IncrementalRhythmScorer {
+    private let timeline: ExerciseTimeline
+    private let bpm: Int
+    private let grid: Int
+    private let windows: ScoringWindows
+    private let calibrationOffsetMilliseconds: Double
+    private let notesBySound: [String: [ScheduledExerciseNote]]
+    private var consumedNoteIndices = Set<Int>()
+    private var indexedResults = [(inputIndex: Int, result: ScoredPadHit)]()
+    private var inputHits = [TimedPadHit]()
+    private var latestInputTimeMilliseconds: Double?
+    private var nextMissDeadlineIndex = 0
+    private var newlyExpiredMisses = [ScheduledExerciseNote]()
+
+    init(timeline: ExerciseTimeline, bpm: Int, grid: Int, calibrationOffsetMilliseconds: Double, scoringWindows: ScoringWindows?) {
+        self.timeline = timeline
+        self.bpm = bpm
+        self.grid = grid
+        windows = scoringWindows ?? ScoringWindows(bpm: bpm, grid: grid)
+        self.calibrationOffsetMilliseconds = calibrationOffsetMilliseconds
+        notesBySound = Dictionary(grouping: timeline.notes, by: \.sound)
+        consumedNoteIndices.reserveCapacity(timeline.notes.count)
+        indexedResults.reserveCapacity(timeline.notes.count)
+        inputHits.reserveCapacity(timeline.notes.count)
+    }
+
+    var hits: [TimedPadHit] { inputHits }
+
+    func register(_ hit: TimedPadHit) -> ScoredPadHit {
+        let inputIndex = inputHits.count
+        inputHits.append(hit)
+        if let latestInputTimeMilliseconds, hit.timeMilliseconds < latestInputTimeMilliseconds {
+            return rescoreAndReturnLatestHit(hit, inputIndex: inputIndex)
+        }
+        latestInputTimeMilliseconds = hit.timeMilliseconds
+
+        let result = scoreChronologicalHit(hit)
+        indexedResults.append((inputIndex, result))
+        if let noteIndex = result.expectedNote?.index { consumedNoteIndices.insert(noteIndex) }
+        collectMissesExpired(by: hit.timeMilliseconds)
+        return result
+    }
+
+    func takeNewlyExpiredMisses() -> [ScheduledExerciseNote] {
+        let misses = newlyExpiredMisses
+        newlyExpiredMisses.removeAll(keepingCapacity: true)
+        return misses
+    }
+
+    private func collectMissesExpired(by timeMilliseconds: Double) {
+        while nextMissDeadlineIndex < timeline.notes.count {
+            let note = timeline.notes[nextMissDeadlineIndex]
+            let deadline = note.timeMilliseconds + calibrationOffsetMilliseconds + windows.regularMilliseconds
+            // La ventana incluye el límite superior; la nota falla solo después.
+            guard deadline < timeMilliseconds else { break }
+            if !consumedNoteIndices.contains(note.index) {
+                newlyExpiredMisses.append(note)
+            }
+            nextMissDeadlineIndex += 1
+        }
+    }
+
+    var score: ExerciseScore {
+        let orderedResults = indexedResults.sorted {
+            let leftTime = $0.result.hit.timeMilliseconds
+            let rightTime = $1.result.hit.timeMilliseconds
+            return leftTime == rightTime ? $0.inputIndex < $1.inputIndex : leftTime < rightTime
+        }.map(\.result)
+        let misses = timeline.notes.filter { !consumedNoteIndices.contains($0.index) }
+        return RhythmScorer.makeScore(timeline: timeline, results: orderedResults, misses: misses)
+    }
+
+    private func rescoreAndReturnLatestHit(_ hit: TimedPadHit, inputIndex: Int) -> ScoredPadHit {
+        // Si un evento llega tarde a la cola con un hostTime anterior, rehacemos
+        // las asociaciones en orden temporal para conservar el resultado batch.
+        let (_, indexed) = RhythmScorer.scoreIndexed(
+            timeline: timeline,
+            bpm: bpm,
+            grid: grid,
+            hits: inputHits,
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: windows
+        )
+        indexedResults = indexed.map { (inputIndex: $0.0, result: $0.1) }
+        consumedNoteIndices = Set(indexed.compactMap { $0.1.expectedNote?.index })
+        return indexed.first(where: { $0.0 == inputIndex })?.1
+            ?? ScoredPadHit(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+    }
+
+    private func scoreChronologicalHit(_ hit: TimedPadHit) -> ScoredPadHit {
+        guard let notes = notesBySound[hit.sound], !notes.isEmpty else {
+            return .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+        }
+
+        let targetTime = hit.timeMilliseconds - calibrationOffsetMilliseconds
+        let lowerBound = targetTime - windows.regularMilliseconds
+        let upperBound = targetTime + windows.regularMilliseconds
+        var low = 0
+        var high = notes.count
+        while low < high {
+            let middle = (low + high) / 2
+            if notes[middle].timeMilliseconds < lowerBound { low = middle + 1 }
+            else { high = middle }
+        }
+
+        var expected: ScheduledExerciseNote?
+        var expectedDistance = Double.greatestFiniteMagnitude
+        for note in notes[low...] {
+            guard note.timeMilliseconds <= upperBound else { break }
+            guard !consumedNoteIndices.contains(note.index), RhythmScorer.targetMatches(note.target, hit: hit) else { continue }
+            let distance = abs(targetTime - note.timeMilliseconds)
+            if distance < expectedDistance || (distance == expectedDistance && note.timeMilliseconds < (expected?.timeMilliseconds ?? .greatestFiniteMagnitude)) {
+                expected = note
+                expectedDistance = distance
+            }
+        }
+
+        guard let expected else {
+            return .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)
+        }
+        let offset = hit.timeMilliseconds - expected.timeMilliseconds - calibrationOffsetMilliseconds
+        let distance = abs(offset)
+        let judgement: RhythmJudgement
+        if distance <= windows.perfectMilliseconds { judgement = .perfect }
+        else if distance <= windows.goodMilliseconds { judgement = .good }
+        else { judgement = .regular }
+        return .init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset)
+    }
+}
+
 public enum RhythmScorer {
     public static func score(
         timeline: ExerciseTimeline,
@@ -210,13 +477,36 @@ public enum RhythmScorer {
         calibrationOffsetMilliseconds: Double = 0,
         scoringWindows: ScoringWindows? = nil
     ) -> ExerciseScore {
+        scoreIndexed(
+            timeline: timeline,
+            bpm: bpm,
+            grid: grid,
+            hits: hits,
+            calibrationOffsetMilliseconds: calibrationOffsetMilliseconds,
+            scoringWindows: scoringWindows
+        ).0
+    }
+
+    static func scoreIndexed(
+        timeline: ExerciseTimeline,
+        bpm: Int,
+        grid: Int,
+        hits: [TimedPadHit],
+        calibrationOffsetMilliseconds: Double = 0,
+        scoringWindows: ScoringWindows? = nil
+    ) -> (ExerciseScore, [(Int, ScoredPadHit)]) {
         let windows = scoringWindows ?? ScoringWindows(bpm: bpm, grid: grid)
         var pending = Set(timeline.notes.map(\.index))
-        var results: [ScoredPadHit] = []
+        var indexedResults = [(Int, ScoredPadHit)]()
 
-        for hit in hits.sorted(by: { $0.timeMilliseconds < $1.timeMilliseconds }) {
+        let orderedHits = hits.enumerated().sorted {
+            $0.element.timeMilliseconds == $1.element.timeMilliseconds
+                ? $0.offset < $1.offset
+                : $0.element.timeMilliseconds < $1.element.timeMilliseconds
+        }
+        for (inputIndex, hit) in orderedHits.map({ ($0.offset, $0.element) }) {
             let candidates = timeline.notes.filter { note in
-                guard pending.contains(note.index), note.sound == hit.sound, target(note.target, matches: hit) else { return false }
+                guard pending.contains(note.index), note.sound == hit.sound, targetMatches(note.target, hit: hit) else { return false }
                 let scoredOffset = hit.timeMilliseconds - note.timeMilliseconds - calibrationOffsetMilliseconds
                 return abs(scoredOffset) <= windows.regularMilliseconds
             }
@@ -227,7 +517,7 @@ public enum RhythmScorer {
             }
 
             guard let expected else {
-                results.append(.init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil))
+                indexedResults.append((inputIndex, .init(hit: hit, expectedNote: nil, judgement: .extra, offsetMilliseconds: nil)))
                 continue
             }
             pending.remove(expected.index)
@@ -241,19 +531,28 @@ public enum RhythmScorer {
             } else {
                 judgement = .regular
             }
-            results.append(.init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset))
+            indexedResults.append((inputIndex, .init(hit: hit, expectedNote: expected, judgement: judgement, offsetMilliseconds: offset)))
         }
 
         let misses = timeline.notes.filter { pending.contains($0.index) }
+        let result = indexedResults.sorted {
+            $0.1.hit.timeMilliseconds == $1.1.hit.timeMilliseconds
+                ? $0.0 < $1.0
+                : $0.1.hit.timeMilliseconds < $1.1.hit.timeMilliseconds
+        }.map(\.1)
+        return (makeScore(timeline: timeline, results: result, misses: misses), indexedResults)
+    }
+
+    static func makeScore(timeline: ExerciseTimeline, results: [ScoredPadHit], misses: [ScheduledExerciseNote]) -> ExerciseScore {
         let earned = results.reduce(0) { $0 + $1.judgement.value }
-        // Extras must matter, but a single accidental tap should not outweigh
-        // the credit earned by a valid, if loose, hit.
+        // Un toque extra penaliza, pero no debe anular por sí solo el crédito de
+        // un golpe válido aunque tenga poca precisión.
         let penalty = Double(results.filter { $0.judgement == .extra }.count) * 0.25
         let possible = Double(timeline.notes.count)
         let percentage = possible == 0 ? 0 : min(100, max(0, (earned - penalty) / possible * 100))
         let offsets = results.compactMap(\.offsetMilliseconds)
         let meanOffset = offsets.isEmpty ? nil : offsets.reduce(0, +) / Double(offsets.count)
-        let stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 50 ? 1 : 0
+        let stars = percentage >= 90 ? 3 : percentage >= 80 ? 2 : percentage >= 70 ? 1 : 0
         return ExerciseScore(
             hits: results,
             misses: misses,
@@ -263,7 +562,7 @@ public enum RhythmScorer {
         )
     }
 
-    private static func target(_ target: Exercise.Target?, matches hit: TimedPadHit) -> Bool {
+    static func targetMatches(_ target: Exercise.Target?, hit: TimedPadHit) -> Bool {
         guard let target else { return true }
         switch target.type { case .any: return true; case .role: return target.value == hit.role; case .pad: return target.value == hit.padID }
     }

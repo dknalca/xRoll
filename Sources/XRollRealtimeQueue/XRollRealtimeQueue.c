@@ -4,11 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { XROLL_MAX_PACKET_BYTES = 256 };
-
 typedef struct {
     _Atomic uint64_t sequence;
     uint64_t host_time;
+    uint64_t callback_host_time;
     uint16_t length;
     uint8_t bytes[XROLL_MAX_PACKET_BYTES];
 } XRollRealtimeQueueCell;
@@ -51,8 +50,12 @@ void xroll_realtime_queue_destroy(XRollRealtimeQueue *queue) {
     free(queue);
 }
 
-bool xroll_realtime_queue_push(XRollRealtimeQueue *queue, uint64_t host_time, const uint8_t *bytes, uint16_t length) {
-    if (!queue || !bytes || length == 0 || length > XROLL_MAX_PACKET_BYTES) { return false; }
+bool xroll_realtime_queue_push(XRollRealtimeQueue *queue, uint64_t host_time, uint64_t callback_host_time, const uint8_t *bytes, uint16_t length) {
+    if (!queue) { return false; }
+    if (!bytes || length == 0) {
+        atomic_fetch_add_explicit(&queue->dropped, 1, memory_order_relaxed);
+        return false;
+    }
     XRollRealtimeQueueCell *cell;
     uint64_t position = atomic_load_explicit(&queue->enqueue_position, memory_order_relaxed);
     for (;;) {
@@ -69,14 +72,15 @@ bool xroll_realtime_queue_push(XRollRealtimeQueue *queue, uint64_t host_time, co
         }
     }
     cell->host_time = host_time;
+    cell->callback_host_time = callback_host_time;
     cell->length = length;
     memcpy(cell->bytes, bytes, length);
     atomic_store_explicit(&cell->sequence, position + 1, memory_order_release);
     return true;
 }
 
-bool xroll_realtime_queue_pop(XRollRealtimeQueue *queue, uint64_t *host_time, uint8_t *bytes, uint16_t *length) {
-    if (!queue || !host_time || !bytes || !length) { return false; }
+bool xroll_realtime_queue_pop(XRollRealtimeQueue *queue, uint64_t *host_time, uint64_t *callback_host_time, uint8_t *bytes, uint16_t *length) {
+    if (!queue || !host_time || !callback_host_time || !bytes || !length) { return false; }
     XRollRealtimeQueueCell *cell;
     uint64_t position = atomic_load_explicit(&queue->dequeue_position, memory_order_relaxed);
     for (;;) {
@@ -92,6 +96,7 @@ bool xroll_realtime_queue_pop(XRollRealtimeQueue *queue, uint64_t *host_time, ui
         }
     }
     *host_time = cell->host_time;
+    *callback_host_time = cell->callback_host_time;
     *length = cell->length;
     memcpy(bytes, cell->bytes, cell->length);
     atomic_store_explicit(&cell->sequence, position + queue->mask + 1, memory_order_release);

@@ -38,14 +38,22 @@ public final class LiveMIDIProcessor {
         lock.unlock()
     }
 
-    public func process(_ event: MIDINoteOn) throws -> LiveMIDIHit? {
+    /// Resuelve el sonido y el pad sin tocar AVAudioEngine. Es útil cuando una
+    /// aplicación necesita presentar estado o tomar una marca de audio en otro
+    /// contexto; el evento conserva su hostTime en la capa llamante.
+    public func resolve(_ event: MIDINoteOn) -> LiveMIDIHit? {
         lock.lock()
         let pad = padRouter?.pad(for: event)
         let soundID = pad?.sound ?? kitRouter.soundID(for: event)
         lock.unlock()
 
         guard let soundID else { return nil }
-        try audio.play(soundID: soundID)
         return LiveMIDIHit(soundID: soundID, role: pad?.role, padID: pad?.id, row: pad?.row, column: pad?.column)
+    }
+
+    public func process(_ event: MIDINoteOn) throws -> LiveMIDIHit? {
+        guard let hit = resolve(event) else { return nil }
+        try audio.play(soundID: hit.soundID)
+        return hit
     }
 }

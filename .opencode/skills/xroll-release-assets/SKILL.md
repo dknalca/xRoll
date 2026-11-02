@@ -20,7 +20,7 @@ Lee `docs/AUDIO.md`, `Resources/Loops/ATTRIBUTION.md`, `docs/DISTRIBUTION.md` y 
 - El bundle se crea con `scripts/build-app.sh`. Empaqueta `Resources/` y `data/` bajo `dist/xRoll.app/Contents/Resources/ProjectData`.
 - Prueba la app empaquetada, no solo `swift run xroll-pads`, cuando cambien rutas, recursos o carga de bundle.
 - `.github/workflows/ci.yml` ejecuta `swift build` y `swift test` en macOS. El flujo de tag crea un borrador de release; no firma ni notariza el bundle.
-- La firma y notarización requieren una identidad local de Apple Developer y un perfil de llavero; no introduzcas credenciales en el repositorio.
+- La app macOS se distribuye intencionalmente sin firma ni notarización (D-059): no sugieras añadirlas ni pidas credenciales. Las instrucciones de distribución explican la autorización puntual de Gatekeeper. Los requisitos de firma de iOS son independientes.
 
 ## Verificación antes de publicar
 

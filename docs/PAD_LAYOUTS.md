@@ -42,6 +42,11 @@ Crash           | Bombo           | Bombo           | Ride
 
 ## Objetivos de ejercicio
 
+En la práctica táctil iOS se proyectan solo los objetivos activos sobre una
+rejilla virtual compacta. Los destinos por sonido comparten un botón; los de rol
+o pad mantienen las alternativas exactas. Se conservan IDs, roles y entradas
+MIDI originales, sin cambiar las matrices físicas descritas arriba (D-048).
+
 - **Sonido:** acepta cualquier pad que reproduzca la voz solicitada.
 - **Rol:** exige un rol técnico, por ejemplo una caja izquierda o derecha.
 - **Pad:** exige una posición física concreta.

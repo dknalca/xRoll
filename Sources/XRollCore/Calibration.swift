@@ -3,6 +3,7 @@ import Foundation
 public enum CalibrationInputKind: String, Codable, Equatable {
     case midi
     case keyboard
+    case touch
 }
 
 public struct CalibrationProfileKey: Codable, Equatable, Hashable {
@@ -27,6 +28,31 @@ public struct CalibrationProfileKey: Codable, Equatable, Hashable {
     }
 }
 
+/// Un único paso de equipo visible. Las comprobaciones de escucha no sustituyen
+/// ni el mapa físico ni la calibración exacta de la ruta elegida.
+public enum EquipmentSetupStep: String, CaseIterable, Hashable {
+    case sound, pads, calibration, ready
+
+    public var title: String {
+        switch self {
+        case .sound: return "1 · Escucha un sonido"
+        case .pads: return "2 · Comprueba tus pads"
+        case .calibration: return "3 · Toca siguiendo el clic"
+        case .ready: return "Todo listo"
+        }
+    }
+
+    public static func current(audioAvailable: Bool, inputAvailable: Bool, padsMapped: Bool,
+                               soundConfirmed: Bool, padConfirmed: Bool, calibrated: Bool,
+                               rechecking: Bool = false) -> EquipmentSetupStep {
+        let previousChecks = calibrated && !rechecking
+        if !audioAvailable || !(soundConfirmed || previousChecks) { return .sound }
+        if !inputAvailable || !padsMapped || !(padConfirmed || previousChecks) { return .pads }
+        if !calibrated { return .calibration }
+        return .ready
+    }
+}
+
 public struct CalibrationEstimate: Equatable {
     public let offsetMilliseconds: Double
     public let medianAbsoluteDeviationMilliseconds: Double
@@ -36,6 +62,55 @@ public struct CalibrationEstimate: Equatable {
         self.offsetMilliseconds = offsetMilliseconds
         self.medianAbsoluteDeviationMilliseconds = medianAbsoluteDeviationMilliseconds
         self.acceptedHitCount = acceptedHitCount
+    }
+}
+
+public struct CalibrationHitAssociation: Equatable {
+    public let targetTimeMilliseconds: Double
+    public let rawOffsetMilliseconds: Double
+
+    public init(targetTimeMilliseconds: Double, rawOffsetMilliseconds: Double) {
+        self.targetTimeMilliseconds = targetTimeMilliseconds
+        self.rawOffsetMilliseconds = rawOffsetMilliseconds
+    }
+}
+
+/// Empareja golpes de calibración con objetivos sin aplicar la ventana Regular
+/// del scorer. Cada objetivo se consume una sola vez y se descartan golpes fuera
+/// de la mitad de la separación local, donde la asociación dejaría de ser única.
+public struct CalibrationMatcher {
+    private let targetTimesMilliseconds: [Double]
+    private var consumedTargetIndices = Set<Int>()
+
+    public init(targetTimesMilliseconds: [Double]) {
+        self.targetTimesMilliseconds = targetTimesMilliseconds.sorted()
+    }
+
+    public mutating func associateHit(atMilliseconds hitTimeMilliseconds: Double) -> CalibrationHitAssociation? {
+        let availableIndices = targetTimesMilliseconds.indices.filter { !consumedTargetIndices.contains($0) }
+        guard let nearestIndex = availableIndices.min(by: { left, right in
+            let leftDistance = abs(hitTimeMilliseconds - targetTimesMilliseconds[left])
+            let rightDistance = abs(hitTimeMilliseconds - targetTimesMilliseconds[right])
+            return leftDistance == rightDistance
+                ? targetTimesMilliseconds[left] < targetTimesMilliseconds[right]
+                : leftDistance < rightDistance
+        }) else { return nil }
+
+        let leftSpacing = nearestIndex > 0
+            ? targetTimesMilliseconds[nearestIndex] - targetTimesMilliseconds[nearestIndex - 1]
+            : Double.infinity
+        let rightSpacing = nearestIndex + 1 < targetTimesMilliseconds.count
+            ? targetTimesMilliseconds[nearestIndex + 1] - targetTimesMilliseconds[nearestIndex]
+            : Double.infinity
+        let localSpacing = min(leftSpacing, rightSpacing)
+        let rawOffset = hitTimeMilliseconds - targetTimesMilliseconds[nearestIndex]
+        guard localSpacing.isFinite, localSpacing > 0, abs(rawOffset) < localSpacing / 2 else { return nil }
+
+        consumedTargetIndices.insert(nearestIndex)
+        return CalibrationHitAssociation(
+            targetTimeMilliseconds: targetTimesMilliseconds[nearestIndex],
+            rawOffsetMilliseconds: rawOffset
+        )
     }
 }
 

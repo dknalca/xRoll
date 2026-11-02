@@ -58,6 +58,9 @@ public struct PadMapBuilder {
         return steps[stepIndex]
     }
 
+    public var assignedPads: [PadMapV2.Pad] { pads }
+    public var assignedCount: Int { pads.count }
+
     public mutating func assign(_ event: MIDINoteOn) -> PadMapCaptureResult {
         guard let step = nextStep else {
             return .complete(map)

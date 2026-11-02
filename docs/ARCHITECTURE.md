@@ -10,15 +10,46 @@ SwiftUI y SpriteKit.
   scoring, calibración e historial; la demora al pasar por la interfaz no forma
   parte del offset.
 - El callback de CoreMIDI solo copia paquetes a una cola MPSC preasignada. Un
-  worker fuera del callback decodifica eventos y llama a sus consumidores. Los
-  descartes por cola llena son diagnóstico, no una medida de latencia.
-- `SampleAudioEngine` se confina a un único contexto de control por instancia.
-  La app lo usa en main; las herramientas CLI lo preparan antes de conectar MIDI
-  y su worker de entrada emite los golpes vivos. No se reconfigura audio mientras
-  ese worker está activo.
+  worker fuera del callback decodifica eventos. En ambas plataformas se resuelve
+  y reproduce el golpe vivo, y se admite en `PracticeSessionIngress` desde ese
+  worker antes de notificar la interfaz. Los descartes por cola llena
+  son diagnóstico, no una medida de latencia.
+- `PracticeSessionIngress` serializa el scoring fuera de SwiftUI y SpriteKit. Al
+  cerrar una generación procesa primero los golpes admitidos y entrega un score
+  final estable; eventos tardíos de esa generación se rechazan.
+- La admisión de host time conserva reloj y generación bajo un mismo cerrojo;
+  los eventos anteriores al arranque no entran en una sesión reiniciada. La
+  interfaz solo consume resultados inmutables y descarta feedback de generaciones
+  anteriores, también al pausar, navegar o cambiar de ruta.
+- macOS recoge las asociaciones brutas de calibración en el procesador serial,
+  sin limitarse a las ventanas del scorer. La calibración usa siempre guía
+  visible y claqueta continua, independientemente de las ayudas de práctica.
+- `SampleAudioEngine` serializa acceso a sus nodos con su cerrojo de control.
+  Ningún callback CoreMIDI programa AVAudioEngine directamente y no se
+  reconfigura la ruta mientras el worker MIDI está activo.
+- Las notas programadas usan voces separadas de los golpes vivos. El charles
+  conserva el choke de articulación tanto en golpes vivos como en preview y
+  acompañamiento: las voces vivas se paran inmediatamente; los golpes futuros se
+  preparan con la cola recortada al siguiente evento del grupo para mantener cada
+  inicio en su host time sin superponer colas ni acumular buffers.
+- La aplicación iPad encola feedback puntuado; `PracticeScene.update(_:)` lo
+  consume con el reloj visual del frame. La presentación conserva el `hostTime`
+  de entrada y no modifica el scoring.
+- Los golpes vivos rotan por un pool acotado; el motor conserva una única voz
+  activa por sonido o grupo y corta solo la anterior. El nodo elegido para el
+  ataque nuevo no pasa por `stop()` en esa llamada. Las pruebas de PCM usan el
+  mismo motor con renderizado manual, sin conectar una salida física.
+- La ganancia de cada evento programado queda incorporada en PCM inmutable;
+  los nodos de su pool no cambian de volumen por nota. Una caché LRU de 64
+  entradas/4 MiB reutiliza segmentos por fuente, frames y ganancia; no participa
+  en golpes vivos y se invalida al recargar las fuentes.
 - Los golpes vivos se reproducen inmediatamente; `hostTime` conserva su
   procedencia temporal y no se usa para programar un buffer en un instante ya
   pasado. Preview, loop y metrónomo sí se programan contra host time futuro.
+- El choke entre repeticiones vivas del mismo sonido consulta el reloj de
+  muestras del nodo: no cancela un ataque admitido que aún no llegó al render.
+  Abierto/cerrado siguen cortándose entre sí; los relojes inválidos anteriores
+  al primer render no se entregan a `playerTime(forNodeTime:)`.
 
 Para añadir un kit, crea `Resources/Kits/<id>/kit.json`, declara cada WAV y
 anota licencia y autor. Para añadir un ejercicio, genera un MIDI consecutivo en
@@ -39,19 +70,15 @@ subdivisión, vuelta y transición. No existen targets SwiftPM separados llamado
 
 ## Estado de práctica
 
-```swift
-enum PracticePhase {
-    case preparing
-    case preview
-    case countIn
-    case playing
-    case paused
-    case completing
-    case finished(SessionResult)
-}
-```
+Preparación, demostración, cuenta de entrada, práctica, pausa y resultado son
+fases conceptuales, no casos de un enum `PracticePhase` implementado. Los
+coordinadores de macOS e iOS mantienen sus propios indicadores y tokens; la
+sesión y su puntuación viven en `XRollCore`.
 
-SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo, matching y score permanecen en `XRollCore`.
+SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo,
+matching y score permanecen en `XRollCore`; el feedback visual se consume al
+inicio de un frame. Para recorrer el código desde una acción de usuario, consulta
+[Guía de lectura del código](GUIA_LECTURA_CODIGO.md).
 
 ## Fuente de verdad del contenido
 
@@ -59,3 +86,107 @@ SpriteKit recibe estado de renderizado y emite eventos semánticos. El tiempo, m
   compás, notas, velocity y detecta rejilla ternaria cuando corresponde.
 - `.padmap` v2: layout y entrada física.
 - Manifiesto de release: conteos de ejercicios, kits y sonidos.
+
+La selección de mitades de una frase y el cálculo de compases completados se
+comparten en `PracticeConfiguration` y `PracticeCompletion`. Cambiar de ejercicio
+abandona el intento activo; una interrupción no acredita duración ni currículo.
+La escena actualiza las formas animadas de racha solo al cambiar su fase y limita
+las partículas a hitos de racha; los impactos y el feedback temporal permanecen
+en cada golpe.
+
+La continuación de Resultados y la recomendación curricular pertenecen a
+`CourseRecommendationPlanner`: respetan el orden topológico de los estados de
+`CourseGraph`, omiten bloques acreditados y no cruzan un bloque pendiente.
+Los coordinadores de macOS e iOS seleccionan esa tarea y arrancan directamente
+la práctica guiada. La preparación de una prueba final es una acción distinta:
+presenta el objetivo y el patrón integrador antes de empezar.
+Un checkpoint adelantado conserva su evidencia y `CourseGraph.pendingChapter`
+identifica el primer bloque anterior pendiente. Las dos interfaces explican su
+nombre y permiten abrir una lección pendiente de ese bloque.
+
+`CourseGraph.worlds(evidence:)` proyecta el recorrido de quince estaciones sobre
+esos mismos estados; `CourseWorld` conserva su nombre histórico y describe los
+niveles locales, reto final y tarea recomendada de cada estación.
+Los coordinadores conservan la proyección tras refrescar el historial. La
+victoria nueva se obtiene con `worldVictory(completing:previousEvidence:)` después
+de guardar el intento. No requiere otra tabla de progreso. Las vistas presentan
+el mapa y la celebración; las acreditaciones continúan en el núcleo.
+`campaignContinuation(after:evidence:)` decide la continuación de un intento
+aprobado de la estación actual, con el mismo 70 % y sin depender de dos estrellas.
+
+`Sources/XRollPads/CourseRailwayMap.swift` se compila tanto en SwiftPM como en el
+target iOS. Contiene el mapa ferroviario, los marcadores, los premios y los paneles
+de nivel/estación completados. `RhythmMetroView` y `iOSHomeView` aportan los mismos
+datos del núcleo y adaptan sus acciones. Los textos de reto y continuación son
+compartidos; el historial y el catálogo permanecen en los servicios existentes.
+
+`CourseLessonCriteria.preparationStep` comparte el tempo inicial: una lección
+pendiente usa el tempo que acredita su objetivo. `recovery(for:attempt:evidence:)`
+describe el apoyo automático del mismo patrón con guía completa, prácticas breves
+y retorno de 2–4 BPM al objetivo. Los coordinadores conservan esa sugerencia solo
+para el resultado actual y aplican la misma acción en ambas apps. La recuperación
+se calcula sobre la lección MIDI original, no sobre su copia ralentizada.
+`PracticeConfiguration.calibrationExercise(from:)` aísla el charles del MIDI de
+corcheas sin mantener una lección curricular de una sola voz.
+
+La selección de pads táctiles se deriva de los objetivos con
+`PadMapV2.practicePads(for:)`, conservando los pads originales y los destinos
+exactos por rol/pad. iOS guarda esa selección al comenzar cada sesión, por lo que
+no cambia al avanzar de compás. `TouchPadGridLayout` comparte las celdas virtuales
+entre dibujo, toques y accesibilidad; no altera las coordenadas físicas de Equipo.
+El tamaño del panel depende de las voces y la orientación. Al reconstruir la
+escena tras un giro, la etiqueta de racha se desliga de su panel anterior antes
+de volver a insertarse, conservando la sesión y evitando un segundo padre SpriteKit.
+
+`PracticeRehearsalPlan` separa referencia, cuentas de entrada y origen puntuable.
+Los coordinadores programan audio contra ese origen; `PracticeSessionIngress`
+admite los golpes, pero `PracticeSession` descarta la entrada previa a la ventana
+del primer objetivo. La escena de referencia tiene realce visual automático y se
+sustituye por la escena evaluada al terminar; la transición está ligada al token
+o generación de la sesión. `flushScheduledSounds(stoppingAtHostTime:)` recorta
+las últimas colas sin cancelar eventos futuros. La calibración no usa referencia.
+La preferencia `xRoll.rehearsalEnabled` empieza apagada en ambas plataformas;
+los reintentos y reanudaciones no heredan la referencia del intento anterior
+(D-060). `ExerciseTiming` calcula las duraciones sin construir las notas de una
+timeline; `PracticeRehearsalPlan` y `ExerciseTimeline` comparten esa aritmética.
+El cierre y la estimación de la próxima sesión también usan `ExerciseTiming`.
+La timeline ordena solo el patrón con su offset y después expande las vueltas;
+los índices siguen identificando la nota original y los empates mantienen el mismo
+orden. Las pruebas lo comparan con la expansión/ordenación global anterior.
+
+`PracticeConfiguration.correctiveContext` recorta el contexto del rescate a los
+compases de la célula y traslada sus pasos conservando objetivos y offset audible.
+Solo se usa con alcance correctivo. El retorno restaura la configuración completa
+sin convertir una célula en evidencia curricular.
+
+`ProgressStore` usa WAL y exporta mediante un cursor sin límite de registros,
+codificando bloques de 256 en un temporal y sustituyendo el destino al finalizar.
+La API de interfaz usa un worker serial y una conexión de solo lectura propia;
+la conexión del coordinador no cambia de hilo. La CLI conserva la API síncrona.
+Ambas devuelven el número de intentos y conservan los filtros y la precisión del
+historial. Las copias portables se crean mediante CSV/JSON; los ficheros WAL y
+SHM pertenecen a SQLite y no se tratan como una exportación independiente.
+
+Las instantáneas de historial también se construyen en una conexión de solo
+lectura en segundo plano: contienen hasta 1.000 intentos para las vistas
+recientes, los diagnósticos y los sellos. La evidencia curricular se compacta
+mientras SQLite la lee; conserva dos intentos por condición, suficientes para
+calcular los premios que exigen dos pases sin decodificar todo el historial en
+main. La importación JSON procesa un objeto cada vez, valida datos anidados y
+usa savepoint: cualquier objeto malformado revierte el lote completo.
+
+Al leer bases antiguas se filtran los `HitRecord` con índices/tiempos fuera de
+rango y contextos inválidos. Los datos heredados corruptos no provocan un acceso
+fuera de rango ni se promocionan a evidencia de ritmo completo.
+
+`PracticeConfiguration.guided` comparte tempo de aprendizaje y duración inicial.
+Los coordinadores aplican ritmo completo, Integrar y guía completa en la entrada
+guiada. iOS distingue Inicio de Preparación con `showsExercisePreparation`;
+seleccionar una lección conserva su pantalla y parámetros propios.
+
+`EquipmentSetupStep` proyecta un único paso pendiente a partir de audio, entrada,
+mapa, comprobaciones y calibración. Cada coordinador vincula las confirmaciones
+al `CalibrationProfileKey` actual y descarta golpes anteriores a la comprobación.
+Las pruebas de sonido se ejecutan fuera de sesiones y suspenden MIDI si deben
+activar audio. El callback MIDI no cambia; los pasos solo se publican desde main.
+Una confirmación de interfaz nunca sustituye un perfil de calibración válido.

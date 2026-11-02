@@ -4,9 +4,11 @@ public struct KitNoteRouter: Equatable {
     private let soundByNote: [Int: String]
 
     public init(kit: KitManifest) {
-        soundByNote = Dictionary(
-            uniqueKeysWithValues: kit.sounds.map { ($0.gmNote, $0.id) }
-        )
+        var sounds = [Int: String]()
+        for sound in kit.sounds where (0...127).contains(sound.gmNote) {
+            sounds[sound.gmNote] = sound.id
+        }
+        soundByNote = sounds
     }
 
     public func soundID(for note: Int) -> String? {

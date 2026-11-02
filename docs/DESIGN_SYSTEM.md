@@ -20,14 +20,14 @@ Interfaz oscura, elegante y precisa, inspirada en software de producción y hard
 | `textSecondary` | `#A3ABB5` | Texto secundario |
 | `textMuted` | `#6D7580` | Metadatos |
 | `accent` | `#63E6BE` | Acción principal |
-| `leftHand` | `#0072B2` | Mano izquierda |
-| `rightHand` | `#E69F00` | Mano derecha |
 | `perfect` | `#63E6BE` | Juicio perfecto |
 | `good` | `#74C0FC` | Juicio bueno |
 | `regular` | `#FFD43B` | Juicio regular |
 | `miss` | `#FF6B6B` | Fallo |
 
-Azul y naranja de manos no se usan como colores globales de acción.
+En el gameplay, `GameplayVisualTheme.soundAccent(_:)` es la fuente de verdad del
+color por sonido. Nota, carril y receptor comparten ese color; no se codifica la
+mano con forma, color o letras.
 
 ## Tipografía
 
@@ -78,20 +78,64 @@ EQUIPO
 Responde «¿qué debería practicar ahora?». Incluye recomendación principal, motivo, duración, continuidad del curso y problema que necesita atención.
 
 ### Curso
-Ruta por capítulos. La cabecera muestra nivel actual y niveles dominados; cada
-bloque muestra su progreso, el siguiente escalón y una puerta al ritmo
-completo. Las voces aisladas viven dentro de Preparación.
+Metro del Ritmo de quince estaciones conectadas por vías. El tren identifica la
+parada actual. La cabecera destaca «Empezar nivel N» o «Preparar reto final»; la
+estación actual se abre y las demás quedan resumidas. Los niveles tienen numeración
+local y el reto de estación se señala con una bandera. Mapa, premios y acciones
+se presentan con la misma vista compartida en macOS e iOS.
 
 ### Preparación
 Objetivo, tempo, vueltas, ayudas, duración y estado compacto del equipo. Una acción principal.
+Una lección pendiente se abre a su tempo de aprendizaje, con el criterio visible
+de ritmo completo y 70 %. Los seis retos de velocidad quedan dentro de las
+opciones plegadas; no compiten con empezar el ritmo.
 
 ### Práctica
-Solo nombre, BPM, vuelta y pausa. Sin score cambiante ni estrellas. Carriles inactivos atenuados; feedback junto a la línea de golpe; movimiento gobernado por audio.
+Solo nombre, BPM, vuelta y pausa; tras cinco aciertos aparece una racha compacta. Sin score cambiante ni estrellas. La escena SpriteKit ocupa el escenario principal: autopista trapezoidal de profundidad suave, slots físicos fijos, receptores en el plano de impacto y feedback en una banda separada debajo de los pads. El acompañamiento se selecciona por estilo/BPM y puede cambiarse en Preparación. El movimiento temporal sigue gobernado por el reloj de audio.
+
+Los tokens, la proyección y los efectos SpriteKit viven en `Sources/XRollPads/GameplayVisualSystem.swift`; `PracticeScene` compone la presentación sin tomar decisiones de timing o scoring. Fuera de la autopista hay pistas de circuito impreso, ramas y vías ordenadas con la misma perspectiva que la carretera; se crean solo al reconstruir la escena. Las notas y los receptores inferiores siguen la misma proyección y punto de fuga. Las rachas Perfect/Good aumentan gradualmente la respiración de los carriles activos y la intensidad/frecuencia de onda de las separaciones. Desde 20 golpes seguidos el fondo pulsa; se ilumina más al llegar a 40 y 60. Es una recompensa visual únicamente: al reiniciar la racha, la escena vuelve a la calma.
+
+La marca `XRollBrandMark` representa dos baquetas cruzadas sobre el impacto. Al abrir la app, `XRollLaunchView` presenta brevemente esa marca y atenúa su salida; `Reduce Motion` evita la escala animada. En Inicio se muestra una de las diez citas registradas con fuentes en `docs/DRUMMER_QUOTES.md`.
 
 ### Resultado
-Jerarquía: diagnóstico, precisión, tendencia, consistencia, microscopio temporal y recomendación. Las estrellas son secundarias.
+Al completar una estación nueva, jerarquía de celebración: tren, parada completada,
+estrellas y «Siguiente parada» hacia la primera estación pendiente. Al terminar
+la línea se ofrece «Ver mi recorrido». El diagnóstico y los detalles permanecen
+debajo de la celebración.
 
+Al aprobar un nivel de la estación actual con ritmo completo y 70 %, aparece
+«Continuar» o «Preparar reto final», con «Volver al mapa» como salida secundaria.
+La continuación normal arranca el siguiente nivel; el reto abre su preparación.
+Los retos de velocidad se eligen desde Preparación. Fuera de esta continuación
+del recorrido se mantiene el resultado diagnóstico con precisión, tendencia,
+consistencia y herramientas de práctica opcionales.
+
+El resultado ordinario muestra «Cómo te fue» (porcentaje, estrellas y una frase)
+y «Tu siguiente paso» (una recomendación y un botón principal). «Más opciones»
+y «Ver detalles del resultado» empiezan cerrados, después de la acción. Un reto
+opcional no sustituye al reintento de consolidación ni a la continuación del
+curso. Los mensajes breves evitan milisegundos y conclusiones con poca evidencia.
+
+Si un patrón completo pendiente necesita apoyo, el panel compartido ofrece
+«Reintentar» con guía completa y un tempo algo menor. Tras un buen intento lento,
+«Continuar» aumenta 2–4 BPM hacia el objetivo conservando el mismo ejercicio.
+El título es «Vamos paso a paso» o «¡Buen ritmo!», sin anunciar un nivel superado
+hasta que se cumpla su criterio real. La acción no pide configurar un rescate.
+
+### Inicio y Equipo para principiantes
+
+Inicio presenta una tarjeta de próxima práctica con una acción destacada. Los
+parámetros y otras estrategias empiezan plegados. La preparación explícita
+conserva sus elecciones; el inicio guiado aplica valores de aprendizaje sin
+heredar una fase avanzada anterior.
+
+Equipo presenta solo la tarea actual y un botón principal: escuchar, comprobar
+pads y seguir el clic. Un perfil vigente permite mostrar Todo listo sin repetir
+pasos. El detalle técnico se abre mediante Opciones avanzadas; UID, canales y
+buffer no son decisiones iniciales. La posición que se está aprendiendo tiene
+texto y borde destacado, además de color.
 ### Progreso
+
 Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y gráficos superpuestos.
 
 ## Movimiento
@@ -102,8 +146,9 @@ Barras de habilidad y una métrica temporal seleccionable. Evitar radar chart y 
 | Selección | 140–180 ms |
 | Expandir panel | 180–240 ms |
 | Navegación | 220–280 ms |
+| Fin de ejercicio → resultado | 1,05 s | Porcentaje animado en una pantalla de transición |
 
-Las notas se mueven linealmente respecto al reloj musical. `Reduce Motion` elimina desplazamientos ornamentales.
+Las notas se mueven linealmente respecto al reloj musical. Su contorno se calcula para cada carril a partir de los mismos bordes proyectados de la pista; al viajar se escala uniformemente con la profundidad para conservar la inclinación de esos lados. `Reduce Motion` conserva el recorrido y elimina partículas y desplazamientos ornamentales del feedback.
 
 ## Accesibilidad
 
@@ -113,7 +158,7 @@ Las notas se mueven linealmente respecto al reloj musical. `Reduce Motion` elimi
 - Navegación por teclado y VoiceOver.
 - Tooltips en controles solo-icono.
 - Alternativa tabular al microscopio.
-- Modos: color + forma, forma de alto contraste, etiquetas L/R.
+- Modos: color por sonido, contorno de alto contraste y etiquetas de sonido.
 
 ## Componentes SwiftUI
 

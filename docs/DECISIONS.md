@@ -60,6 +60,10 @@ pulso y subdivision cruzando los carriles. Con la rejilla dibujada el ojo lee
 "justo despues del tercer tiempo" en vez de "a treinta y ocho pixeles", y la
 compresion deja de importar.
 
+Los receptores bajo la línea de golpe prolongan la pendiente de los límites de
+carril y comparten su punto de fuga; no usan una proporción trapezoidal
+independiente.
+
 ## D-007 - Circulo y cuadrado, no pentagono y circulo
 
 Dos formas, las mas distintas posibles: circulo para la mano izquierda, cuadrado
@@ -243,14 +247,646 @@ son herramientas de aprendizaje, no atajos de progreso.
 **Por qué:** una célula aislada o una sola voz puede salir perfecta sin demostrar
 que el usuario controla el groove completo.
 
-## D-030 - El curso usa una escalera fija de seis tempos
+## D-030 - Los retos de tempo no bloquean el aprendizaje básico
 
-Todos los ritmos se practican en Aprender (70 BPM, una estrella), Base (85 BPM,
-dos estrellas), Consolidar (100 BPM, tres estrellas), Difícil (120 BPM, un
-trofeo), Jefe (140 BPM, dos trofeos) y Nivel dios (160 BPM, tres trofeos durante
-al menos 16 compases). Un ritmo solo completa su estación al alcanzar
-Consolidar con al menos 70 %; la siguiente estación permanece bloqueada hasta
-que todos los ritmos de la actual estén consolidados.
+La escalera común (70, 85, 100, 120, 140 y 160 BPM) es una colección de retos
+opcionales, no una serie de pasos obligatorios para aprender. El criterio básico
+de una lección es tocar el patrón completo con al menos 70 % al tempo de
+aprendizaje `min(BPM del MIDI, 100)`. Los premios de reto siguen ligados al tempo
+concreto que se tocó; no se copian a otros tempos. El requisito de 16 compases
+para Nivel dios se mantiene como reto avanzado.
 
-**Por qué:** una escala fija hace comprensible el nivel técnico alcanzado en
-cualquier estilo y evita que el curso avance por un resultado lento aislado.
+**Por qué:** un principiante puede aprender una nueva habilidad sin repetir el
+mismo ritmo a tempos cada vez más altos. Los retos conservan la práctica de
+velocidad para quien la quiera, sin confundir velocidad con progreso curricular.
+
+## D-031 - Ruta guiada con exploración libre y checkpoints de capítulo
+
+El orden principal del curso sigue siendo la recomendación predeterminada, pero
+ningún ejercicio integrado queda bloqueado para practicar. Al elegir una lección,
+la preparación usa su tempo de aprendizaje; tempo, voces y ayudas se pueden
+personalizar. Las estrellas describen el resultado del intento y los premios de
+tempo describen retos opcionales. La recomendación propone una única lección
+siguiente con su objetivo y criterio de aprobación; Inicio, Curso y Resultados
+usan el mismo planificador.
+
+Un capítulo se acredita cuando se superan todos sus ejercicios con ritmo
+completo al tempo de aprendizaje de cada uno (al menos 70 %) o cuando se supera
+su ejercicio MIDI marcado `checkpoint` con esos mismos requisitos. El checkpoint debe representar
+las habilidades del capítulo y ocupar la última posición del capítulo. Si se
+supera por adelantado, la evidencia se conserva, pero la acreditación se activa
+cuando se completa la ruta anterior. Los intentos parciales no acreditan ni el
+ejercicio ni el capítulo. Los ejercicios de Redobles continúan siendo una ruta
+técnica separada.
+
+**Por qué:** un principiante conserva una siguiente acción clara; una persona con
+experiencia puede demostrar lo que ya sabe sin tocar cada ejercicio básico. El
+progreso acredita ejecución observable y no una autoevaluación subjetiva.
+
+Esta decisión revisa la condición anterior de D-030 que exigía llegar a 100 BPM
+para avanzar. Se mantienen los seis retos opcionales, el umbral de 70 % y el
+requisito de 16 compases para Nivel dios. Los intentos históricos con alcance
+desconocido conservan la regla anterior de 100 BPM; no se acreditan
+retroactivamente por el nuevo criterio.
+
+El MIDI debe declarar un único checkpoint en la última posición de cada
+capítulo. Antes de usarlo para acreditar, su patrón se audita para incluir las
+habilidades introducidas por el bloque. El validador rechaza checkpoints
+ausentes, duplicados o que no estén al final.
+
+## D-032 - Opción de explorar el siguiente ejercicio tras dos estrellas
+
+Al terminar un ritmo completo con al menos dos estrellas, la pantalla de
+resultado ofrece una acción secundaria para practicar el siguiente ejercicio
+del curso, aunque la recomendación guiada todavía proponga otro tempo del ritmo
+actual. Esa elección no acredita el ejercicio ni el capítulo y no altera la
+recomendación oficial; el usuario puede volver a ella desde Curso. La continuación
+desde Resultados permanece dentro del primer bloque sin acreditar; solo cambia
+de bloque cuando el anterior queda acreditado. La exploración manual del Curso
+sigue permitiendo elegir otros bloques (revisión del 20/10/2026).
+
+En cada fila del curso se muestra el mayor premio de tempo acreditado para ese
+ejercicio: estrellas hasta Consolidar; al obtener trofeos se muestran solo los
+trofeos y se ocultan las estrellas anteriores. Solo cuentan intentos completos
+que cumplen los requisitos del tempo, incluida la duración de Nivel dios.
+
+**Por qué:** una persona que ya domina el patrón puede continuar voluntariamente
+sin confundir exploración rápida con acreditación curricular. El distintivo
+resume el mayor reto realmente superado sin sumar premios de tempos distintos.
+
+## D-033 - Una pista objetivo por sonido en la práctica
+
+La vista de ejecución dibuja cada nota en una única pista estable por sonido,
+aunque el layout tenga varios pads que produzcan esa voz. El mapa de Equipo
+conserva todas las posiciones físicas y CoreMIDI acepta cada alternativa; los
+objetivos exactos por rol o pad siguen aplicándose al scoring.
+
+La proyección usa tantos carriles como sonidos distintos tenga el mapa completo,
+sin huecos para pads duplicados. El orden deriva del primer pad físico de cada
+sonido y se conserva entre ejercicios; los sonidos inactivos quedan atenuados.
+Notas, receptores y feedback comparten esa misma distribución en macOS e iOS.
+
+**Por qué:** repetir cuadrados idénticos para un bombo duplicado hacía parecer
+que había dos notas que golpear. La práctica enseña el sonido y el tiempo; la
+rejilla de Equipo enseña las posiciones físicas disponibles.
+
+## D-034 - El gameplay identifica sonidos, no manos
+
+En la escena de práctica, cada nota usa el color de su sonido, compartido con el
+carril y el receptor. La silueta de nota es común y no se muestran letras L/R ni
+otra sugerencia visual de mano.
+
+Esta decisión sustituye para el gameplay la codificación de mano descrita en
+D-007 y D-008. Los datos de mano del MIDI se conservan; la escena simplemente no
+los presenta como una instrucción.
+
+**Por qué:** el objetivo visual de la práctica es reconocer qué sonido tocar y
+cuándo. Marcar una mano añadía una instrucción distinta a la identidad del pad y
+competía con el aprendizaje del sonido.
+
+## D-035 - La racha energiza la escena, no altera el score
+
+Cada acierto consecutivo Perfect/Good aumenta gradualmente la respiración de los
+carriles de sonidos activos y la onda de las separaciones. Al recibir un juicio
+Regular, Extra o Miss, el efecto vuelve a su intensidad inicial. Es feedback
+visual solamente: no cambia puntuación, ventanas ni reproducción.
+
+Desde 20 aciertos seguidos aparece además un resplandor pulsante en el fondo; se
+intensifica en 40 y 60. Reduce Motion y el modo de bajo consumo visual lo ocultan.
+Al romperse la racha, el fondo vuelve a su estado normal.
+
+Desde el quinto acierto consecutivo el HUD muestra «Racha xN»; la intensidad
+gráfica se limita aunque el contador continúe. Este contador no acredita
+ejercicios ni altera las recompensas por tempo.
+
+**Por qué:** una cadena de golpes bien colocados debe sentirse más enérgica y
+premiante, pero los efectos no deben convertirse en una regla de juego ni
+competir con la lectura temporal.
+
+## D-036 - La preparación propone el primer escalón pendiente
+
+Al entrar en Preparación de un ejercicio, se selecciona el primer escalón de la
+escalera que aún no se ha superado. Superarlo exige al menos dos estrellas,
+ritmo completo y, para Nivel dios, los dieciséis compases. Si todos están
+superados, se conserva como referencia el último escalón. Se puede escoger
+manualmente otro tempo. Esta selección sustituye el tempo inicial de aprendizaje
+de D-031, pero no cambia el criterio de acreditación curricular ni hace
+obligatorios los retos de velocidad. La prueba explícita de un checkpoint sigue
+usando su tempo de aprendizaje, porque esa acción comprueba la acreditación del
+bloque y no un reto de velocidad.
+
+Desde Resultados, «Subir nivel» selecciona el siguiente escalón de BPM pendiente
+por encima del practicado e inicia directamente la práctica guiada;
+«Siguiente ejercicio» entra también directamente en el ritmo recomendado sin
+abrir Preparación (revisión del 20/10/2026: los menús intermedios rompían el
+encadenamiento de práctica que el propio resultado proponía). Los resultados
+ofrecen además una acción explícita para volver al menú del curso.
+
+Inicio, Curso y Resultados comparten el orden topológico de `CourseGraph`, no
+el número de nivel histórico. Los bloques ya acreditados no generan nuevas
+recomendaciones curriculares. La prueba de cierre tiene una preparación propia,
+identificada por el bloque, con su objetivo y patrón MIDI integrador; conserva
+el ID del MIDI para no fragmentar la evidencia histórica.
+
+**Por qué:** repetir automáticamente un escalón ya completado oculta el siguiente
+reto al practicar de nuevo el mismo ritmo.
+
+## D-037 - Selección de acompañamiento por estilo y BPM
+
+La selección automática prefiere loops cuyo nombre indica el estilo del capítulo
+(por ejemplo, `hiphop`) y, entre ellos, el BPM fuente más cercano al tempo de
+práctica. Si no hay una coincidencia de estilo, usa el loop genérico más cercano.
+Preparación y Opciones permiten elegir otro loop o volver al modo automático.
+Cambiar de loop nunca cambia el BPM ni el scoring del ejercicio.
+
+**Por qué:** el acompañamiento debe encajar con el carácter del ritmo y evitar
+cambios de velocidad innecesarios, sin quitar al usuario la elección de la banda.
+
+## D-038 - Rotación acotada y choke explícito para golpes vivos
+
+Los golpes vivos rotan por cuatro nodos por sonido, separados del pool de notas
+programadas. Un único registro identifica la voz activa de cada sonido o grupo
+de choke. El nuevo golpe corta esa voz anterior y se programa con `.interrupts`
+en otro nodo: no se para el mismo nodo que se acaba de elegir para el ataque.
+Cerrar el motor limpia ese registro. Las notas futuras conservan el recorte de
+su cola al siguiente golpe del mismo sonido o grupo.
+
+**Por qué:** evita reciclar un único nodo en cada re-disparo y limita el trabajo
+de choke a la voz anterior. Las pruebas offline inspeccionan PCM de golpes
+rápidos, corte abierto/cerrado, aislamiento de otros grupos y reinicio. No
+demuestran la causa del fallo observado en iPhone ni sustituyen su comprobación
+acústica con MIDI y pads táctiles.
+
+## D-039 - Ganancia inmutable por evento y caché acotada de PCM preparado
+
+La ganancia solicitada y la mezcla por sonido se fijan al admitir una nota
+programada. El PCM preparado incorpora esa ganancia y el recorte/fade de choke;
+el volumen del nodo reutilizado no representa la intensidad de un evento futuro.
+La claqueta también incorpora la ganancia en cada buffer. Esta ganancia es una
+opción de mezcla/reproducción: no se deriva de velocity MIDI.
+
+Los buffers preparados se reutilizan por fuente, número exacto de frames y
+ganancia. Una caché LRU limita la retención a 64 entradas y 4 MiB por motor; una
+entrada mayor se reproduce sin almacenarse. La recarga de kit o claqueta invalida
+la caché; detener una sesión conserva las entradas reutilizables. Los golpes
+vivos no consultan ni rellenan esta caché.
+
+**Por qué:** cambiar el volumen de un nodo con varias notas futuras alteraba
+también los eventos anteriores. Reutilizar PCM inmutable evita repetir la misma
+copia y el mismo fade en frases repetidas, con un límite explícito de memoria.
+Las pruebas inspeccionan PCM y límites de caché; no se atribuye una mejora de
+latencia física a este cambio sin medirla.
+
+## D-040 - Los géneros aplican el tronco común y las frases no multiplican la sesión
+
+Hip-hop, Rock, Funk, Reggae y Jazz parten de grooves que aplican las habilidades
+anteriores. Se conservan sus voces y síncopas al añadir una variación; no basta
+con cambiar un timbre del esqueleto básico. Un género puede ser menos denso si
+su dificultad está en el espacio o la independencia. Reggae ofrece grooves de
+dos compases desde el primer ejercicio y una integración final de cuatro.
+
+El cargador MIDI propone unos ocho **compases totales** de práctica, redondeando
+las vueltas hacia abajo a 1/2/4/8 sin partir la frase. Las formas más largas se
+tocan una vez. Se conservan la duración manual y el reto de dieciséis compases.
+Así unir patrones no convierte automáticamente ocho vueltas en 16/32/96 compases.
+Se mantienen D-018 y D-028; los géneros tienen un BPM estable dentro de su bloque
+para no sumar velocidad y patrón nuevos en el mismo paso.
+
+## D-041 - La preparación pertenece al ejercicio seleccionado
+
+Al elegir una lección, la preparación muestra su objetivo, nivel preparado,
+mejor nivel superado, ayudas y duración total. Su acción de inicio toca esa
+misma lección. La recomendación global «Tu siguiente paso» permanece en Curso y
+Progreso, pero no compite con el ejercicio elegido en la preparación iOS.
+
+**Por qué:** la tarjeta global llevaba a otro ejercicio y hacía parecer que no
+se guardaba el progreso del que el usuario había seleccionado. No se modifica
+la evidencia histórica ni el criterio de acreditación de D-031/D-036.
+
+## D-042 - Estrellas desde el 70 %
+
+Los intentos nuevos conceden una estrella desde el 70 %, dos desde el 80 % y tres
+desde el 90 %, usando el porcentaje neto sin redondear. Esto sustituye los
+umbrales 50/70/90 de D-009. El curso y los retos de tempo siguen aprobándose con
+70 %: no exigen dos estrellas del intento. Los premios por tempo conservan su
+significado propio y los registros históricos no se reescriben.
+
+## D-043 - El choke vivo no cancela ataques aún sin renderizar
+
+El pool vivo sigue rotando de forma acotada. Se guarda el reloj de muestras de la
+voz al admitir cada golpe; el siguiente solo detiene esa voz si su render ha
+avanzado. El cambio de abierto a cerrado mantiene el corte entre sonidos del
+mismo grupo incluso si aún no se renderizaron. Si dos golpes del mismo sonido se
+admiten antes del siguiente quantum, se conservan sus
+ataques en nodos distintos. El nuevo nodo usa `.interrupts` para no encolarse
+detrás de una cola propia. El pool limita la superposición de ataques pendientes.
+
+Esta revisión matiza el corte incondicional de D-038 ante cortes persistentes de
+charles vivo por MIDI con salida Bluetooth en iOS. Se prueba el caso de dos
+golpes anteriores al render, además de ráfagas y alternancia abierto/cerrado con
+WAV a 44,1 kHz y salida a 48 kHz. La prueba no reproduce el dispositivo del usuario
+ni demuestra que el fallo físico esté resuelto: debe repetirse allí.
+
+## D-044 - Géneros desarrollados y cierres representativos
+
+El catálogo se amplía de 77 a 117 MIDI: 40 lecciones nuevas. Hip-hop tiene doce
+posiciones y los demás géneros ocho cada uno. Las primeras lecciones de género
+aplican el tronco común; no requieren reiniciar pulso, corcheas o coordinación.
+Esto precisa la antigua regla de autoría que pedía una primera lección para un
+principiante absoluto en cada familia: ese acceso corresponde a Iniciación.
+
+Cada variación tiene un objetivo y una dificultad identificables: orquestación,
+síncopa, aperturas, diálogo o transición. El BPM del bloque permanece fijo.
+Las voces simultáneas se limitan a dos en todas las rutas de género; el motor de
+platos cede cuando coincide la pareja principal. La forma de doce compases del
+blues tiene secciones distintas; la duración por defecto sigue D-040.
+
+Se conservan IDs y registros existentes. La prueba final mantiene su ID y ocupa
+la última `position`; los nuevos prerrequisitos insertan las lecciones antes de
+ella sin depender de la numeración histórica del archivo. Las acreditaciones
+anteriores no se borran; no se crean intentos individuales para lecciones nuevas.
+El patrón de cada cierre se amplía para incluir las voces y posiciones rítmicas
+trabajadas, comprobadas automáticamente además de la estructura curricular.
+
+## D-045 - Campaña de mundos y jefes finales
+
+El curso se presenta como catorce mundos con niveles locales y un jefe final:
+el checkpoint MIDI de cada bloque. El mundo actual se muestra abierto y los
+demás resumidos; una tarjeta principal propone jugar el nivel recomendado o
+retar al jefe cuando corresponde. La numeración sale de `position`, no del
+nivel histórico del archivo. La exploración sigue disponible al abrir un mundo.
+
+La campaña es una proyección de `CourseGraph` y del historial existente. Conserva
+las acreditaciones, el 70 %, los prerrequisitos y los premios de tempo; Redobles
+sigue como ruta técnica independiente. El jefe usa la preparación de checkpoint
+y su tempo de aprendizaje, también al llegar desde Resultados.
+
+Al aprobar un nivel del mundo actual con patrón completo y al menos 70 %, el
+resultado prioriza «Continuar» o «Retar al jefe», incluso con una sola estrella.
+Los retos de tempo siguen accesibles desde Preparación. Esta prioridad revisa
+las acciones de D-032/D-036 para que el recorrido guiado no sugiera acelerar en
+vez de avanzar. Un nivel explorado en otro mundo no redirige a uno distinto.
+
+Al acreditar un mundo nuevo aparece una celebración con trofeo, las estrellas
+del intento y una sola acción principal: «Continuar aventura» hacia el primer
+mundo pendiente. Si termina la campaña, ofrece «Ver mis mundos». Repetir un
+mundo conocido no anuncia otro desbloqueo; un jefe futuro aprobado conserva la
+evidencia hasta completar la ruta previa. La celebración se calcula después de
+guardar el intento y no se genera para práctica parcial o interrumpida.
+
+**Por qué:** el usuario pide una experiencia guiada que se sienta como un juego.
+El mapa de campaña sustituye las tarjetas de rutinas y atajos del antiguo metro
+en Curso. El cierre del mundo prioriza la victoria y la continuación sobre los
+controles avanzados del resultado. Esto revisa la presentación de D-031/D-036
+sin cambiar sus reglas de evidencia.
+
+## D-046 - Metro del Ritmo coherente en macOS e iOS
+
+Se recupera la metáfora ferroviaria acordada: una línea de catorce estaciones,
+el tren en la parada actual y niveles dentro de cada estación. El checkpoint es
+su «Reto de estación». Al terminarla, «Siguiente parada» abre la primera estación
+pendiente; al completar la línea se ofrece «Ver mi recorrido».
+
+Esta decisión sustituye los mundos y jefes de D-045. La petición de una
+experiencia más guiada y lúdica debía mejorar el metro existente, no cambiar su
+identidad. Se conserva lo añadido en D-045: progreso al 70 %, una acción principal,
+estación actual abierta, otras paradas resumidas y celebraciones basadas en la
+evidencia guardada. Los nombres históricos de las API de proyección no cambian
+el formato de datos ni los IDs MIDI.
+
+`CourseRailwayMap.swift` contiene el mapa, marcadores, vías, acciones, premios y
+paneles de nivel/estación superados usados por ambas apps. Los textos y las
+instrucciones del reto proceden del núcleo. Los coordinadores solo adaptan las
+acciones a su navegación; el proyecto iOS incluye explícitamente este archivo
+compartido. Así una mejora visual o de lenguaje no diverge entre Mac e iPhone.
+
+## D-047 - Ilustraciones ferroviarias vectoriales y estáticas
+
+El recorrido se enriquece con gráficos propios dibujados en SwiftUI/Canvas:
+tren de dos vagones, paisaje urbano, vías y andén numerado. Las estaciones tienen
+distintivos musicales y la llegada incorpora acentos dorados. Se reutilizan en
+macOS e iOS desde `RailwayArtwork.swift`, conservando la metáfora de D-046.
+
+La decoración no introduce decisiones, no recibe entrada y queda fuera de la
+práctica. Es estática también con Reduce Motion y se oculta a VoiceOver, mientras
+los nombres, estados y acciones continúan siendo accesibles. El lienzo conserva
+su proporción al adaptarse a teléfono y escritorio.
+
+## D-048 - Pads táctiles compactos por ejercicio en iOS
+
+Sin controlador MIDI, la práctica muestra solo los pads necesarios para los
+objetivos activos del ejercicio, fragmento, voz o calibración. Los objetivos por
+sonido comparten un único botón; los de rol/pad conservan sus alternativas exactas.
+La selección se fija al comenzar la sesión completa, no según las notas visibles,
+de modo que las voces de los compases posteriores ya tienen su sitio.
+
+La rejilla virtual reparte el espacio entre esos botones: pocas filas en vertical
+y una columna lateral para una a tres voces en horizontal. Dibujo, hit testing y
+accesibilidad usan la misma geometría, incluidas filas incompletas. Cada botón
+conserva el ID, rol y entrada del pad original; el instante canónico sigue siendo
+el timestamp de UITouch convertido a host time.
+
+Esta es una excepción de presentación táctil a la posición fija y la matriz
+completa: no representa un controlador físico. Equipo conserva sus dieciséis
+posiciones y la entrada MIDI no se compacta ni remapea. El objetivo es ampliar los
+botones y devolver espacio a la línea temporal sin nuevas decisiones del usuario.
+
+## D-049 - Jazz básico y Jazz intermedio como estaciones consecutivas
+
+El bloque histórico `jazz` pasa a llamarse «Jazz básico»: conserva sus ocho MIDI,
+IDs, ritmos y progreso a 64 BPM. Se añade `jazz-intermediate` con doce MIDI nuevos
+a 72 BPM, después del básico y antes de Clave/Bossa. Esta inserción amplía D-028;
+el recorrido tiene quince estaciones y el catálogo 129 ejercicios.
+
+El intermedio desarrolla independencia con charles en dos y cuatro, tresillos
+interiores de caja, comping de bombo, aro, aperturas, silencios del ride, fills,
+fraseo y trading fours. Ambos cursos usan 4/4 y rejilla ternaria de doce pasos,
+mantienen un BPM fijo por bloque y no evalúan velocity ni articulación. Cada uno
+termina con su checkpoint integrador: cuatro compases en el básico y ocho en el
+intermedio. Los IDs y resultados anteriores permanecen guardados; la nueva estación
+requiere su propia evidencia curricular.
+
+## D-050 - Aprendizaje al tempo de la lección y apoyo automático gradual
+
+Una lección pendiente se prepara al tempo que acredita su objetivo,
+`min(BPM del MIDI, 100)`, tanto en macOS como en iOS. Esto sustituye la elección
+obligatoria del primer escalón de D-036: empezar siempre a 70 BPM podía no permitir
+avanzar en una lección de 72/78/88 BPM, o añadir velocidad al aprender un ritmo
+de 64/68 BPM. La escalera 70/85/100/120/140/160 sigue como reto opcional desde
+Personalizar; sus premios continúan exigiendo tocar el tempo concreto.
+
+En una lección superada, la preparación propone un reto por encima del mejor
+tempo acreditable. Si ya se tocó a 160 BPM pero faltan los 16 compases de Nivel
+dios, conserva ese reto y prepara la duración necesaria. No encontrar un reto
+superior no implica haber ganado los premios de los tempos que no se tocaron.
+
+Si falla un patrón completo pendiente en Integrar, la acción principal propone
+reintentarlo cuatro BPM más lento con guía completa y unos cuatro compases de
+práctica. Nunca parte la frase: una forma de ocho o doce compases se conserva
+entera. Cuando sale al 70–84 %, sube dos BPM; desde 85 %, cuatro BPM. La subida
+se detiene en el objetivo de aprendizaje. Los intentos lentos no acreditan la
+lección ni generan premios de tempos no tocados. Se conserva el mínimo de 40 BPM.
+
+El apoyo no se aplica a fragmentos, voces aisladas, transferencia, intentos
+históricos desconocidos, ritmos ya superados ni retos por encima del tempo de
+aprendizaje. Solo cambia la siguiente práctica del mismo ejercicio y ofrece una
+acción principal; el usuario no tiene que elegir una estrategia de rescate.
+
+## D-051 - Tronco común continuo y cierres sin técnicas inéditas
+
+Las treinta lecciones de Fundamentos, Coordinación, Subdivisión y Groove se
+revisan conservando IDs, metadatos curriculares y número de posiciones. Tras
+Iniciación se mantiene el groove de corcheas: se añaden respuestas de bombo/caja,
+espacios, parejas, aperturas, palmada, semicorcheas y orquestación de cierres.
+Las prácticas aisladas permanecen como herramientas, no como reinicios del curso.
+
+Cada bloque mantiene un BPM nominal fijo: 70 en Fundamentos y 72 en los otros
+tres. El cierre integra solo voces y posiciones rítmicas trabajadas antes. Ningún
+paso exige tres sonidos simultáneos. Las pruebas auditan estos límites, la
+continuidad desde Iniciación y la ausencia de patrones duplicados.
+
+La calibración sigue usando el motor MIDI de corcheas de `02_sub_02_corcheas`,
+pero aísla su charles con una proyección compartida antes de crear la sesión.
+Así se conserva una calibración regular de una voz sin mantener una lección
+curricular aislada que aburra tras los grooves anteriores. El catálogo mantiene
+129 MIDI; los resultados históricos no se reescriben.
+
+## D-052 - Autopista de sonidos activos y avisos de cambio
+
+La escena de práctica dibuja un carril solo por cada sonido presente en la
+timeline de la sesión, en el orden del primer pad físico de cada sonido. El
+reparto se fija al crear la escena y se conserva durante toda la frase, también
+en compases con silencios. Esto sustituye para la práctica la regla de D-033 de
+reservar carriles para todos los sonidos del mapa: la rejilla física de Equipo
+mantiene sus 16 posiciones y el mapeo MIDI no cambia. Un golpe extra en un pad
+fuera de la frase conserva el juicio, aunque no tenga carril propio.
+
+Antes de un cambio importante, la escena muestra un aviso y una banda que cruza
+la rejilla. Los avisos se calculan en `XRollCore` a partir de la timeline:
+entrada de un sonido nuevo tras el compás inicial, cierre del último compás de la
+última vuelta y última vuelta al empezar la repetición final. El aviso dura como
+mucho 2,4 s, no se repite en cada vuelta y la entrada de un sonido tiene
+prioridad sobre el cierre. Es presentación: no modifica notas, matching ni
+puntuación.
+
+Las voces del primer compás forman el groove inicial y su regreso tras un
+silencio no genera otro aviso. La banda de entrada apunta al primer golpe real
+del sonido, aunque caiga dentro del compás. En Transferir se conservan los avisos
+de cierre y última vuelta, pero se ocultan las entradas para no revelar el patrón
+que debe recordarse sin guía.
+
+**Por qué:** retirar los carriles inactivos devuelve anchura a las notas y a los
+nombres sin cambiar la posición relativa de los sonidos que sí se tocan. Avisar
+solo de los cambios relevantes ayuda a anticipar la variación sin añadir otro
+contador ni una decisión que tomar durante la práctica.
+
+## D-053 - Autopista centrada con anchura acotada por número de sonidos
+
+La compactación de D-052 conserva los sonidos activos, pero no reparte entre
+ellos todo el ancho de una ventana grande. La pista se centra y limita su anchura
+en la línea de golpe a 320/400 pt para una/dos voces, 600/720 pt para tres/cuatro
+y 800/880/960/1.000 pt para cinco a ocho. El espacio disponible, limitado al 92 %
+del ancho de escena, prevalece en pantallas estrechas. La geometría es compartida
+por macOS e iOS; Equipo y la rejilla táctil no cambian.
+
+Notas, receptores, rejilla y feedback conservan el mismo eje y punto de fuga.
+Las notas pasan de un máximo base de 36 × 30 a 44 × 34 pt, sin crecer por tener
+menos voces y reduciéndose si falta espacio. La decoración queda atenuada en una
+franja lateral de hasta 96 pt; el resto del margen permanece oscuro. La altura,
+anticipación, reloj y scoring se conservan.
+
+**Por qué:** con tres sonidos en una ventana grande los carriles ocupaban casi
+toda la pantalla y las notas parecían diminutas. Acotar la anchura concentra la
+lectura y evita receptores excesivamente largos sin introducir otra opción de
+configuración ni alterar el orden del mapa.
+
+## D-054 - Resultado con una recomendación y una acción antes del análisis
+
+En macOS e iOS, el resultado ordinario presenta porcentaje, estrellas y una
+frase breve; después una recomendación y la acción principal. Estadísticas,
+milisegundos, microscopio, comparaciones y traza quedan bajo «Ver detalles del
+resultado». Los retos de velocidad y herramientas avanzadas quedan bajo
+«Más opciones». Ambos grupos empiezan cerrados en cada resultado nuevo.
+
+Se conserva la prioridad de D-046 para la llegada a una estación y sus vistas
+compartidas, y la de D-050 para el apoyo gradual. Fuera de la continuación del
+curso, un reto de velocidad disponible no se convierte en acción principal:
+se propone consolidar al mismo tempo y la subida se elige explícitamente.
+El checkpoint futuro ofrece como acción principal ir a la estación pendiente.
+Tras aislamiento, se prioriza volver al groove completo en ambas apps.
+
+`PracticeResultFeedback` comparte la explicación sin modificar scoring ni
+acreditaciones. Una voz débil requiere cuatro oportunidades; una tendencia
+temporal general, ocho golpes asociados. Para afirmar que una voz se adelanta
+o retrasa exige coaching elegible, cuatro golpes de esa voz y dirección
+coherente en al menos el 75 %. Con menos evidencia evita señalar una dificultad
+o dirección. El detalle conserva las medidas, separadas de la recomendación.
+
+**Por qué:** la acción principal aparecía después del análisis y competía con
+alternativas y mensajes técnicos. El principiante debe entender qué ocurrió,
+en qué concentrarse y qué tocar después sin interpretar primero estadísticas.
+
+## D-055 - Vuelta acompañada y rescate breve con regreso al groove
+
+Preparación añade «Escuchar y tocar una vuelta juntos» como alternativa al inicio
+directo. Tras la cuenta de entrada suena una vuelta con referencia y receptores
+iluminados. Otra cuenta separa «Juntos · sin puntuar» de «Ahora tú». La
+referencia y las cuentas no pertenecen a la timeline evaluada: no añaden golpes,
+compases, premios ni acreditaciones. La calibración sigue siendo obligatoria
+antes de este flujo, porque conduce automáticamente a una práctica puntuada.
+
+`PracticeRehearsalPlan` comparte los tiempos relativos. Audio se programa a host
+time futuro; la escena solo representa y realza los receptores. Las colas de la
+referencia terminan en su frontera mediante buffers recortados, sin detener las
+notas futuras de la práctica. Pausar reinicia el recorrido desde su cuenta; salir
+o terminar invalida la transición pendiente. La selección de pads táctiles se
+mantiene al pasar de la referencia a la práctica propia.
+
+El rescate correctivo usa el compás de la célula, o los dos compases adyacentes
+si cruza una barra. Conserva sus demás notas como acompañamiento, destinos
+exactos y posición dentro del compás. Primero se escucha/toca la referencia,
+después se practica la célula con guía completa. «Volver al groove completo»
+recupera el patrón, tempo y duración originales con referencia y cuenta clara.
+Solo se afirma una mejora al comparar rondas completas equivalentes; la célula
+no se compara como si fuera el groove completo. El historial usa la duración
+guardada para distinguir las vueltas de los rescates cortos y de los antiguos.
+
+Esto desarrolla el rescate Whale y no recorta las lecciones completas ni cambia
+el apoyo gradual de D-050. El alcance correctivo sigue sin acreditar el curso.
+
+## D-056 - Exportación completa por bloques y copia segura del historial
+
+CSV y JSON exportan todos los intentos del filtro actual, sin el límite silencioso
+de 100.000. Un cursor SQLite estable alimenta bloques de 256 registros y devuelve
+el número exportado. Se conserva el orden anterior: CSV cronológico y JSON del
+más reciente al más antiguo. El JSON sigue siendo un array importable, con el
+timestamp preciso, contexto y registros de golpes de cada intento.
+
+Las interfaces exportan en un worker serial con su propia conexión de lectura;
+SQLite usa WAL para que esa lectura no impida guardar nuevos intentos. El
+coordinador conserva su conexión y las publicaciones vuelven a main. No se
+exporta sobre el archivo de base de datos ni sus auxiliares WAL/SHM.
+
+Se escribe un temporal junto al destino y solo se reemplaza el archivo anterior
+después de cerrar correctamente la copia nueva. Un fallo elimina el temporal y
+conserva el backup anterior. Mac, iOS y CLI muestran el número de intentos; la
+importación mantiene la transacción y deduplicación existentes. Para una copia
+portable se usa la exportación, no solo el archivo SQLite abierto con su WAL.
+
+**Por qué:** una exportación incompleta sin aviso no es una copia fiable. La
+regresión restaura y vuelve a importar 100.005 intentos, además de comprobar
+filtros, destino anterior conservado y escritura de progreso con un lector activo.
+
+## D-057 - Inicio guiado y Equipo por pasos con opciones avanzadas plegadas
+
+Inicio muestra una próxima práctica, su objetivo y una acción principal:
+«Vamos a tocar», o «Preparar mi equipo» si falta configuración. Usa el recorrido
+curricular existente; aplica tempo de aprendizaje, duración breve, ritmo completo,
+Integrar, guía completa y sin silencios de claqueta. Las preferencias avanzadas de
+una sesión anterior no se trasladan por accidente a este inicio. Un reto final
+conserva «Preparar reto final» y su preparación ferroviaria (D-046).
+
+La vuelta acompañada de D-055 se incluye por defecto en el inicio guiado y en
+una preparación normal de Integrar. Personalizar permite escuchar demostración,
+elegir parámetros o empezar sin referencia. Se conserva D-041: al abrir una
+lección y cambiar explícitamente tempo, voces o fase, esas elecciones se respetan
+al empezar. Inicio y Preparación son rutas distintas; una lección elegida no
+presenta otra recomendación global competidora.
+
+Equipo enseña solo el paso pendiente: escuchar, comprobar pads o tocar siguiendo
+el clic para calibrar. `EquipmentSetupStep` comparte la política. Una calibración
+vigente omite comprobaciones resueltas, pero no una entrada desconectada, un mapa
+incompleto/incompatible, una asignación en curso o un error de audio. «Volver a
+comprobar» permite revisar escucha y pads sin borrar la calibración. Las
+confirmaciones se vinculan al perfil actual de entrada, salida, frecuencia y
+buffer; no inventan un perfil calibrado.
+
+El mapa MIDI conserva sus 16 posiciones y el asistente existente. La prueba MIDI
+debe resolver un pad del mapa, no solo el fallback GM. Pantalla y teclado no
+exigen aprender un controlador externo. Una distribución incompatible ofrece la
+recomendada mediante una acción explícita. Mac recuerda la elección de teclado,
+no la revoca al refrescar MIDI y recarga su calibración al seleccionarlo.
+
+Layouts, mapas, mezcla, tono, buffer y diagnóstico están bajo Opciones avanzadas.
+Mac agrupa audio, ajustes y redobles en Más herramientas; iOS pliega rutinas en
+Inicio y deja dos interruptores básicos en Opciones. Los identificadores de los
+grupos se aplican a las etiquetas, sin sustituir los de controles hijos.
+
+**Por qué:** empezar no debe exigir entender BPM, fases ni dispositivos MIDI.
+La personalización se descubre a petición del usuario, sin bloquearla por nivel
+ni modificar puntuación, acreditaciones o rutas ferroviarias.
+
+## D-058 - Tempo musical fijo por ruta de género y premios de precisión
+
+Las rutas de género dejan de ofrecer la escalera común de 70–160 BPM. Cada
+estación usa un único tempo musical coherente con su estilo: Hip-hop 90, Rock
+100, Disco 120, Funk 95, Reggae 75, Dembow 95, Blues 90, Jazz básico 90, Jazz
+intermedio 110 y Clave/Bossa 100. El MIDI es la fuente del tempo y
+`GenreTempoProfile` documenta el rango orientativo de cada ruta. Un ejercicio de
+boom bap de esta ruta a 120 BPM se aleja de su referencia de 80–95 BPM y forzaba
+premios de velocidad incoherentes. Los rangos describen estas rutas concretas,
+no límites universales de cada género. Esto sustituye la escalera de D-030/D-050
+en géneros y los tempos originales de Jazz de D-049.
+
+`CourseLessonCriteria.targetBPM` devuelve el tempo fijo en estas rutas; el tronco
+técnico conserva `min(BPM, 100)`. Los seis premios comparten el tempo musical y
+escalan en precisión, aguante y repetición: 70/80/90 % para las estrellas y
+90 % con 8 o 16 compases y 95 % con 16 compases repetidos para los trofeos. El
+último escalón exige dos intentos. Los checkpoints y la
+acreditación de estación usan el tempo fijo, no una versión acelerada.
+
+Los generadores escriben `previous-learning-bpm` en el MIDI. Con ese valor, el
+historial anterior sigue acreditando la lección aunque se guardara al tempo
+antiguo con alcance completo conocido; el alcance histórico desconocido conserva
+el criterio previo de 100 BPM. Los premios de velocidad ya ganados se conservan
+como «Histórico …». `TrainingContext.tempoPolicyVersion` marca los intentos nuevos
+en ambas apps y se conserva al cerrar y exportar/restaurar SQLite.
+Los intentos nuevos por debajo del tempo musical no acreditan el curso ni crean
+premios nuevos, pero siguen disponibles para aprender. Las preferencias guardan
+BPM y duración; cuando varios escalones comparten BPM, `TempoLadder.stepIndex`
+restaura el premio de menor exigencia y el resto se elige explícitamente.
+Un trofeo actual permite abrir lecciones anteriores como práctica avanzada; los
+desbloqueos históricos por velocidad se conservan.
+
+**Por qué:** la dificultad de un groove depende de su estilo; acelerar por
+encima del rango no demuestra dominio musical. Separar precisión, duración y
+repetición mantiene retos progresivos sin sacar la ruta de su tempo. La
+regresión comprueba rangos, tempos por estación, premios, restauración con BPM
+compartido y migración de evidencia antigua.
+
+## D-059 - El bundle macOS se distribuye sin firma ni notarización
+
+`dist/xRoll.app` permanece sin firma Developer ID y sin notarización en todos los
+canales de distribución macOS previstos por el proyecto. La primera apertura se
+documenta como una autorización puntual en Gatekeeper: Control-clic → **Abrir** o
+la opción **Abrir igualmente** de Seguridad y privacidad/Privacidad y seguridad.
+No se desactiva Gatekeeper globalmente. Los scripts de empaquetado no añaden
+firma ni pasos de notarización.
+
+Esta decisión pertenece a macOS. El IPA de iOS mantiene su propio proceso de
+sideloading y puede requerir que la herramienta de instalación lo vuelva a firmar.
+La documentación dirigida a desarrollo no debe presentar la firma/notarización
+de macOS como un requisito futuro ni pedir credenciales de Apple Developer.
+
+**Por qué:** el propietario elige distribuir la aplicación macOS sin firma; las
+instrucciones para la persona usuaria explican cómo autorizar esa copia concreta
+con Gatekeeper en vez de modificar la seguridad global del sistema.
+
+## D-060 - Referencia inicial optativa y reintentos sin demostración
+
+«Escuchar una vuelta antes de tocar» es una preferencia persistente en Preparación
+y en Ajustes/Opciones de macOS e iOS. Empieza apagada y se respeta desde Inicio,
+la preparación de Integrar y el rescate correctivo/regreso al groove. Sustituye
+la referencia automática por defecto de D-057: repetir una escucha obligatoria
+entorpece los intentos sucesivos cuando el usuario ya conoce el ritmo.
+
+Repetir, reiniciar y reanudar comienzan con la cuenta de entrada pero sin volver
+a reproducir la referencia, aunque el intento inicial la incluyera. Esto cambia
+el reinicio completo del recorrido de D-055, no su barrera de generación ni la
+cancelación de callbacks/audio anteriores. Después de una demostración elegida
+manualmente, «Empezar práctica» tampoco vuelve a demostrar el mismo patrón.
+
+«Escuchar demostración» y «Escuchar y tocar una vuelta juntos» siguen disponibles
+como acciones explícitas de una sola vez, sin activar la preferencia global.
+Los retos finales no añaden referencia automática y la calibración conserva su
+clic y sus requisitos. No se alteran scoring, duración acreditable ni historial.

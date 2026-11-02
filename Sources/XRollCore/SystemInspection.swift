@@ -1,5 +1,8 @@
 import AVFoundation
+import AudioToolbox
+#if os(macOS)
 import CoreAudio
+#endif
 import CoreMIDI
 import Foundation
 
@@ -44,6 +47,19 @@ public enum MIDIInspector {
         }
     }
 
+    public static func device(named name: String) -> MIDIDeviceRef? {
+        let expectedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !expectedName.isEmpty else { return nil }
+        return (0..<MIDIGetNumberOfDevices()).map(MIDIGetDevice).first { device in
+            guard device != 0 else { return false }
+            let names = [
+                stringProperty(device, selector: kMIDIPropertyDisplayName),
+                stringProperty(device, selector: kMIDIPropertyName)
+            ].compactMap { $0 }
+            return names.contains { $0.localizedCaseInsensitiveCompare(expectedName) == .orderedSame }
+        }
+    }
+
     private static func stringProperty(_ object: MIDIObjectRef, selector: CFString) -> String? {
         var value: Unmanaged<CFString>?
         guard MIDIObjectGetStringProperty(object, selector, &value) == noErr,
@@ -52,6 +68,7 @@ public enum MIDIInspector {
     }
 }
 
+#if os(macOS)
 public struct AudioOutputDescription: Equatable {
     public let deviceID: AudioDeviceID?
     public let deviceName: String?
@@ -290,6 +307,10 @@ public final class AudioRouteMonitor {
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain
     )
+    private var observedDevice: AudioDeviceID?
+    private var deviceAddresses = [kAudioDevicePropertyNominalSampleRate, kAudioDevicePropertyBufferFrameSize].map {
+        AudioObjectPropertyAddress(mSelector: $0, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    }
 
     public init(onChange: @escaping () -> Void) {
         self.onChange = onChange
@@ -299,9 +320,96 @@ public final class AudioRouteMonitor {
         AudioObjectAddPropertyListenerBlock(object, &defaultOutputAddress, .main, listener)
     }
 
+    /// Se llama desde main al seleccionar la salida. También observa cambios
+    /// hechos por otras apps sin cambiar el UID del dispositivo.
+    public func observe(deviceID: AudioDeviceID?) {
+        guard observedDevice != deviceID else { return }
+        if let previous = observedDevice {
+            for index in deviceAddresses.indices {
+                AudioObjectRemovePropertyListenerBlock(previous, &deviceAddresses[index], .main, listener)
+            }
+        }
+        observedDevice = deviceID
+        if let deviceID {
+            for index in deviceAddresses.indices {
+                AudioObjectAddPropertyListenerBlock(deviceID, &deviceAddresses[index], .main, listener)
+            }
+        }
+    }
+
     deinit {
+        observe(deviceID: nil)
         let object = AudioObjectID(kAudioObjectSystemObject)
         AudioObjectRemovePropertyListenerBlock(object, &devicesAddress, .main, listener)
         AudioObjectRemovePropertyListenerBlock(object, &defaultOutputAddress, .main, listener)
     }
 }
+#else
+/// Descripción de la ruta administrada por AVAudioSession en iOS. iOS no
+/// expone la selección HAL de dispositivos ni el ajuste de tamaño de buffer de
+/// CoreAudio disponible en macOS.
+public struct AudioOutputDescription: Equatable {
+    public let sampleRate: Double
+    public let channelCount: AVAudioChannelCount
+    public let outputLatency: TimeInterval
+}
+
+public struct AudioOutputDeviceDescription: Equatable, Identifiable {
+    public let uid: String
+    public let name: String
+    public var id: String { uid }
+}
+
+public enum AudioInspectorError: LocalizedError {
+    case unavailableBufferRange
+    case bufferOutsideRange(UInt32, ClosedRange<UInt32>)
+    case coreAudio(OSStatus)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unavailableBufferRange:
+            return "iOS administra el tamaño del buffer de audio."
+        case .bufferOutsideRange(let frames, let range):
+            return "El buffer de \(frames) fotogramas queda fuera del rango \(range.lowerBound)...\(range.upperBound)."
+        case .coreAudio(let status):
+            return "No se pudo configurar el audio (\(status))."
+        }
+    }
+}
+
+public enum AudioInspector {
+    /// En iOS la ruta la elige el sistema; no hay selector de AudioDeviceID.
+    public static func outputDevices() -> [AudioOutputDeviceDescription] { [] }
+    public static func defaultOutputDeviceID() -> UInt32? { nil }
+
+    public static func currentOutput() -> AudioOutputDescription {
+        let session = AVAudioSession.sharedInstance()
+        return AudioOutputDescription(
+            sampleRate: session.sampleRate,
+            channelCount: AVAudioChannelCount(session.outputNumberOfChannels),
+            outputLatency: session.outputLatency
+        )
+    }
+
+    public static func setBufferFrameSize(_ frames: UInt32, for deviceID: UInt32) throws {
+        throw AudioInspectorError.unavailableBufferRange
+    }
+}
+
+/// Informa cambios de ruta sin consultar CoreAudio HAL.
+public final class AudioRouteMonitor {
+    private var observer: NSObjectProtocol?
+
+    public init(onChange: @escaping () -> Void) {
+        observer = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { _ in onChange() }
+    }
+
+    deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+}
+#endif

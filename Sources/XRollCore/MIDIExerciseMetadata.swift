@@ -11,6 +11,14 @@ public struct MIDIExerciseMetadata: Codable, Equatable {
     public let newDifficulty: String?
     public let recommendedHelp: PracticeHelp?
     public let flags: [String]
+    public let previousLearningBPM: Int?
+
+    public init(id: String, chapter: String, position: Int, prerequisites: [String], objective: String?,
+                newDifficulty: String?, recommendedHelp: PracticeHelp?, flags: [String], previousLearningBPM: Int? = nil) {
+        self.id = id; self.chapter = chapter; self.position = position; self.prerequisites = prerequisites
+        self.objective = objective; self.newDifficulty = newDifficulty; self.recommendedHelp = recommendedHelp
+        self.flags = flags; self.previousLearningBPM = previousLearningBPM
+    }
 }
 
 public enum MIDIExerciseMetadataError: LocalizedError, Equatable {
@@ -29,6 +37,13 @@ public enum MIDIExerciseMetadataParser {
     /// `xroll/1` y alguna es incorrecta, lanza en vez de degradar en silencio:
     /// una errata en un ejercicio integrado no debe pasar por "comunitario".
     public static func parse(textEvents: [String]) throws -> MIDIExerciseMetadata? {
+        let values = try collectValues(from: textEvents)
+        guard !values.isEmpty else { return nil }
+        return try makeMetadata(from: values)
+    }
+
+    /// Conserva el orden de los valores repetibles y también las claves futuras.
+    private static func collectValues(from textEvents: [String]) throws -> [String: [String]] {
         var values = [String: [String]]()
         for event in textEvents {
             guard event.hasPrefix("xroll/1 ") else { continue }
@@ -36,15 +51,17 @@ public enum MIDIExerciseMetadataParser {
             guard let separator = entry.firstIndex(of: "=") else {
                 throw MIDIExerciseMetadataError.malformed("falta '=' en '\(event)'")
             }
-            let key = String(entry[..<separator])
-            let value = String(entry[entry.index(after: separator)...])
+            let key = String(entry[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(entry[entry.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty, !value.isEmpty else {
                 throw MIDIExerciseMetadataError.malformed("clave o valor vacio en '\(event)'")
             }
             values[key, default: []].append(value)
         }
+        return values
+    }
 
-        guard !values.isEmpty else { return nil }
+    private static func makeMetadata(from values: [String: [String]]) throws -> MIDIExerciseMetadata {
         guard let id = try singleValue("id", in: values),
               let chapter = try singleValue("chapter", in: values),
               let positionText = try singleValue("position", in: values),
@@ -56,6 +73,11 @@ public enum MIDIExerciseMetadataParser {
         let objective = try singleValue("objective", in: values)
         let newDifficulty = try singleValue("new-difficulty", in: values)
         let recommendedHelp = try singleValue("recommended-help", in: values).flatMap(PracticeHelp.init(rawValue:))
+        let previousText = try singleValue("previous-learning-bpm", in: values)
+        let previousBPM = previousText.flatMap(Int.init)
+        if previousText != nil, previousBPM.map({ (1...100).contains($0) }) != true {
+            throw MIDIExerciseMetadataError.malformed("previous-learning-bpm fuera de 1...100")
+        }
         if values["recommended-help"] != nil, recommendedHelp == nil {
             throw MIDIExerciseMetadataError.malformed("recommended-help desconocido")
         }
@@ -67,7 +89,7 @@ public enum MIDIExerciseMetadataParser {
             objective: objective,
             newDifficulty: newDifficulty,
             recommendedHelp: recommendedHelp,
-            flags: values["flag", default: []]
+            flags: values["flag", default: []], previousLearningBPM: previousBPM
         )
     }
 

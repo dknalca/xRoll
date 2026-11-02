@@ -24,6 +24,7 @@ final class Model: ObservableObject {
     static let repeatOptions = [1, 2, 4, 8, 16]
     private static let keyboardMappingSounds = ["kick", "rim", "snare", "clap", "tom_low", "hihat_closed", "hihat_open", "tom_high", "crash", "ride"]
     @Published var status = "Cargando…"; @Published var active = Set<String>()
+    @Published private(set) var isLoadingWarmup = false
     @Published var exercises = [Exercise](); @Published var chosenID = ""; @Published var preview = ""
     @Published var sources = [MIDIEndpointDescription](); @Published var sourceID: MIDIUniqueID?
     @Published var bluetoothMIDIDevices = [BluetoothMIDIDevice](); @Published var bluetoothMIDIStatus = "Bluetooth MIDI aún no preparado."
@@ -42,6 +43,7 @@ final class Model: ObservableObject {
     @Published var gridGuide: GridGuideSubdivision = .eighth
     @Published var practiceViewZoom: PracticeViewZoom = .standard
     @Published var courseTitleOverride: String?
+    @Published private(set) var isCheckpointAssessment = false
     @Published var selectedTempoTier = 0
     @Published var practiceFragment = 0
     /// Vacío significa el ritmo completo. Una selección no vacía indica las
@@ -55,28 +57,74 @@ final class Model: ObservableObject {
     /// 0 = guía completa; 1…3 siguen los niveles Gap Metronome del marco D-A-I-T.
     @Published var gapMetronomeLevel = 0
     @Published var practiceHelp: PracticeHelp = .full; @Published var autopilotMessage = ""
-    @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
+    @Published var soundStatistics = [SoundStatistics](); @Published var recentAttempts = [PracticeAttempt](); @Published private(set) var unfilteredRecentAttempts = [PracticeAttempt](); @Published var progressFilter = 0; @Published var exportMessage = ""
+    @Published private(set) var isExportingProgress = false
+    @Published private(set) var isRehearsing = false
+    @Published private(set) var practiceIncludesRehearsal = false
+    @Published var rehearsalEnabled = UserDefaults.standard.bool(forKey: "xRoll.rehearsalEnabled") {
+        didSet { UserDefaults.standard.set(rehearsalEnabled, forKey: "xRoll.rehearsalEnabled") }
+    }
+    @Published private(set) var equipmentMessage = ""
+    @Published private(set) var isRecheckingEquipment = false
+    @Published private(set) var equipmentAudioFailed = false
+    private var equipmentProbeProfile: CalibrationProfileKey?
+    private var equipmentSoundProfile: CalibrationProfileKey?
+    private var equipmentPadProfile: CalibrationProfileKey?
+    private var equipmentCheckStartedHostTime: UInt64 = 0
+    private var sceneAfterRehearsal: PracticeScene?
     @Published var historicalDiagnostics: HistoricalDiagnostics?
     @Published var masterySeals = [MasterySeal]()
     @Published var lastHitRecords = [HitRecord](); @Published var whaleMessage = ""; @Published var whaleTargetMessage = ""
-    @Published var courseLevels = [CourseLevelState]()
+    @Published var courseLevels = [CourseLevelState](); @Published private(set) var courseEvidence = [CourseAttemptEvidence]()
+    @Published private(set) var campaignWorlds = [CourseWorld]()
+    @Published private(set) var worldVictory: CourseWorldVictory?
+    @Published private(set) var nextCampaignLevel: CourseWorld.Level?
+    @Published private(set) var learningRecovery: CourseLearningRecovery?
     @Published var tuning = PracticeTuning()
     @Published var loopEnabled = true; @Published var loopStatus = "Sin loop cargado"; @Published var loopTempo: Double?
+    @Published private(set) var loopOptions = [LoopLibraryOption]()
+    @Published private(set) var selectedLoopID: String?
+    @Published private(set) var loopSelectionIsAutomatic = UserDefaults.standard.object(forKey: "xRoll.loopSelectionAutomatic") as? Bool ?? true
     @Published var metronomeEnabled = true
-    @Published var metronomeStatus = "Metrónomo del kit"
+    @Published var metronomeStatus = "Claqueta sintetizada (independiente de los sonidos del kit)"
     @Published var lastScorePercentage: Double?; @Published var lastScoreStars = 0
     @Published var lastTotalHits = 0; @Published var lastWellTimed = 0; @Published var lastRegular = 0; @Published var lastWrong = 0
     @Published var lastPoints = 0.0; @Published var lastPossiblePoints = 0; @Published var nextExerciseTitle: String?
     @Published private(set) var nextSessionPlan: NextSessionPlan?
     @Published var resultSummary: PracticeResultSummary?
+    @Published var microLessonFeedback = ""
+    @Published var performanceFeedback = ""
+    @Published private(set) var coachingGoals = [CoachingGoal]()
+    @Published private(set) var dailyPracticePlan: DailyPracticePlan?
+    @Published private(set) var dailyPracticeMessage = ""
+    @Published private(set) var trainingPersistenceError = ""
+    private var failedTrainingWrites = [String: String]()
+    @Published private(set) var pulseTrainingStage: PulseTrainingStage?
+    @Published private(set) var pulseDriftMessage = ""
+    @Published private(set) var pulseDriftReport: PulseDriftReport?
     @Published var showingResults = false
+    @Published private(set) var isShowingResultTransition = false
+    @Published private(set) var resultTransitionPercentage = 0.0
     @Published var showingPreparation = false
     @Published var showingCalibrationWarning = false
     @Published private(set) var midiDroppedPackets: UInt64 = 0
-    private var kit: KitManifest?; private var audio: SampleAudioEngine?; private var gm: KitNoteRouter?; private var liveMIDI: LiveMIDIProcessor?; private var bundledExercises = [Exercise]()
-    private var custom: PadMapV2?; private var customRouter: PadMapV2Router?; private var input: MIDIInputSession?
-    private var builder: PadMapBuilder?; private var keyboardCapture = [String: String](); private var monitor: Any?
-    private let mappingStateLock = NSLock(); private var mappingActiveForMIDI = false
+    var menuNavigationIsAvailable: Bool {
+        practice == nil && practiceScene == nil && previewScene == nil && !isShowingResultTransition && !isFinishingPractice
+    }
+    // Recursos y entrada: la sesión no posee estos servicios.
+    private var kit: KitManifest?
+    private var audio: SampleAudioEngine?
+    private var gm: KitNoteRouter?
+    private var liveMIDI: LiveMIDIProcessor?
+    private var bundledExercises = [Exercise]()
+    private var custom: PadMapV2?
+    private var customRouter: PadMapV2Router?
+    private var input: MIDIInputSession?
+    private var builder: PadMapBuilder?
+    private var keyboardCapture = [String: String]()
+    private var monitor: Any?
+    private let mappingStateLock = NSLock()
+    private var mappingActiveForMIDI = false
     private var midiRefreshTimer: Timer?
     private var midiSetupMonitor: MIDISetupMonitor?
     private var audioRouteMonitor: AudioRouteMonitor?
@@ -99,11 +147,52 @@ final class Model: ObservableObject {
         }
         return manager
     }()
-    private var practice: PracticeSession?; private var practiceStartHostTime: UInt64 = 0; private var practiceToken = UUID()
+    // La generación y el token impiden que una sesión anterior actualice la actual.
+    private var practice: PracticeSession?
+    private var practiceStartHostTime: UInt64 = 0
+    private var practiceToken = UUID()
+    private let practiceIngress = PracticeSessionIngress()
+    private var practiceGeneration: UUID?
+    private var isFinishingPractice = false
+    private var activePracticeExercise: Exercise?
+    private var activeTrainingContext: TrainingContext?
+    private var activePracticeProfileKey: CalibrationProfileKey?
+    private var progressReadGeneration = UUID()
+    private var progressDetailGeneration = UUID()
+    private var courseGraph: CourseGraph?
+    private var calibrationRawOffsets = [Double]()
     private var lastExerciseScore: ExerciseScore?
+    private var lastCorrectivePlan: WhalePlan?
+    private enum MicroLessonStage { case suggested, isolating, integrating, completed }
+    private var microLessonStage: MicroLessonStage = .completed
+    private var microLessonFocusSound: String?
+    private var microLessonBaselineAccuracy: Double?
+    private var microLessonBaselineExpected = 0
+    private var microLessonReturnBPM = 80
+    private var microLessonReturnRepeats = 2
+    private var microLessonReturnConditions: PracticeConditions?
+    private var microLessonBaselineAttempt: PracticeAttempt?
+    private var microLessonRecommendation: CoachingRecommendation?
+    private var performanceTransferActive = false
+    private var activeDailyBlockID: UUID?
+    private var previousPulseLoopEnabled: Bool?
+    private var performanceGuidedBaseline: Double?
+    private var performanceGuidedExpected = 0
+    private var performanceComparisonAllowed = false
+    private var performancePreviousLoopEnabled: Bool?
     private var lastAutopilotRecommendation: AutopilotRecommendation?
     private var previewToken = UUID()
-    private var progressStore: ProgressStore?; private var calibrationOffset: Double = 0; private var calibrationProfileKey: CalibrationProfileKey?; private var calibrating = false
+    private var resultTransitionToken = UUID()
+    private var progressStore: ProgressStore?
+    private var calibrationOffset: Double = 0
+    private var calibrationProfileKey: CalibrationProfileKey?
+    private var calibrating = false
+
+    var hasDailyPracticePlanForToday: Bool {
+        guard let dailyPracticePlan else { return false }
+        return Calendar.current.isDateInToday(dailyPracticePlan.day)
+    }
+    var dailyPracticeCompletedToday: Bool { hasDailyPracticePlanForToday && dailyPracticePlan?.isComplete == true }
 
     init() {
         load()
@@ -130,12 +219,20 @@ final class Model: ObservableObject {
             }
         }
         audioRouteMonitor = AudioRouteMonitor { [weak self] in
-            self?.refreshAudioOutputs()
+            guard let self else { return }
+            self.refreshAudioOutputs()
+            if self.practice != nil, self.activePracticeProfileKey != self.profileKey() {
+                self.interruptPracticeForRouteChange("Cambió la frecuencia o el buffer de audio. El intento no se guardó; comprueba la calibración de esta ruta.")
+            }
+            self.loadCalibration()
         }
+        audioRouteMonitor?.observe(deviceID: selectedAudioOutput?.deviceID)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Never consume macOS command shortcuts. In particular, a custom
             // pad assignment on Q must not intercept the standard ⌘Q quit.
             guard !event.modifierFlags.contains(.command) else { return event }
+            // No interpretar como pads el texto de campos y paneles de archivos.
+            guard !(event.window is NSPanel), !(event.window?.firstResponder is NSText) else { return event }
             guard !event.isARepeat, let key = event.charactersIgnoringModifiers?.uppercased(), !key.isEmpty else { return event }
             if self?.keyboardMapping == true { self?.captureKeyboardKey(key); return nil }
             if let sound = self?.keyboardKeys[key] { self?.play(sound, position: self?.position(sound), volume: 0.85); return nil }
@@ -180,24 +277,253 @@ final class Model: ObservableObject {
         return chapters
     }
     var courseRecommendation: CourseRecommendation? {
-        CourseRecommendationPlanner.recommend(exercises: bundledExercises, courseLevels: courseLevels, attempts: recentAttempts)
+        CourseRecommendationPlanner.recommend(exercises: bundledExercises, courseLevels: courseLevels, evidence: courseEvidence)
+    }
+    var nextCourseExercise: Exercise? {
+        CourseRecommendationPlanner.nextExercise(after: chosenID, exercises: bundledExercises,
+            courseLevels: courseLevels, evidence: courseEvidence)
+    }
+    var canOfferNextCourseExercise: Bool {
+        canSuggestProgress && nextCourseExercise != nil
+    }
+    private var canSuggestProgress: Bool {
+        lastScoreStars >= 2 && isFullRhythmSelection && !transferCheck
+            && practiceStepRange == nil && practiceFragment == 0
+    }
+    private var nextTempoLevel: TempoPracticeStep? {
+        guard canSuggestProgress, let chosen else { return nil }
+        guard let step = CourseLessonCriteria.optionalTempoStep(for: chosen, evidence: courseEvidence),
+              step.bpm >= selectedBPM else { return nil }
+        return step
+    }
+    private enum ResultProgressSuggestion {
+        case raise(TempoPracticeStep)
+        case next(Exercise)
+    }
+    private var resultProgressSuggestion: ResultProgressSuggestion? {
+        guard canSuggestProgress else { return nil }
+        if let next = nextCourseExercise, courseRecommendation?.exerciseID != chosen?.id {
+            return .next(next)
+        }
+        if let level = nextTempoLevel { return .raise(level) }
+        if let next = nextCourseExercise { return .next(next) }
+        return nil
+    }
+    var alternativeProgressTitle: String? {
+        if nextCampaignLevel != nil || learningRecovery != nil { return nil }
+        switch resultProgressSuggestion {
+        case .next where nextTempoLevel != nil: return "Subir nivel"
+        case .raise: return "Subir nivel"
+        default: return nil
+        }
+    }
+    var loopSelectionChoice: String {
+        loopSelectionIsAutomatic ? LoopLibraryCatalog.automaticSelectionID : (selectedLoopID ?? LoopLibraryCatalog.automaticSelectionID)
+    }
+    var loopSelectionLabel: String {
+        guard let option = chosen.flatMap({ LoopLibraryCatalog.recommended(for: $0, targetBPM: Double(selectedBPM), options: loopOptions) }) else {
+            return "Automático"
+        }
+        return "Auto · \(option.fileName) · \(Int((option.bpm ?? 0).rounded())) BPM"
+    }
+    var canChangeLoopSelection: Bool { practice == nil && practiceScene == nil && previewScene == nil }
+    func highestTempoAward(for exercise: Exercise) -> TempoAward? {
+        TempoLadder.highestPassedStep(for: exercise, evidence: courseEvidence)?.award
+    }
+    func openNextCourseExercise() {
+        guard canOfferNextCourseExercise, let exercise = nextCourseExercise else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            openCheckpointAssessment(exercise)
+            return
+        }
+        chooseExercise(exercise)
+        startGuidedLesson()
+    }
+    private func raiseTempoLevel() {
+        guard let level = nextTempoLevel,
+              let tier = tempoPracticeOptions.firstIndex(of: level) else { return }
+        selectTempoTier(tier)
+        isCheckpointAssessment = false
+        startGuidedLesson()
+    }
+    func performAlternativeProgressAction() {
+        switch resultProgressSuggestion {
+        case .next: raiseTempoLevel()
+        case .raise: raiseTempoLevel()
+        case nil: break
+        }
     }
     func tempoProgressSummary(for exercise: Exercise) -> String {
-        if let step = TempoLadder.highestPassedStep(for: exercise, attempts: recentAttempts) {
-            return "\(step.label) superado · \(step.bpm) BPM · \(step.award.label)"
+        if let state = courseLevels.first(where: { $0.exerciseID == exercise.id }) {
+            if case .checkpoint(exerciseID: _) = state.creditSource {
+                return "Acreditado por checkpoint"
+            }
+            if state.status == .mastered, !state.chapterAccredited {
+                return "Superado individualmente · capítulo pendiente"
+            }
         }
-        if let step = TempoLadder.nextStep(for: exercise, attempts: recentAttempts) {
+        if let step = TempoLadder.highestPassedStep(for: exercise, evidence: courseEvidence) {
+            return "Reto \(step.label) superado · \(step.bpm) BPM · premio: \(step.award.label)"
+        }
+        if let step = TempoLadder.nextStep(for: exercise, evidence: courseEvidence) {
             return "Te toca: \(step.label) · \(step.bpm) BPM"
         }
         return "Escalera completa"
     }
     var selectedMIDIName: String { sources.first(where: { $0.uniqueID == sourceID })?.name ?? "Sin controlador seleccionado" }
+    var hasAssignedPad: Bool {
+        guard let sourceID, sources.contains(where: { $0.uniqueID == sourceID }) else { return false }
+        return input != nil
+    }
+    var equipmentStep: EquipmentSetupStep {
+        let key = profileKey()
+        return EquipmentSetupStep.current(audioAvailable: audio != nil && !equipmentAudioFailed,
+            inputAvailable: sourceID == nil || hasAssignedPad,
+            padsMapped: equipmentHasMappedPads && equipmentLayoutCompatible && !mapping && !keyboardMapping,
+            soundConfirmed: equipmentSoundProfile == key, padConfirmed: equipmentPadProfile == key,
+            calibrated: hasCalibrationForCurrentProfile, rechecking: isRecheckingEquipment)
+    }
+    var needsHomeSetup: Bool { equipmentStep != .ready }
+    var canConfirmEquipmentSound: Bool { equipmentProbeProfile == profileKey() }
+    var equipmentInputName: String { sourceID == nil ? "Teclado del Mac" : selectedMIDIName }
+    var equipmentHasMappedPads: Bool { sourceID == nil || custom?.pads.count == 16 }
+    var equipmentLayoutCompatible: Bool {
+        guard let exercise = guidedExercise else { return true }
+        let sounds = sourceID == nil
+            ? (keyboardKeys.isEmpty ? Set(positions.compactMap(name)) : Set(keyboardKeys.values))
+            : Set(custom?.pads.map(\.sound) ?? [])
+        return Set(exercise.notes.map(\.sound)).isSubset(of: sounds)
+    }
+    func useRecommendedEquipmentLayout() {
+        if sourceID == nil { keyboardKeys = [:]; saveKeyboardMap() }
+        else { useLayout(.core) }
+    }
+    var equipmentMappedCount: Int { builder?.assignedCount ?? custom?.pads.count ?? 0 }
+    var equipmentNextPadID: String? { builder?.nextStep.map { "r\($0.row)c\($0.column)" } }
+    var equipmentMappingPrompt: String {
+        builder?.nextStep.map { "Toca la posición de la fila \($0.row + 1), columna \($0.column + 1), contando desde abajo a la izquierda." }
+            ?? "Golpea un pad para comprobar que responde."
+    }
+    var equipmentCalibrationPrompt: String {
+        if sourceID == nil, let pad = position("hihat_closed") {
+            return "Durante el ajuste, pulsa la tecla \(keyboardLabel(for: pad).uppercased()) siguiendo el clic."
+        }
+        return "Durante el ajuste, toca el pad de \(displayName("hihat_closed").lowercased()) siguiendo el clic."
+    }
+    var isCalibrationPractice: Bool { calibrating }
+    var guidedExercise: Exercise? {
+        if let id = courseRecommendation?.exerciseID { return bundledExercises.first { $0.id == id } }
+        if let id = nextSessionPlan?.exerciseID { return bundledExercises.first { $0.id == id } }
+        return bundledExercises.first
+    }
+    func startGuidedHomeSession() {
+        guard equipmentStep == .ready, let exercise = guidedExercise else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true { openCheckpointAssessment(exercise); return }
+        chooseExercise(exercise)
+        let configuration = PracticeConfiguration.guided(for: exercise)
+        selectedBPM = configuration.bpm; selectedRepeats = configuration.repeats
+        practiceHelp = .full; gapMetronomeLevel = 0; trainingPhase = .integrate
+        transferCheck = false; practiceFragment = 0; practiceStepRange = nil; selectFullRhythm()
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
+        if startPractice(rehearsal: rehearsalEnabled) { showingPreparation = false; showingResults = false }
+    }
+    func recheckEquipment() {
+        isRecheckingEquipment = true
+        equipmentProbeProfile = nil; equipmentSoundProfile = nil; equipmentPadProfile = nil
+        equipmentMessage = "Vamos a comprobar el sonido y la entrada que estás usando."
+    }
+    func probeEquipmentSound() {
+        guard practice == nil, previewScene == nil else { return }
+        guard let audio, let sound = kit?.sounds.first else {
+            equipmentMessage = "El sonido no está disponible. Revisa la configuración en Opciones avanzadas."
+            return
+        }
+        do {
+            try withSuspendedMIDIInput { try audio.start() }
+            try audio.play(soundID: sound.id)
+            equipmentAudioFailed = false
+            equipmentProbeProfile = profileKey()
+            equipmentMessage = "Si lo oyes con claridad, pulsa Lo escucho."
+        } catch { equipmentAudioFailed = true; equipmentMessage = "No se pudo reproducir el sonido: \(error.localizedDescription)" }
+    }
+    func confirmEquipmentSound() {
+        guard canConfirmEquipmentSound else { return }
+        equipmentSoundProfile = profileKey(); equipmentPadProfile = nil
+        equipmentCheckStartedHostTime = AudioClock.currentHostTime()
+        equipmentMessage = "Ahora comprueba que tu entrada responde."
+    }
+    func probeEquipmentPad() {
+        guard sourceID == nil, let sound = kit?.sounds.first, let audio else { return }
+        do {
+            try withSuspendedMIDIInput { try audio.start() }
+            let hostTime = AudioClock.currentHostTime()
+            try audio.play(soundID: sound.id)
+            equipmentAudioFailed = false
+            markEquipmentPadCheck(hostTime: hostTime)
+            presentHit(sound.id, position: position(sound.id), hostTime: hostTime, role: nil, padID: nil, velocity: nil)
+        } catch { equipmentAudioFailed = true; equipmentMessage = "No se pudo probar el pad: \(error.localizedDescription)" }
+    }
+    private func markEquipmentPadCheck(hostTime: UInt64) {
+        guard practice == nil, previewScene == nil, !mapping, !keyboardMapping,
+              equipmentSoundProfile != nil, equipmentPadProfile == nil,
+              hostTime >= equipmentCheckStartedHostTime, equipmentHasMappedPads, equipmentLayoutCompatible else { return }
+        let key = profileKey()
+        guard equipmentSoundProfile == key else { return }
+        equipmentPadProfile = key
+        equipmentMessage = "La entrada responde. Solo queda ajustar la sincronía si esta ruta no está calibrada."
+    }
     var hasCalibrationForCurrentProfile: Bool { calibrationProfileKey == profileKey() }
     var midiDiagnostics: String {
         guard tuning.debugEnabled else { return "" }
         return "MIDI: \(midiDroppedPackets) paquetes descartados"
     }
-    var currentExerciseTitle: String { courseTitleOverride ?? chosen?.title ?? "Ejercicio" }
+    var currentExerciseTitle: String {
+        if calibrating { return "Calibración guiada" }
+        if isCheckpointAssessment, let chosen {
+            return CourseWorld.challengeTitle(for: chosen.metadata?.chapter ?? "")
+        }
+        return courseTitleOverride ?? chosen?.title ?? "Ejercicio"
+    }
+    var checkpointAssessmentOutcome: String? {
+        guard isCheckpointAssessment, let score = lastScorePercentage, let exercise = chosen else { return nil }
+        guard score >= CourseLessonCriteria.minimumScore else {
+            return CourseWorld.challengeNeedsRetry
+        }
+        let chapterAccredited = courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
+        if chapterAccredited { return CourseWorld.challengeCompleted }
+        if let pending = pendingCheckpointChapter {
+            let title = metroChapters.first { $0.id == pending.metadata.chapter }?.title ?? pending.metadata.chapter
+            return CourseWorld.pendingStationMessage(title)
+        }
+        return CourseWorld.challengeSaved
+    }
+    var pendingCheckpointChapter: CourseGraph.Node? {
+        guard isCheckpointAssessment, let chosen,
+              (lastScorePercentage ?? 0) >= CourseLessonCriteria.minimumScore,
+              let graph = try? CourseGraph(exercises: bundledExercises),
+              TempoLadder.isCheckpointPassed(chosen, evidence: courseEvidence) else { return nil }
+        return graph.pendingChapter(before: chosen.id, states: courseLevels)
+    }
+    func openPendingCheckpointChapter() {
+        guard let pending = pendingCheckpointChapter else { return }
+        openPreparation(pending.exercise)
+    }
+    func openCampaignLevel(_ exercise: Exercise) {
+        if exercise.metadata?.flags.contains("checkpoint") == true { openCheckpointAssessment(exercise) }
+        else { openPreparation(exercise) }
+    }
+    func continueWorldCampaign() {
+        if let level = campaignWorlds.first(where: \.isCurrent)?.nextLevel {
+            openCampaignLevel(level.exercise)
+        } else { dismissResults() }
+    }
+    private func continueCampaignLevel() {
+        guard let next = nextCampaignLevel else { return }
+        if next.isBoss { openCheckpointAssessment(next.exercise) }
+        else { chooseExercise(next.exercise); startGuidedLesson() }
+    }
+    var currentPracticeBPM: Int { practice?.bpm ?? selectedBPM }
+    var currentPracticeRepeats: Int { calibrating ? 8 : (activePracticeExercise?.repeats ?? selectedRepeats) }
     /// Los escalones se derivan del BPM del MIDI seleccionado; un tempo absoluto
     /// no representa la misma dificultad en dos grooves distintos.
     var tempoPracticeOptions: [TempoPracticeStep] {
@@ -213,17 +539,16 @@ final class Model: ObservableObject {
         } else if let exercise = chosen {
             selectedRepeats = defaultRepeats(for: exercise)
         }
+        if let chosen { updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM) }
         savePreferences()
     }
     /// Las estrellas pertenecen a la combinación ejercicio + tempo. Un buen
     /// resultado en Aprender no acredita Base ni Consolidar.
     func starsForTempoTier(_ tier: Int, exercise: Exercise? = nil) -> Int? {
-        guard tempoPracticeOptions.indices.contains(tier), let id = (exercise ?? chosen)?.id else { return nil }
-        let bpm = tempoPracticeOptions[tier].bpm
-        return recentAttempts
-            .filter { $0.exerciseID == id && $0.bpm == bpm }
-            .map(\.stars)
-            .max()
+        guard let exercise = exercise ?? chosen else { return nil }
+        let steps = TempoLadder.steps(for: exercise)
+        guard steps.indices.contains(tier) else { return nil }
+        return TempoLadder.bestStars(for: steps[tier], exerciseID: exercise.id, evidence: courseEvidence)
     }
     func tempoTierStarsLabel(_ tier: Int, exercise: Exercise? = nil) -> String {
         guard let stars = starsForTempoTier(tier, exercise: exercise) else { return "Sin intento" }
@@ -236,21 +561,22 @@ final class Model: ObservableObject {
     func tempoTierProgressLabel(_ tier: Int, exercise: Exercise? = nil) -> String {
         guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return "Sin intento" }
         let step = tempoPracticeOptions[tier]
-        let passes = TempoLadder.passedAttempts(for: step, exerciseID: exercise.id, attempts: recentAttempts)
+        let passes = TempoLadder.passedAttempts(for: step, exerciseID: exercise.id, evidence: courseEvidence)
         return "\(min(passes, step.requiredPasses))/\(step.requiredPasses) a \(Int(step.requiredScore)) %"
     }
     func isTempoTierAvailable(_ tier: Int, exercise: Exercise? = nil) -> Bool {
-        guard tempoPracticeOptions.indices.contains(tier), let exercise = exercise ?? chosen else { return false }
-        let next = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
-        guard let next, let nextIndex = tempoPracticeOptions.firstIndex(of: next) else { return true }
-        return tier <= nextIndex
+        let steps = exercise.map(TempoLadder.steps(for:)) ?? tempoPracticeOptions
+        return steps.indices.contains(tier)
     }
     var tempoGuidance: String {
-        guard let chosen else { return "Elige un ritmo para ver su escalera de tempo." }
-        guard let step = TempoLadder.nextStep(for: chosen, attempts: recentAttempts) else {
-            return "Escalera completada: prueba transferencia o repasa el ritmo con menos ayudas."
+        guard let chosen else { return "Elige un ritmo para ver sus retos opcionales de tempo." }
+        if let profile = GenreTempoProfile.profile(for: chosen) {
+            return "Tempo musical fijo: \(chosen.bpm) BPM (\(profile.name), \(profile.suggestedRange.lowerBound)–\(profile.suggestedRange.upperBound) BPM). Cada premio pide más precisión y aguante, no más velocidad."
         }
-        return "Siguiente: \(step.label) a \(step.bpm) BPM (\(step.requiredPasses) resultado\(step.requiredPasses == 1 ? "" : "s") de \(Int(step.requiredScore)) % o más)."
+        guard let step = CourseLessonCriteria.optionalTempoStep(for: chosen, evidence: courseEvidence) else {
+            return "No quedan retos por encima de tu mejor tempo. Puedes repasar otros niveles; cada premio exige su tempo y duración propios."
+        }
+        return "Reto opcional: \(step.label) a \(step.bpm) BPM. No necesitas superarlo para avanzar en el curso."
     }
     var practiceHelpDescription: String {
         switch practiceHelp {
@@ -283,20 +609,14 @@ final class Model: ObservableObject {
         }
     }
     private func exerciseForFragment(_ exercise: Exercise) -> Exercise {
-        let notes: [Exercise.Note]
-        if let practiceStepRange {
-            notes = exercise.notes.filter { practiceStepRange.contains($0.step) }
-        } else {
-            switch practiceFragment {
-            case 1: notes = exercise.notes.filter { $0.step < exercise.grid / 2 }
-            case 2: notes = exercise.notes.filter { $0.step >= exercise.grid / 2 }
-            default: notes = exercise.notes
-            }
-        }
-        return Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family, level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars, grid: exercise.grid, repeats: exercise.repeats, kit: exercise.kit, loop: exercise.loop, offset: exercise.offset, notes: notes)
+        let notes = PracticeConfiguration.notes(in: exercise, fragment: practiceFragment, stepRange: practiceStepRange)
+        return Exercise(format: exercise.format, id: exercise.id, title: exercise.title, family: exercise.family, level: exercise.level, bpm: exercise.bpm, meter: exercise.meter, bars: exercise.bars, grid: exercise.grid, repeats: exercise.repeats, kit: exercise.kit, loop: exercise.loop, offset: exercise.offset, notes: notes, metadata: exercise.metadata)
     }
     var lessonGoal: String {
         guard let chosen else { return "Elige un nivel para ver el objetivo." }
+        if let objective = chosen.metadata?.objective, !objective.isEmpty, objective != chosen.title {
+            return objective
+        }
         let currentSounds = Set(chosen.notes.map(\.sound))
         let previousSounds = exercises.first(where: { $0.level == chosen.level - 1 }).map { Set($0.notes.map(\.sound)) } ?? []
         let introduced = currentSounds.subtracting(previousSounds)
@@ -333,6 +653,10 @@ final class Model: ObservableObject {
         return playerSounds.isEmpty ? available : playerSounds.intersection(available)
     }
     var isFullRhythmSelection: Bool { selectedPlayerSounds == Set(availablePracticeSounds) }
+    var canStartTransferPerformance: Bool {
+        isFullRhythmSelection && practiceStepRange == nil && !transferCheck && trainingPhase != .transfer
+    }
+    var transferPerformanceTitle: String { loopTempo == nil ? "Tocar sin guía visual" : "Tocar con la banda" }
     func selectFullRhythm() {
         playerSounds = []
         practiceLayer = "all"
@@ -357,40 +681,92 @@ final class Model: ObservableObject {
         return "Repasa \(displayName(weakest.sound)): \(Int(weakest.accuracy.rounded())) % de acierto (\(weakest.missed) fallos)."
     }
     var nextPracticeRecommendation: String {
-        guard let score = lastScorePercentage else { return "Empieza por escuchar una demostración guiada." }
-        if score >= 70, let nextExerciseTitle { return "Buen trabajo: prueba \(nextExerciseTitle)." }
+        guard lastScorePercentage != nil else { return "Empieza por escuchar una demostración guiada." }
+        if hasAdvancingCourseRecommendation, let recommendation = courseRecommendation {
+            if recommendation.exerciseID == chosen?.id {
+                return "Buen trabajo: termina el ritmo completo a su tempo de referencia, \(recommendation.tempoStep.bpm) BPM."
+            }
+            if let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) {
+                return "Buen trabajo: prueba \(exercise.title)."
+            }
+        }
+        if lastScoreStars >= 2, let nextExerciseTitle { return "Buen trabajo: prueba \(nextExerciseTitle)." }
         return "Repite el mismo nivel enfocándote en el sonido indicado."
     }
+    private var hasAdvancingCourseRecommendation: Bool {
+        guard lastScoreStars >= 2,
+              isFullRhythmSelection,
+              practiceStepRange == nil,
+              practiceFragment == 0,
+              !transferCheck,
+              let recommendation = courseRecommendation else { return false }
+        return recommendation.exerciseID != chosen?.id || recommendation.tempoStep.bpm > selectedBPM
+    }
     var resultDiagnosis: String {
-        guard let diagnosis = resultSummary?.diagnosis else { return "Termina una vuelta para obtener un diagnóstico." }
-        switch diagnosis {
-        case .insufficientEvidence:
-            return "No hubo suficientes golpes asociados para evaluar tu timing."
-        case .weakSound(let sound, let accuracy, let missed):
-            return "\(displayName(sound)) necesita atención: \(Int(accuracy.rounded())) % de acierto y \(missed) fallos."
-        case .inconsistent(let spread):
-            return "El pulso oscila entre golpes: la dispersión central fue de \(Int(spread.rounded())) ms."
-        case .timingBias(let offset):
-            return offset < 0
-                ? "Los golpes asociados quedaron \(Int(abs(offset).rounded())) ms antes del centro puntuado."
-                : "Los golpes asociados quedaron \(Int(offset.rounded())) ms después del centro puntuado."
-        case .solid:
-            return "Tu pulso está centrado y el patrón se mantiene estable."
-        }
+        resultFeedback?.headline ?? "Termina una vuelta para obtener un diagnóstico."
+    }
+    var resultFeedback: PracticeResultFeedback? {
+        guard let score = lastExerciseScore, let summary = resultSummary else { return nil }
+        return PracticeResultFeedback(score: score, summary: summary,
+            coaching: microLessonStage == .suggested ? microLessonRecommendation : nil, soundName: displayName)
     }
     var resultActionTitle: String {
+        if let learningRecovery { return learningRecovery.actionTitle }
+        if let nextCampaignLevel { return nextCampaignLevel.continuationTitle }
+        if microLessonStage == .isolating { return "Volver al groove completo" }
+        switch resultProgressSuggestion {
+        case .raise: return "Repetir para consolidar"
+        case .next: return "Siguiente ejercicio"
+        case nil: break
+        }
+        if hasAdvancingCourseRecommendation, let recommendation = courseRecommendation {
+            return recommendation.exerciseID == chosen?.id
+                ? "Completar ritmo"
+                : "Siguiente ejercicio"
+        }
         switch resultSummary?.action {
-        case .corrective: return "Practicar fragmento difícil"
+        case .corrective: return "Repetir ejercicio"
         case .repeatWithAdjustment: return "Aplicar ajuste y repetir"
         case .advance: return "Siguiente ejercicio"
         case .repeatSame: return "Repetir para consolidar"
         case nil: return "Repetir"
         }
     }
+    var canStartCorrectivePractice: Bool {
+        microLessonStage == .suggested && lastCorrectivePlan != nil && resultSummary != nil
+    }
+    var correctiveActionReason: String {
+        guard let plan = lastCorrectivePlan else { return "" }
+        return plan.coachingCue.replacingOccurrences(of: plan.focusSound, with: displayName(plan.focusSound))
+    }
     var resultActionReason: String {
+        if let learningRecovery { return learningRecovery.message }
+        if let nextCampaignLevel {
+            return nextCampaignLevel.continuationMessage
+        }
+        if microLessonStage == .isolating {
+            return "Ya has aislado el momento. Ahora toca el patrón completo para probar cómo encaja en el groove."
+        }
+        switch resultProgressSuggestion {
+        case .raise:
+            return "Puedes consolidar este ritmo con el mismo tempo. Los retos de velocidad están en Más opciones."
+        case .next(let exercise):
+            return "Prepara «\(exercise.title)». Puedes explorarla sin perder tus premios ni saltarte requisitos del curso."
+        case nil: break
+        }
+        if hasAdvancingCourseRecommendation, let recommendation = courseRecommendation {
+            if recommendation.exerciseID == chosen?.id {
+                return "Toca el ritmo completo a su tempo de referencia (\(recommendation.tempoStep.bpm) BPM) y alcanza el 70 % para continuar."
+            }
+            let title = exercises.first(where: { $0.id == recommendation.exerciseID })?.title ?? "el siguiente ejercicio"
+            return "Buen trabajo. La siguiente lección es «\(title)». Los retos de velocidad son opcionales."
+        }
         switch resultSummary?.action {
-        case .corrective: return "xRoll aislará la voz con más margen y mantendrá el resto como acompañamiento."
-        case .repeatWithAdjustment: return lastAutopilotRecommendation?.message ?? "Repite con más apoyo para centrar el patrón."
+        case .corrective: return "Repetimos el ritmo completo para aplicar esta indicación."
+        case .repeatWithAdjustment:
+            guard let adjustment = lastAutopilotRecommendation else { return "Repite con más apoyo para centrar el patrón." }
+            let bpm = min(240, max(40, selectedBPM + adjustment.bpmAdjustment))
+            return "Repetiremos este ritmo a \(bpm) BPM con ayuda \(adjustment.help.label.lowercased())."
         case .advance: return nextExerciseTitle.map { "Este intento permite continuar con \($0)." } ?? "El patrón está listo para avanzar."
         case .repeatSame: return "La configuración actual funciona: otra vuelta ayudará a consolidarla."
         case nil: return "Repite el patrón con la misma configuración."
@@ -405,12 +781,56 @@ final class Model: ObservableObject {
         resultSummary?.consistencyMilliseconds.map { String(format: "%.0f ms", $0) } ?? "Sin datos"
     }
     func performResultAction() {
+        if let recovery = learningRecovery, let chosen {
+            selectedBPM = recovery.bpm
+            selectedRepeats = recovery.repeats
+            practiceHelp = .full
+            gapMetronomeLevel = 0
+            updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM)
+            savePreferences()
+            repeatPractice()
+            return
+        }
+        if nextCampaignLevel != nil { continueCampaignLevel(); return }
+        if microLessonStage == .isolating {
+            returnToFullGroove()
+            return
+        }
+        switch resultProgressSuggestion {
+        case .raise: repeatPractice(); return
+        case .next: openNextCourseExercise(); return
+        case nil: break
+        }
+        if hasAdvancingCourseRecommendation {
+            followCourseRecommendation()
+            return
+        }
         switch resultSummary?.action {
-        case .corrective: startCorrectivePractice()
+        case .corrective: repeatPractice()
         case .repeatWithAdjustment: applyAutopilot(); repeatPractice()
         case .advance: moveToSuggestedExercise()
         case .repeatSame, nil: repeatPractice()
         }
+    }
+    private func followCourseRecommendation() {
+        guard let recommendation = courseRecommendation else { return }
+        isCheckpointAssessment = false
+        if recommendation.exerciseID == chosen?.id,
+           let tier = tempoPracticeOptions.firstIndex(of: recommendation.tempoStep) {
+            selectTempoTier(tier)
+            startGuidedLesson()
+            return
+        }
+        guard let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
+        if exercise.metadata?.flags.contains("checkpoint") == true {
+            openCheckpointAssessment(exercise)
+            return
+        }
+        chooseExercise(exercise)
+        if let tier = tempoPracticeOptions.firstIndex(of: recommendation.tempoStep) {
+            selectTempoTier(tier)
+        }
+        startGuidedLesson()
     }
     var analysisAverageScore: Double? {
         guard !recentAttempts.isEmpty else { return nil }
@@ -454,7 +874,9 @@ final class Model: ObservableObject {
         return kit?.sounds.first(where: { $0.id == sound })?.label ?? sound.replacingOccurrences(of: "_", with: " ").capitalized
     }
     func selectSource() {
+        interruptPracticeForRouteChange("Cambió la entrada. El intento no se guardó.")
         setMapping(false); builder = nil
+        UserDefaults.standard.set(sourceID == nil, forKey: "xRoll.prefersKeyboard")
         if let sourceID { UserDefaults.standard.set(Int(sourceID), forKey: "xRoll.midiSourceID") }
         else { UserDefaults.standard.removeObject(forKey: "xRoll.midiSourceID") }
         connect()
@@ -489,6 +911,7 @@ final class Model: ObservableObject {
             return
         }
         status = "Salidas actualizadas: \(selected.name)"
+        audioRouteMonitor?.observe(deviceID: selected.deviceID)
     }
 
     /// Suspende la entrega MIDI durante una reconfiguración de audio, como exige
@@ -505,6 +928,7 @@ final class Model: ObservableObject {
 
     private func interruptPracticeForRouteChange(_ message: String) {
         guard practice != nil else { return }
+        cancelPracticeInput()
         practiceToken = UUID()
         previewToken = UUID()
         audio?.stopScheduledSounds()
@@ -519,6 +943,7 @@ final class Model: ObservableObject {
     }
     func selectAudioOutput() {
         guard let selected = audioOutputs.first(where: { $0.uid == selectedAudioOutputUID }) else { return }
+        interruptPracticeForRouteChange("Cambió la salida de audio. El intento no se guardó.")
         do {
             try withSuspendedMIDIInput {
                 audio?.stopScheduledSounds()
@@ -528,6 +953,7 @@ final class Model: ObservableObject {
             }
             UserDefaults.standard.set(selected.uid, forKey: "xRoll.audioOutputUID")
             loadCalibration()
+            audioRouteMonitor?.observe(deviceID: selected.deviceID)
             status = "Salida de audio: \(selected.name)"
         } catch {
             status = error.localizedDescription
@@ -548,6 +974,7 @@ final class Model: ObservableObject {
     }
     func setAudioBufferFrames(_ frames: UInt32) {
         guard let output = selectedAudioOutput else { return }
+        interruptPracticeForRouteChange("Cambió el buffer de audio. El intento no se guardó.")
         do {
             try withSuspendedMIDIInput {
                 audio?.stopScheduledSounds()
@@ -598,6 +1025,11 @@ final class Model: ObservableObject {
         let previousID = sourceID
         sources = available
 
+        if previousID == nil, UserDefaults.standard.bool(forKey: "xRoll.prefersKeyboard") {
+            if announceChanges { status = "Teclado listo" }
+            return
+        }
+
         if let previousID, available.contains(where: { $0.uniqueID == previousID }) {
             if changed { connect() }
         } else if let preferred = preferredMIDISource(in: available) {
@@ -637,27 +1069,15 @@ final class Model: ObservableObject {
             mapMessage = "Primero usa «Empezar asignación» para aprender las notas de tu pad. Así el layout no inventará notas MIDI."
             return
         }
-        // SMC-PAD uses the standard 4×4 grid: note 36 in the lower-left
-        // corner through note 51 in the upper-right. Build all sixteen
-        // physical cells from that fixed matrix so a preset never inherits a
-        // partial (ten-pad) educational map or changes note positions.
-        let isStandard4x4 = !custom.pads.isEmpty && custom.pads.allSatisfy {
-            $0.input.number == 36 + $0.row * 4 + $0.column
+        let physical = loadPhysicalMap(sourceID) ?? custom
+        guard physical.pads.count == 16 else {
+            mapMessage = "El mapa antiguo está incompleto. Aprende las 16 posiciones antes de aplicar un layout."
+            return
         }
-        let physical: PadMapV2
-        if isStandard4x4 {
-            let channel = custom.pads.first?.input.channel ?? 10
-            physical = PadLayoutFactory.make(.drumKit, device: .init(name: source.name, uid: Int(source.uniqueID ?? 0)), channel: channel)
-            savePhysicalMap(physical)
-        } else {
-            physical = loadPhysicalMap(sourceID) ?? custom
-            if loadPhysicalMap(sourceID) == nil { savePhysicalMap(physical) }
-        }
+        if loadPhysicalMap(sourceID) == nil { savePhysicalMap(physical) }
         let map = PadLayoutFactory.applying(selectedLayoutPreset, to: physical)
         save(map)
-        mapMessage = isStandard4x4
-            ? "Layout aplicado: MIDI 36 (C2) sigue abajo a la izquierda y MIDI 51 sigue arriba a la derecha."
-            : "Layout aplicado: se han conservado las notas y canales MIDI de tus pads físicos."
+        mapMessage = "Layout aplicado: se han conservado las notas y canales MIDI de tus pads físicos."
     }
     func useLayout(_ preset: PadLayoutPreset) {
         selectedLayoutPreset = preset
@@ -676,10 +1096,20 @@ final class Model: ObservableObject {
         }
     }
     func importLayout() {
-        let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false
+        guard let source = sources.first(where: { $0.uniqueID == sourceID }), let uid = source.uniqueID else {
+            mapMessage = "Selecciona el controlador al que aplicarás el mapa."
+            return
+        }
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.data]; panel.allowsMultipleSelection = false
         panel.begin { response in
             guard response == .OK, let url = panel.url, let kit = self.kit else { return }
-            do { let map = try PadMapStore.loadV2(at: url, availableSounds: Set(kit.sounds.map(\.id))); self.save(map); self.mapMessage = "Layout importado." } catch { self.mapMessage = "No se pudo importar: \(error.localizedDescription)" }
+            do {
+                guard self.sourceID == uid else { self.mapMessage = "Cambió el controlador; vuelve a importar el mapa."; return }
+                let map = try PadMapStore.loadV2(at: url, availableSounds: Set(kit.sounds.map(\.id)))
+                    .rebound(to: .init(name: source.name, uid: Int(uid)))
+                self.save(map)
+                self.savePhysicalMap(map)
+            } catch { self.mapMessage = "No se pudo importar: \(error.localizedDescription)" }
         }
     }
     func skipMappingSound() {
@@ -709,6 +1139,7 @@ final class Model: ObservableObject {
             let timeline = ExerciseTimeline(exercise: exercise)
             let base = AudioClock.hostTime(afterMilliseconds: 700)
             for note in timeline.notes { try audio.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: base)) }
+            try audio.flushScheduledSounds()
             previewScene = PracticeScene(timeline: timeline, startHostTime: base, anticipationMilliseconds: timeline.patternDurationMilliseconds, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: true, gridGuide: gridGuide, viewZoom: practiceViewZoom)
             preview = "Mira y escucha una vuelta. No se puntúa."
             let token = UUID(); previewToken = token
@@ -724,16 +1155,38 @@ final class Model: ObservableObject {
         audio?.stopScheduledSounds()
     }
     @discardableResult
-    func startPractice() -> Bool {
+    func startPractice(rehearsal: Bool = false) -> Bool {
+        guard !isFinishingPractice else { return false }
+        guard requireCurrentCalibration() else { return false }
+        beginPractice(calibration: false, rehearsal: rehearsal)
+        return practice != nil
+    }
+    func startWithRehearsal() {
+        if trainingPhase == .discover || trainingPhase == .transfer { trainingPhase = .integrate; transferCheck = false }
+        if startPractice(rehearsal: true) { showingPreparation = false; showingResults = false }
+    }
+    private func requireCurrentCalibration() -> Bool {
         guard hasCalibrationForCurrentProfile else {
             calibrationMessage = "Calibra esta entrada y salida antes de puntuar."
             showingCalibrationWarning = true
             return false
         }
-        beginPractice(calibration: false)
-        return practice != nil
+        return true
     }
-    func repeatPractice() { showingResults = false; beginPractice(calibration: false) }
+    func startGuidedLesson() {
+        trainingPhase = .integrate
+        transferCheck = false
+        gapMetronomeLevel = 0
+        practiceStepRange = nil
+        selectFullRhythm()
+        if startPractice(rehearsal: rehearsalEnabled && !isCheckpointAssessment) {
+            showingPreparation = false
+            showingResults = false
+        }
+    }
+    func repeatPractice() {
+        if startPractice() { cancelResultTransition(); showingResults = false }
+    }
     func setRepeats(_ repeats: Int) {
         selectedRepeats = PracticeConfiguration.normalizedRepeats(repeats)
         savePreferences()
@@ -760,7 +1213,8 @@ final class Model: ObservableObject {
         beginPractice(calibration: calibrating)
     }
     func pausePractice() {
-        guard practice != nil, !isPracticePaused else { return }
+        guard practice != nil, !isPracticePaused, !isFinishingPractice else { return }
+        cancelPracticeInput()
         practiceToken = UUID()
         audio?.stopScheduledSounds()
         audio?.stopLoop()
@@ -781,16 +1235,36 @@ final class Model: ObservableObject {
         beginPractice(calibration: false)
     }
     func dismissResults() {
+        cancelResultTransition()
         showingResults = false
         practiceStepRange = nil; selectFullRhythm(); whaleTargetMessage = ""
+        microLessonStage = .completed; microLessonFocusSound = nil; microLessonBaselineAccuracy = nil
+        microLessonBaselineExpected = 0; microLessonBaselineAttempt = nil; microLessonRecommendation = nil
+        lastCorrectivePlan = nil; microLessonFeedback = ""; performanceFeedback = ""
     }
     /// Persistent navigation must not leave an invisible session, loop or a
     /// delayed finish callback running underneath another screen.
     func leaveActiveScreen() {
+        cancelResultTransition()
+        cancelPracticeInput()
         practiceToken = UUID(); previewToken = UUID()
         audio?.stopScheduledSounds(); audio?.stopLoop()
+        if let previous = performancePreviousLoopEnabled { loopEnabled = previous; performancePreviousLoopEnabled = nil }
+        if let previous = previousPulseLoopEnabled { loopEnabled = previous; previousPulseLoopEnabled = nil }
+        activeDailyBlockID = nil
+        performanceTransferActive = false
         practice = nil; practiceScene = nil; previewScene = nil
         showingResults = false; showingPreparation = false; calibrating = false; isPracticePaused = false
+    }
+    private func cancelPracticeInput() {
+        sceneAfterRehearsal = nil
+        isRehearsing = false
+        practiceIngress.cancel { _ in }
+        practiceGeneration = nil
+        isFinishingPractice = false
+        activePracticeExercise = nil
+        activeTrainingContext = nil
+        calibrationRawOffsets.removeAll(keepingCapacity: true)
     }
     func toggleLoop() {
         setLoopEnabled(!loopEnabled)
@@ -800,17 +1274,100 @@ final class Model: ObservableObject {
         guard enabled else { audio?.stopLoop(); return }
         guard let practice, let exercise = configuredExercise else { return }
         let elapsed = AudioClock.milliseconds(from: practiceStartHostTime, to: AudioGetCurrentHostTime())
-        let bar = practice.timeline.patternDurationMilliseconds
+        let bar = practice.timeline.barDurationMilliseconds
         let nextBar = max(0, ceil(elapsed / bar) * bar - elapsed)
-            do { try audio?.startLoop(atHostTime: AudioClock.hostTime(afterMilliseconds: nextBar), targetBPM: Double(exercise.bpm), volume: Float(tuning.loopVolume)) }
+        do { try audio?.startLoop(atHostTime: AudioClock.hostTime(afterMilliseconds: nextBar), targetBPM: Double(exercise.bpm), volume: Float(tuning.loopVolume)) }
         catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
+    }
+    func setLoopSelection(_ choice: String) {
+        if choice == LoopLibraryCatalog.automaticSelectionID {
+            loopSelectionIsAutomatic = true
+            UserDefaults.standard.set(true, forKey: "xRoll.loopSelectionAutomatic")
+            if let chosen { updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM) }
+            return
+        }
+        guard canChangeLoopSelection, let option = loopOptions.first(where: { $0.id == choice }) else { return }
+        loopSelectionIsAutomatic = false
+        UserDefaults.standard.set(false, forKey: "xRoll.loopSelectionAutomatic")
+        UserDefaults.standard.set(choice, forKey: "xRoll.selectedLoopID")
+        loadLoop(option)
+    }
+
+    func refreshAutomaticLoopForSelection() {
+        guard loopSelectionIsAutomatic, let chosen else { return }
+        updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM)
+    }
+
+    private func updateAutomaticLoopSelection(for exercise: Exercise, targetBPM: Int) {
+        guard loopSelectionIsAutomatic,
+              let option = LoopLibraryCatalog.recommended(for: exercise, targetBPM: Double(targetBPM), options: loopOptions),
+              option.id != selectedLoopID else { return }
+        loadLoop(option)
+    }
+
+    private func restoreLoopSelection() {
+        if loopSelectionIsAutomatic {
+            refreshAutomaticLoopForSelection()
+        } else if let id = UserDefaults.standard.string(forKey: "xRoll.selectedLoopID"),
+                  let option = loopOptions.first(where: { $0.id == id }) {
+            loadLoop(option)
+        } else {
+            loopSelectionIsAutomatic = true
+            UserDefaults.standard.set(true, forKey: "xRoll.loopSelectionAutomatic")
+            refreshAutomaticLoopForSelection()
+        }
+    }
+
+    private func loadLoop(_ option: LoopLibraryOption) {
+        guard canChangeLoopSelection, let audio else {
+            loopStatus = "Detén la práctica antes de cambiar el loop."
+            return
+        }
+        audio.stopLoop()
+        do {
+            try withSuspendedMIDIInput { try audio.loadLoop(url: option.url) }
+            selectedLoopID = option.id
+            loopTempo = audio.loopTempo?.bpm
+            let tempoLabel = loopTempo.map { " · fuente \(Int($0.rounded())) BPM" } ?? ""
+            loopStatus = "\(option.fileName)\(tempoLabel)"
+            UserDefaults.standard.set(option.id, forKey: "xRoll.selectedLoopID")
+        } catch {
+            loopStatus = "No se pudo cargar el loop: \(error.localizedDescription)"
+        }
     }
     func startCalibration() {
         calibrationMessage = "Calibración: charles a corcheas a 72 BPM."
         beginPractice(calibration: true)
     }
-    private func beginPractice(calibration: Bool) {
+    private func cancelResultTransition() {
+        resultTransitionToken = UUID()
+        isShowingResultTransition = false
+    }
+
+    private func presentResultTransition(percentage: Double) {
+        resultTransitionToken = UUID()
+        let token = resultTransitionToken
+        resultTransitionPercentage = percentage
+        showingResults = false
+        withAnimation(.easeInOut(duration: 0.20)) { isShowingResultTransition = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.05) { [weak self] in
+            guard let self, self.resultTransitionToken == token else { return }
+            withAnimation(.easeInOut(duration: 0.24)) {
+                self.isShowingResultTransition = false
+                self.showingResults = true
+            }
+        }
+    }
+
+    private func beginPractice(calibration: Bool, rehearsal: Bool = false) {
+        guard !isFinishingPractice else { return }
+        guard calibration || requireCurrentCalibration() else { return }
+        learningRecovery = nil
+        worldVictory = nil
+        nextCampaignLevel = nil
+        cancelResultTransition()
         let fullExercise: Exercise
+        var correctiveReference: Exercise?
         if calibration {
             // Una única voz constante evita que un patrón complejo introduzca
             // errores de lectura o coordinación en la estimación del desfase.
@@ -818,17 +1375,30 @@ final class Model: ObservableObject {
                 calibrationMessage = "No se encontró el ejercicio de calibración."
                 return
             }
-            fullExercise = PracticeConfiguration(exercise: exercise, bpm: exercise.bpm, repeats: 8).applying(to: exercise)
+            fullExercise = PracticeConfiguration.calibrationExercise(from: exercise)
         } else {
             guard let exercise = configuredExercise, !exercise.notes.isEmpty else {
                 status = "La configuración actual no contiene notas para puntuar."
                 return
             }
-            fullExercise = exercise
+            if microLessonStage == .isolating, let range = practiceStepRange, let chosen {
+                let original = PracticeConfiguration(exercise: chosen, bpm: selectedBPM, repeats: selectedRepeats).applying(to: chosen)
+                let context = PracticeConfiguration.correctiveContext(in: original, stepRange: range)
+                correctiveReference = context.exercise
+                let notes = context.exercise.notes.filter { context.stepRange.contains($0.step) }
+                fullExercise = Exercise(format: original.format, id: original.id, title: original.title, family: original.family,
+                    level: original.level, bpm: original.bpm, meter: original.meter, bars: context.exercise.bars,
+                    grid: original.grid, repeats: original.repeats, kit: original.kit, loop: original.loop,
+                    offset: 0, notes: notes, metadata: original.metadata)
+            } else { fullExercise = exercise }
         }
-        do { try audio?.start() }
-        catch { status = "No se pudo iniciar el audio: \(error.localizedDescription)"; return }
+        do { try audio?.start(); equipmentAudioFailed = false }
+        catch { equipmentAudioFailed = true; status = "No se pudo iniciar el audio: \(error.localizedDescription)"; return }
+        // El arranque puede cambiar frecuencia o buffer. Repetir, reiniciar y
+        // reanudar deben cumplir la misma calibración que el inicio normal.
+        guard calibration || requireCurrentCalibration() else { return }
         let exercise: Exercise
+        activePracticeProfileKey = profileKey()
         let playerSelection = selectedPlayerSounds
         if calibration || (isFullRhythmSelection && !transferCheck) { exercise = fullExercise }
         else {
@@ -838,6 +1408,7 @@ final class Model: ObservableObject {
         }
         previewToken = UUID()
         previewScene = nil
+        cancelPracticeInput()
         audio?.stopScheduledSounds()
         audio?.stopLoop()
         savePreferences()
@@ -847,71 +1418,154 @@ final class Model: ObservableObject {
         // «Anticipación» son compases, no frases enteras. Una frase de
         // redoble puede tener tres compases y no debe convertirse en una
         // espera de seis compases antes de tocar.
-        let anticipation = session.timeline.barDurationMilliseconds * Double(tuning.anticipationBars)
+        let reference = correctiveReference ?? chosen.map { PracticeConfiguration(exercise: $0, bpm: exercise.bpm, repeats: 1).applying(to: $0) }
+        let leadIn = PracticeRehearsalPlan(exercise: exercise, reference: reference,
+            countInBars: tuning.anticipationBars, enabled: rehearsal && !calibration)
+        let anticipation = leadIn.countInMilliseconds
         let now = AudioGetCurrentHostTime()
-        let start = AudioClock.hostTime(afterMilliseconds: anticipation, from: now)
+        let start = AudioClock.hostTime(afterMilliseconds: leadIn.scoringStartMilliseconds, from: now)
+        practiceIncludesRehearsal = leadIn.referenceExercise != nil
         practiceVisualID = UUID()
         practice = session; practiceStartHostTime = start; result = ""
-        let hiddenGuideNoteIndices = practiceHelp == .reduced
+        activePracticeExercise = fullExercise
+        let scope: EvaluationScope
+        if practiceStepRange != nil { scope = trainingPhase == .isolate ? .corrective : .fragment }
+        else if practiceFragment != 0 { scope = .fragment }
+        else if !isFullRhythmSelection || transferCheck { scope = .selectedVoices }
+        else { scope = .fullPattern }
+        let gapLevel = calibration ? 0 : gapMetronomeLevel
+        let showsGuides = calibration || trainingPhase != .transfer
+        let conditions = PracticeConditions(
+            bpm: exercise.bpm, repeats: exercise.repeats, selectedSounds: Set(exercise.notes.map(\.sound)),
+            stepRange: practiceStepRange, gapMetronomeLevel: gapLevel,
+            metronomeEnabled: calibration || metronomeEnabled, loopEnabled: !calibration && loopEnabled,
+            loopIdentifier: calibration ? nil : selectedLoopID, showsVisualGuides: showsGuides,
+            visualGuideLevel: calibration ? PracticeHelp.full.rawValue : practiceHelp.rawValue,
+            calibrationProfileKey: calibrationProfileKey)
+        activeTrainingContext = TrainingContext(phase: calibration ? .integrate : trainingPhase,
+            gapMetronomeLevel: gapLevel, showsVisualGuides: showsGuides,
+            evaluationScope: calibration ? .fullPattern : scope, practiceConditions: conditions,
+            tempoPolicyVersion: TempoLadder.currentPolicyVersion)
+        let generation = UUID()
+        practiceGeneration = generation
+        practiceIngress.begin(session, generation: generation, startHostTime: start, admissionHostTime: now, calibration: calibration)
+        let hiddenGuideNoteIndices = !calibration && practiceHelp == .reduced
             ? Set(session.timeline.notes.lazy.filter { $0.sound == "hihat_closed" && $0.step.isMultiple(of: 4) }.map(\.index))
             : []
-        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: practiceHelp == .full, showsNotes: trainingPhase != .transfer, hiddenGuideNoteIndices: hiddenGuideNoteIndices, emphasizesPlayerNotes: practiceStepRange != nil || !isFullRhythmSelection, playerSounds: isFullRhythmSelection ? nil : playerSelection, gridGuide: gridGuide, viewZoom: practiceViewZoom)
+        practiceScene = PracticeScene(timeline: session.timeline, startHostTime: start, anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(), showsSoundLabels: calibration || (trainingPhase != .transfer && practiceHelp == .full), showsNotes: showsGuides, hiddenGuideNoteIndices: hiddenGuideNoteIndices, emphasizesPlayerNotes: !calibration && (practiceStepRange != nil || !isFullRhythmSelection), playerSounds: calibration || isFullRhythmSelection ? nil : playerSelection, gridGuide: gridGuide, viewZoom: practiceViewZoom)
+        let token = UUID(); practiceToken = token
+        if let reference = leadIn.referenceExercise {
+            sceneAfterRehearsal = practiceScene
+            let referenceStart = AudioClock.hostTime(afterMilliseconds: leadIn.referenceStartMilliseconds, from: now)
+            let visualReference = PracticeConfiguration(exercise: exercise, repeats: 1).applying(to: exercise)
+            practiceScene = PracticeScene(timeline: ExerciseTimeline(exercise: visualReference), startHostTime: referenceStart,
+                anticipationMilliseconds: anticipation, slotBySound: slotsBySound(), soundLabels: soundLabels(),
+                gridGuide: gridGuide, viewZoom: practiceViewZoom, playsReference: true)
+            isRehearsing = true
+            do {
+                for note in ExerciseTimeline(exercise: reference).notes {
+                    try audio?.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: referenceStart))
+                }
+                try audio?.flushScheduledSounds(stoppingAtHostTime: AudioClock.hostTime(afterMilliseconds: leadIn.referenceEndMilliseconds, from: now))
+            } catch {
+                leaveActiveScreen()
+                status = "No se pudo preparar la vuelta acompañada: \(error.localizedDescription)"
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + leadIn.referenceEndMilliseconds / 1_000) { [weak self] in
+                guard let self, self.practiceToken == token, let nextScene = self.sceneAfterRehearsal else { return }
+                self.practiceScene = nextScene
+                self.practiceVisualID = UUID()
+                self.sceneAfterRehearsal = nil
+                self.isRehearsing = false
+            }
+        }
         let isPartialPractice = !isFullRhythmSelection || transferCheck || practiceStepRange != nil
         if !calibration, isPartialPractice {
-            let sourceExercise = chosen.map { PracticeConfiguration(exercise: $0, bpm: selectedBPM, repeats: selectedRepeats).applying(to: $0) } ?? fullExercise
+            let sourceExercise = correctiveReference ?? chosen.map { PracticeConfiguration(exercise: $0, bpm: selectedBPM, repeats: selectedRepeats).applying(to: $0) } ?? fullExercise
             let accompaniment = ExerciseTimeline(exercise: sourceExercise)
-            for note in accompaniment.notes where transferCheck ? note.sound == "hihat_closed" : (!isFullRhythmSelection ? !playerSelection.contains(note.sound) : !(practiceStepRange?.contains(note.step) ?? true)) {
+            let playerNoteKeys = Set(exercise.notes.map { "\($0.step):\($0.sound)" })
+            for note in accompaniment.notes where !playerNoteKeys.contains("\(note.step):\(note.sound)") {
                 try? audio?.schedule(soundID: note.sound, atHostTime: AudioClock.hostTime(afterMilliseconds: note.timeMilliseconds, from: start))
             }
+            try? audio?.flushScheduledSounds()
         }
         let beat = 60_000.0 / Double(exercise.bpm)
         // La claqueta cubre todos los compases de cuenta atrás desde ahora.
         // Así el primer golpe de la frase siempre cae en un inicio de compás.
         let countInStart = 0.0
-        let totalMilliseconds = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
+        let totalMilliseconds = leadIn.scoringStartMilliseconds + session.timeline.patternDurationMilliseconds * Double(exercise.repeats)
         let metronomeBeats = Int(ceil((totalMilliseconds - countInStart) / beat))
-        if metronomeEnabled {
+        if calibration || metronomeEnabled {
+            let clickVolume = calibration ? max(0.65, tuning.countInVolume) : tuning.countInVolume
             for beatIndex in 0...metronomeBeats {
-                let countInBeats = Int(anticipation / beat)
+                let countInBeats = Int((leadIn.scoringStartMilliseconds / beat).rounded())
                 let playedBeat = beatIndex - countInBeats
                 let audible: Bool
                 if playedBeat < 0 { audible = true }
-                else {
-                    let bar = playedBeat / 4; let beatInBar = playedBeat % 4
-                    switch gapMetronomeLevel {
-                    case 1: audible = bar % 4 != 3
-                    case 2: audible = bar % 4 < 2
-                    case 3: audible = bar % 2 == 0 && beatInBar == 0
-                    default: audible = true
-                    }
-                }
+                else { audible = GapMetronomePattern.isAudible(bar: playedBeat / 4, beat: playedBeat % 4, level: gapLevel) }
                 guard audible else { continue }
-                // A clap on the first beat makes the pulse distinguishable from
-                // the closed hi-hats in the exercise and accompaniment.
-                let sound = beatIndex.isMultiple(of: 4) ? "clap" : "hihat_closed"
-                try? audio?.scheduleMetronome(soundID: sound, atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(tuning.countInVolume), pitchCents: Float(tuning.metronomePitchSemitones * 100))
+                try? audio?.scheduleMetronome(accented: beatIndex.isMultiple(of: 4), atHostTime: AudioClock.hostTime(afterMilliseconds: countInStart + Double(beatIndex) * beat, from: now), volume: Float(clickVolume), pitchCents: Float(tuning.metronomePitchSemitones * 100))
             }
         }
         if loopEnabled && !calibration {
-            do { try audio?.startLoop(atHostTime: start, targetBPM: Double(exercise.bpm), volume: Float(tuning.loopVolume)) }
+            do { try audio?.startLoop(atHostTime: practiceIncludesRehearsal ? AudioClock.hostTime(afterMilliseconds: leadIn.referenceStartMilliseconds, from: now) : start, targetBPM: Double(exercise.bpm), volume: Float(tuning.loopVolume)) }
             catch { loopStatus = "Error al iniciar el loop: \(error.localizedDescription)" }
         }
-        let token = UUID(); practiceToken = token
-        let duration = anticipation + session.timeline.patternDurationMilliseconds * Double(exercise.repeats) + 150
+        let duration = totalMilliseconds + 150
         DispatchQueue.main.asyncAfter(deadline: .now() + duration / 1_000) { [weak self] in
-            guard self?.practiceToken == token else { return }; self?.finishPractice()
+            guard self?.practiceToken == token else { return }; self?.finishPractice(naturalCompletion: true)
         }
     }
-    func finishPractice() {
-        guard let currentPractice = practice, let exercise = configuredExercise else {
+    func finishPractice(showsTransition: Bool = true, naturalCompletion: Bool = false) {
+        guard !isFinishingPractice else { return }
+        guard let currentPractice = practice, let exercise = activePracticeExercise,
+              let context = activeTrainingContext, let generation = practiceGeneration else {
             leaveActiveScreen()
             return
         }
-        // Stop every queued click immediately when the player ends a session,
-        // including a click scheduled later in the current bar.
+        isFinishingPractice = true
+        sceneAfterRehearsal = nil
+        isRehearsing = false
+        practiceToken = UUID()
+        let completion = PracticeCompletion(exercise: exercise,
+            elapsedMilliseconds: AudioClock.milliseconds(from: practiceStartHostTime, to: AudioClock.currentHostTime()))
         audio?.stopScheduledSounds()
         audio?.stopLoop()
-        let score = currentPractice.score
+        // La barrera incluye todos los golpes admitidos antes del cierre. Solo
+        // el resultado inmutable vuelve a la interfaz, nunca el scorer mutable.
+        practiceIngress.finish { [weak self] finishedGeneration, score in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.practiceGeneration == generation,
+                      finishedGeneration == generation, let score else { return }
+                let rawOffsets = self.calibrationRawOffsets
+                self.practiceGeneration = nil
+                self.isFinishingPractice = false
+                self.activePracticeExercise = nil
+                self.activeTrainingContext = nil
+                self.calibrationRawOffsets.removeAll(keepingCapacity: true)
+                if completion.isComplete {
+                    self.completePractice(score: score, timeline: currentPractice.timeline, exercise: exercise,
+                        context: completion.context(from: context), calibrationOffsets: rawOffsets,
+                        showsTransition: showsTransition, naturalCompletion: naturalCompletion)
+                } else {
+                    self.leaveActiveScreen()
+                    self.status = "Sesión interrumpida en \(completion.completedBars) de \(completion.totalBars) compases. No se guardó como intento."
+                }
+            }
+        }
+    }
+    private func completePractice(score: ExerciseScore, timeline: ExerciseTimeline, exercise: Exercise,
+                                  context: TrainingContext, calibrationOffsets: [Double],
+                                  showsTransition: Bool, naturalCompletion: Bool) {
+        if calibrating {
+            practice = nil; practiceScene = nil; practiceToken = UUID(); isPracticePaused = false
+            calibrating = false
+            saveCalibration(offsets: calibrationOffsets)
+            return
+        }
+        let completedMicroLessonStage = microLessonStage
+        let completedTransferPerformance = performanceTransferActive
         lastExerciseScore = score
         lastHitRecords = HitRecord.records(from: score)
         lastScorePercentage = score.percentage; lastScoreStars = score.stars
@@ -920,12 +1574,8 @@ final class Model: ObservableObject {
         lastRegular = score.regularCount
         lastWrong = score.misses.count + score.extraCount
         lastPoints = max(0, Double(score.perfectCount) + Double(score.goodCount) * 0.85 + Double(score.regularCount) * 0.7 - Double(score.extraCount) * 0.25)
-        lastPossiblePoints = currentPractice.timeline.notes.count
-        let isCompleteRhythm = practiceStepRange == nil && isFullRhythmSelection && !transferCheck
-        let completesCourseStep = score.percentage >= 70
-            && isCompleteRhythm
-            && selectedBPM == 100
-        nextExerciseTitle = completesCourseStep ? exercises.first(where: { $0.level == exercise.level + 1 })?.title : nil
+        lastPossiblePoints = timeline.notes.count
+        nextExerciseTitle = nil
         let offset = score.meanOffsetMilliseconds.map { String(format: " · media %.0f ms", $0) } ?? ""
         result = String(format: "Resultado: %.0f %% · %d estrellas · P%d B%d R%d · %d fallos · %d extras%@", score.percentage, score.stars, score.perfectCount, score.goodCount, score.regularCount, score.misses.count, score.extraCount, offset)
         advice = advice(for: score)
@@ -934,41 +1584,340 @@ final class Model: ObservableObject {
         let spread = practiceInsights.medianAbsoluteDeviationMilliseconds.map { String(format: "dispersión %.0f ms", $0) } ?? ""
         insights = "\(practiceInsights.timingLabel) · \(median) \(spread)"
         soundStatistics = practiceInsights.soundStatistics
+        if completedMicroLessonStage == .isolating {
+            microLessonFeedback = "Has practicado la célula con acompañamiento. Ahora vuelve al ritmo completo para aplicarla."
+        } else if completedMicroLessonStage == .integrating,
+                  let focus = microLessonFocusSound,
+                  let baseline = microLessonBaselineAccuracy,
+                  let followUp = practiceInsights.soundStatistics.first(where: { $0.sound == focus }) {
+            let improvement = followUp.accuracy - baseline
+            microLessonFeedback = microLessonBaselineExpected >= 4 && followUp.expected >= 4 && improvement >= 1
+                ? "Lo aplicaste en el groove completo: \(displayName(focus)) mejoró \(Int(improvement.rounded())) puntos."
+                : "Has vuelto al patrón completo. Sigue practicando esta entrada con la guía cuando lo necesites."
+            microLessonStage = .completed
+        }
+        if completedTransferPerformance {
+            if let baseline = performanceGuidedBaseline,
+               performanceGuidedExpected >= 8,
+               timeline.notes.count >= 8 {
+                let change = score.percentage - baseline
+                performanceFeedback = change >= 1
+                    ? "Sin guía visual mantuviste el patrón y subiste \(Int(change.rounded())) puntos respecto a la ronda guiada."
+                    : change <= -1
+                        ? "Ya probaste el patrón sin guía. Puedes volver a la guía completa y repetirlo cuando quieras."
+                        : "Mantuviste un resultado similar con menos guía visual. Puedes recuperar la guía en cualquier momento."
+            } else {
+                performanceFeedback = "Ronda completa sin guía visual. Aún no hay suficientes golpes comparables para valorar una diferencia; puedes volver a la guía cuando quieras."
+            }
+            performanceTransferActive = false
+            if let previous = performancePreviousLoopEnabled {
+                loopEnabled = previous
+                performancePreviousLoopEnabled = nil
+            }
+        } else {
+            performanceFeedback = ""
+        }
+        if let previous = previousPulseLoopEnabled {
+            loopEnabled = previous
+            previousPulseLoopEnabled = nil
+        }
         ghostCoachMessage = GhostCoach.cue(score: score, insights: practiceInsights)
-        let correctivePlan = chosen.flatMap { WhaleMethod.plan(exercise: $0, score: score) }
+        let isCompletePatternAttempt = !calibrating && context.evaluationScope == .fullPattern
+        let coachingRecommendation = chosen.flatMap { exercise in
+            isCompletePatternAttempt ? CoachingAnalyzer.recommendation(exercise: exercise, score: score) : nil
+        }
+        let correctivePlan = chosen.flatMap { exercise in
+            coachingRecommendation.map { WhaleMethod.plan(exercise: exercise, recommendation: $0) }
+        }
+        if context.gapMetronomeLevel > 0 && isCompletePatternAttempt {
+            let report = PulseDriftAnalyzer.analyze(records: HitRecord.records(from: score), barDurationMilliseconds: timeline.barDurationMilliseconds, gapLevel: context.gapMetronomeLevel)
+            pulseDriftReport = report
+            switch report.trend {
+            case .stable: pulseDriftMessage = "Durante el silencio mantuviste el pulso estable."
+            case .early: pulseDriftMessage = "Durante el silencio tendiste a adelantarte. Repite el nivel antes de avanzar."
+            case .late: pulseDriftMessage = "Durante el silencio tendiste a retrasarte. Repite el nivel antes de avanzar."
+            case .insufficientEvidence: pulseDriftMessage = "Aún faltan golpes durante el silencio para valorar la deriva."
+            }
+        } else { pulseDriftMessage = ""; pulseDriftReport = nil }
+        if completedMicroLessonStage != .isolating && completedMicroLessonStage != .integrating {
+            lastCorrectivePlan = correctivePlan
+            microLessonRecommendation = coachingRecommendation
+            microLessonStage = correctivePlan == nil ? .completed : .suggested
+        } else if completedMicroLessonStage == .isolating {
+            microLessonStage = .isolating
+        }
         whaleMessage = correctivePlan?.message ?? "No hay un error recurrente que aislar ahora."
         let autopilot = PracticeAutopilot.recommend(score: score, insights: practiceInsights, bpm: selectedBPM, repeats: selectedRepeats)
         lastAutopilotRecommendation = autopilot
         autopilotMessage = autopilot.message
-        resultSummary = PracticeResultAnalyzer.summarize(score: score, insights: practiceInsights, hasCorrectivePlan: correctivePlan != nil, canAdvance: nextExerciseTitle != nil)
+        resultSummary = PracticeResultAnalyzer.summarize(score: score, insights: practiceInsights, hasCorrectivePlan: correctivePlan != nil, canAdvance: false)
         // Updating the course can select an exercise. The session must already
         // be closed, otherwise that selection recursively finishes this attempt.
         self.practice = nil; practiceScene = nil; practiceToken = UUID(); isPracticePaused = false
-        if calibrating {
-            saveCalibration(offsets: score.hits.compactMap(\.offsetMilliseconds))
-        } else {
-            recordAttempt(exercise: exercise, score: score)
-            showingResults = true
+        let savedAttempt = recordAttempt(exercise: exercise, score: score, context: context)
+        let attemptsAfterSave = savedAttempt.map { [$0] } ?? []
+        if isCompletePatternAttempt, completedMicroLessonStage != .isolating, completedMicroLessonStage != .integrating,
+           let coachingRecommendation {
+            saveCoachingGoal(exerciseID: exercise.id, recommendation: coachingRecommendation,
+                             conditions: attemptsAfterSave.first?.trainingContext.practiceConditions)
         }
-        calibrating = false
+        if completedMicroLessonStage == .integrating,
+           let baseline = microLessonBaselineAttempt,
+           let recommendation = microLessonRecommendation,
+           let current = attemptsAfterSave.first {
+            let comparison = CoachingComparison.compare(baseline: baseline, followUp: current, recommendation: recommendation)
+            microLessonFeedback = coachingComparisonMessage(comparison, sound: recommendation.sound)
+            microLessonBaselineAttempt = nil
+        } else if completedMicroLessonStage == .integrating {
+            microLessonFeedback = "Has vuelto al ritmo completo. No hay una ronda equivalente para afirmar una mejora."
+        }
+        if naturalCompletion { completeActiveDailyBlock(score: score, exercise: exercise, attempt: savedAttempt) }
+        let canAdvance = isCompletePatternAttempt
+            && courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
+            && nextExerciseTitle != nil
+        resultSummary = PracticeResultAnalyzer.summarize(
+            score: score,
+            insights: practiceInsights,
+            hasCorrectivePlan: correctivePlan != nil,
+            canAdvance: canAdvance
+        )
+        if showsTransition { presentResultTransition(percentage: score.percentage) }
+        else { showingResults = true }
     }
     func applyAutopilot() {
         guard let recommendation = lastAutopilotRecommendation else { return }
         selectedBPM = min(240, max(40, selectedBPM + recommendation.bpmAdjustment))
         selectedRepeats = PracticeConfiguration.normalizedRepeats(recommendation.repeats)
         practiceHelp = recommendation.help
+        if let chosen { updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM) }
         savePreferences()
     }
     func startCorrectivePractice() {
-        if let exercise = chosen, let score = lastExerciseScore, let plan = WhaleMethod.plan(exercise: exercise, score: score) {
+        guard let chosen else { return }
+        microLessonReturnConditions = PracticeConditions(bpm: selectedBPM, repeats: selectedRepeats,
+            selectedSounds: Set(chosen.notes.map(\.sound)), gapMetronomeLevel: gapMetronomeLevel,
+            metronomeEnabled: metronomeEnabled, loopEnabled: loopEnabled, loopIdentifier: selectedLoopID,
+            showsVisualGuides: trainingPhase != .transfer, visualGuideLevel: practiceHelp.rawValue,
+            calibrationProfileKey: calibrationProfileKey)
+        if let plan = lastCorrectivePlan {
+            microLessonBaselineAttempt = recentAttempts.filter { $0.exerciseID == chosen.id }
+                .first(where: { $0.trainingContext.evaluationScope == .fullPattern })
+            microLessonReturnBPM = selectedBPM
+            microLessonReturnRepeats = selectedRepeats
+            microLessonFocusSound = plan.focusSound
+            if let baseline = soundStatistics.first(where: { $0.sound == plan.focusSound }) {
+                microLessonBaselineAccuracy = baseline.accuracy
+                microLessonBaselineExpected = baseline.expected
+            }
+            microLessonFeedback = ""
+            microLessonStage = .isolating
             setPlayerSounds([plan.focusSound]); practiceStepRange = plan.stepRange; selectedBPM = plan.bpm; whaleMessage = plan.message
+            updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM)
             whaleTargetMessage = "AHORA TÚ: \(displayName(plan.focusSound)) en la célula difícil. xRoll toca las demás voces como referencia."
         } else if let weakest = soundStatistics.min(by: { $0.accuracy < $1.accuracy }) {
+            microLessonReturnBPM = selectedBPM
+            microLessonReturnRepeats = selectedRepeats
+            microLessonFocusSound = weakest.sound
+            microLessonBaselineAccuracy = weakest.accuracy
+            microLessonBaselineExpected = weakest.expected
+            microLessonFeedback = ""
+            microLessonStage = .isolating
             setPlayerSounds([weakest.sound]); practiceStepRange = nil; whaleTargetMessage = "AHORA TÚ: \(displayName(weakest.sound)). xRoll acompaña el resto."
         } else { return }
+        trainingPhase = .isolate
+        practiceHelp = .full
+        gapMetronomeLevel = 0
+        practiceFragment = 0
+        transferCheck = false
         selectedRepeats = 2
         showingResults = false
-        beginPractice(calibration: false)
+        beginPractice(calibration: false, rehearsal: rehearsalEnabled)
+    }
+    private func returnToFullGroove() {
+        guard microLessonStage == .isolating else { return }
+        practiceStepRange = nil
+        selectFullRhythm()
+        transferCheck = false
+        trainingPhase = .integrate
+        selectedBPM = microLessonReturnBPM
+        if let chosen { updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM) }
+        selectedRepeats = microLessonReturnRepeats
+        if let conditions = microLessonReturnConditions {
+            gapMetronomeLevel = conditions.gapMetronomeLevel
+            metronomeEnabled = conditions.metronomeEnabled
+            loopEnabled = conditions.loopEnabled
+            practiceHelp = conditions.visualGuideLevel.flatMap(PracticeHelp.init(rawValue:)) ?? .full
+        }
+        microLessonStage = .integrating
+        showingResults = false
+        beginPractice(calibration: false, rehearsal: rehearsalEnabled)
+    }
+    func startTransferPerformance() {
+        guard chosen != nil else { return }
+        performanceComparisonAllowed = loopEnabled
+        performanceGuidedBaseline = performanceComparisonAllowed ? lastScorePercentage : nil
+        performanceGuidedExpected = lastPossiblePoints
+        performancePreviousLoopEnabled = loopEnabled
+        if loopTempo != nil { loopEnabled = true }
+        performanceTransferActive = true
+        selectFullRhythm()
+        practiceStepRange = nil
+        transferCheck = false
+        trainingPhase = .transfer
+        showingResults = false
+        if !startPractice() {
+            performanceTransferActive = false
+            if let previous = performancePreviousLoopEnabled { loopEnabled = previous; performancePreviousLoopEnabled = nil }
+        }
+    }
+    func startGuidedPerformance() {
+        performanceTransferActive = false
+        selectFullRhythm()
+        practiceStepRange = nil
+        transferCheck = false
+        trainingPhase = .integrate
+        showingResults = false
+        _ = startPractice()
+    }
+
+    func startPulseTraining() {
+        guard let exercise = chosen else { return }
+        pulseTrainingStage = PulseTrainingPlan.nextStage(after: unfilteredRecentAttempts, exerciseID: exercise.id, exercise: exercise)
+        guard let stage = pulseTrainingStage else { return }
+        if previousPulseLoopEnabled == nil { previousPulseLoopEnabled = loopEnabled }
+        loopEnabled = false
+        metronomeEnabled = true
+        trainingPhase = stage.phase
+        gapMetronomeLevel = stage.gapMetronomeLevel
+        practiceHelp = stage.showsVisualGuides ? .full : .normal
+        showsTrainingPhases = true
+        transferCheck = false
+        practiceStepRange = nil
+        selectFullRhythm()
+        showingResults = false
+        showingPreparation = true
+        pulseDriftMessage = ""
+    }
+
+    func startNextPulseStage() {
+        startPulseTraining()
+    }
+
+    private func saveCoachingGoal(exerciseID: String, recommendation: CoachingRecommendation, conditions: PracticeConditions?) {
+        guard !coachingGoals.contains(where: {
+            $0.exerciseID == exerciseID && $0.recommendation.sound == recommendation.sound
+                && $0.recommendation.step == recommendation.step && $0.state != .confirmed
+        }) else { return }
+        coachingGoals.append(CoachingGoal(exerciseID: exerciseID, recommendation: recommendation, baselineConditions: conditions))
+        persistTrainingState(coachingGoals, forKey: "coaching-goals")
+    }
+
+    private func coachingComparisonMessage(_ comparison: CoachingComparison, sound: String) -> String {
+        switch comparison.outcome {
+        case .improved: return "\(displayName(sound)): mejora observada al volver al groove. El repaso queda programado para otro día."
+        case .similar: return "\(displayName(sound)): resultado similar. Prueba otra vuelta cuando quieras."
+        case .declined: return "\(displayName(sound)): todavía necesita práctica; puedes repetir la célula con la guía."
+        case .insufficientEvidence: return "Aún no hay suficientes golpes comparables para valorar \(displayName(sound))."
+        case .conditionsDiffer: return "Las condiciones cambiaron; no comparamos estas rondas como una mejora."
+        }
+    }
+
+    func startDailyPractice() {
+        let today = Calendar.current.startOfDay(for: Date())
+        var plan = dailyPracticePlan
+        if plan?.day != today {
+            plan = DailyPracticePlanner.makePlan(exercises: bundledExercises, attempts: unfilteredRecentAttempts,
+                                                 dueGoals: coachingGoals, preferredChallengeExerciseID: courseRecommendation?.exerciseID, now: Date())
+        }
+        guard var plan, let block = plan.currentBlock else {
+            dailyPracticePlan = plan
+            dailyPracticeMessage = plan?.isComplete == true ? "Sesión diaria completada por hoy." : "No hay ejercicios disponibles para preparar la sesión."
+            return
+        }
+        plan.markStarted()
+        dailyPracticePlan = plan
+        persistTrainingState(plan, forKey: "daily-practice-plan")
+        prepareDailyBlock(block)
+    }
+
+    func startNextDailyBlock() {
+        guard var plan = dailyPracticePlan, let block = plan.currentBlock else {
+            dailyPracticeMessage = "Sesión diaria completada por hoy."
+            return
+        }
+        plan.markStarted()
+        dailyPracticePlan = plan
+        persistTrainingState(plan, forKey: "daily-practice-plan")
+        prepareDailyBlock(block)
+    }
+
+    func skipNextDailyBlock() {
+        guard var plan = dailyPracticePlan, let block = plan.currentBlock else { return }
+        _ = plan.completeBlock(block.id, skipped: true)
+        dailyPracticePlan = plan
+        dailyPracticeMessage = plan.isComplete ? "Rutina diaria finalizada; bloque omitido." : "Bloque omitido. Puedes continuar con el siguiente."
+        persistTrainingState(plan, forKey: "daily-practice-plan")
+    }
+
+    private func prepareDailyBlock(_ block: DailyPracticeBlock) {
+        guard let exercise = bundledExercises.first(where: { $0.id == block.exerciseID }) else {
+            dailyPracticeMessage = "El ejercicio de esta sesión ya no está disponible."
+            return
+        }
+        chooseExercise(exercise)
+        activeDailyBlockID = block.id
+        selectedBPM = block.bpm
+        selectedRepeats = block.repeats
+        trainingPhase = block.phase
+        gapMetronomeLevel = block.gapMetronomeLevel
+        metronomeEnabled = block.metronomeEnabled
+        loopEnabled = block.loopEnabled
+        if let loopIdentifier = block.loopIdentifier, let option = loopOptions.first(where: { $0.id == loopIdentifier }) {
+            loadLoop(option)
+        }
+        transferCheck = false
+        practiceStepRange = nil
+        selectFullRhythm()
+        dailyPracticeMessage = "\(block.title): \(block.reason)"
+        whaleTargetMessage = block.reason
+        showingPreparation = true
+    }
+
+    private func completeActiveDailyBlock(score: ExerciseScore, exercise: Exercise, attempt: PracticeAttempt?) {
+        guard let blockID = activeDailyBlockID, var plan = dailyPracticePlan,
+              let block = plan.blocks.first(where: { $0.id == blockID }) else { return }
+        guard plan.completeBlock(blockID) else { activeDailyBlockID = nil; return }
+        if block.kind == .review, let sound = block.focusedSound,
+           let index = coachingGoals.firstIndex(where: { $0.exerciseID == exercise.id && $0.recommendation.sound == sound && $0.state != .confirmed }) {
+            let currentConditions = attempt?.trainingContext.practiceConditions
+            if let baseline = coachingGoals[index].baselineConditions, let currentConditions,
+               baseline.isComparableForRetention(to: currentConditions) {
+                let outcome = CoachingAnalyzer.reviewOutcome(for: coachingGoals[index].recommendation, score: score)
+                if outcome != .insufficientEvidence {
+                    coachingGoals[index].recordReview(successful: outcome == .resolved)
+                    persistTrainingState(coachingGoals, forKey: "coaching-goals")
+                }
+            }
+        }
+        dailyPracticePlan = plan
+        activeDailyBlockID = nil
+        dailyPracticeMessage = plan.isComplete ? "Sesión diaria completada. Buen trabajo." : "Bloque terminado. Continúa con el siguiente cuando quieras."
+        persistTrainingState(plan, forKey: "daily-practice-plan")
+    }
+    private func persistTrainingState<Value: Encodable>(_ value: Value, forKey key: String) {
+        do {
+            guard let progressStore else { throw ProgressStoreError.sqlite("El historial no está disponible.") }
+            try progressStore.saveTrainingState(value, forKey: key)
+            failedTrainingWrites.removeValue(forKey: key)
+        } catch { failedTrainingWrites[key] = error.localizedDescription }
+        trainingPersistenceError = failedTrainingWrites.isEmpty ? ""
+            : "Hay cambios de rutina o repaso solo en memoria, sin guardar. " + failedTrainingWrites.values.sorted().joined(separator: " ")
+    }
+    func retryTrainingPersistence() {
+        if failedTrainingWrites["coaching-goals"] != nil { persistTrainingState(coachingGoals, forKey: "coaching-goals") }
+        if failedTrainingWrites["daily-practice-plan"] != nil, let plan = dailyPracticePlan {
+            persistTrainingState(plan, forKey: "daily-practice-plan")
+        }
     }
     private func load() {
         let workingRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
@@ -992,7 +1941,10 @@ final class Model: ObservableObject {
             loadLoop(from: root)
             loadMetronome(from: root)
             progressStore = try ProgressStore(url: applicationSupportURL("progress.sqlite"))
+            coachingGoals = (try? progressStore?.loadTrainingState([CoachingGoal].self, forKey: "coaching-goals")) ?? []
+            dailyPracticePlan = try? progressStore?.loadTrainingState(DailyPracticePlan.self, forKey: "daily-practice-plan")
             bundledExercises = try catalog.loadExercises(in: root.appendingPathComponent("data/exercises"), kit: loaded)
+            courseGraph = try CourseGraph(exercises: bundledExercises)
             reloadCommunityExercises()
             chosenID = exercises.first?.id ?? ""
             selectedBPM = exercises.first?.bpm ?? 80; selectedRepeats = 8
@@ -1003,6 +1955,7 @@ final class Model: ObservableObject {
             loadTuning()
             if let rawHelp = UserDefaults.standard.string(forKey: "xRoll.practiceHelp"), let savedHelp = PracticeHelp(rawValue: rawHelp) { practiceHelp = savedHelp }
             showsTrainingPhases = UserDefaults.standard.bool(forKey: "xRoll.showsTrainingPhases")
+            restoreLoopSelection()
             kitSoundIDs.forEach { newAudio.setSoundVolume(Float(soundVolume($0)), for: $0) }
             loadKeyboardMap()
             sources = MIDIInspector.sources()
@@ -1013,12 +1966,11 @@ final class Model: ObservableObject {
             let bluetoothPad = sources.first(where: { source in
                 source.name.localizedCaseInsensitiveContains("smc-pad pocket") && source.name.localizedCaseInsensitiveContains("bluetooth")
             })
-            sourceID = bluetoothPad?.uniqueID ?? (sources.contains(where: { $0.uniqueID == savedSourceID })
+            sourceID = UserDefaults.standard.bool(forKey: "xRoll.prefersKeyboard") ? nil : (bluetoothPad?.uniqueID ?? (sources.contains(where: { $0.uniqueID == savedSourceID })
                 ? savedSourceID
-                : preferredMIDISource(in: sources)?.uniqueID)
+                : preferredMIDISource(in: sources)?.uniqueID))
             if let sourceID { UserDefaults.standard.set(Int(sourceID), forKey: "xRoll.midiSourceID") }
             connect()
-            refreshRecentAttempts()
             refreshCourseLevels()
             recovery = RecoveryAdvisor.assess(missingSamples: catalog.missingSampleFiles(for: loaded, in: kitDir), hasMIDIInput: !sources.isEmpty).message
         } catch { status = "No se pudo iniciar: \(error.localizedDescription)"; recovery = RecoveryAdvisor.assess(missingSamples: [], hasMIDIInput: false, hasAudio: false).message }
@@ -1027,6 +1979,8 @@ final class Model: ObservableObject {
         guard let kit else { return }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        var temporaryCopy: URL?
+        defer { if let temporaryCopy { try? FileManager.default.removeItem(at: temporaryCopy) } }
         do {
             guard ["mid", "midi"].contains(url.pathExtension.lowercased()) else { throw MIDIExerciseError.invalidFile("elige un archivo .mid o .midi") }
             let directory = applicationSupportURL("community-exercises")
@@ -1034,8 +1988,13 @@ final class Model: ObservableObject {
             let stem = url.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "[^A-Za-z0-9_-]", with: "_", options: .regularExpression)
             let destination = directory.appendingPathComponent("\(stem.isEmpty ? "ejercicio" : stem)-\(UUID().uuidString.prefix(8)).\(url.pathExtension.lowercased())")
             try FileManager.default.copyItem(at: url, to: destination)
+            temporaryCopy = destination
             let exercise = try MIDIExerciseLoader.load(url: destination, kit: kit, level: bundledExercises.count + 1)
+            guard !exercises.contains(where: { $0.id == exercise.id }) else {
+                throw ResourceValidationError.duplicateExercise(exercise.id)
+            }
             reloadCommunityExercises()
+            temporaryCopy = nil
             let warnings = PedagogicalMIDIValidator.warnings(for: exercise)
             exerciseImportMessage = warnings.isEmpty ? "Importado: \(url.lastPathComponent)." : "Importado: \(url.lastPathComponent). Aviso didáctico: \(warnings.joined(separator: " "))"
         } catch { exerciseImportMessage = "No se pudo importar: \(error.localizedDescription)" }
@@ -1043,17 +2002,20 @@ final class Model: ObservableObject {
     private func reloadCommunityExercises() {
         guard let kit else { exercises = bundledExercises; return }
         let directory = applicationSupportURL("community-exercises")
-        let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        let imported = urls.filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }.enumerated().compactMap { index, url in
-            try? MIDIExerciseLoader.load(url: url, kit: kit, level: bundledExercises.count + index + 1)
-        }
-        exercises = bundledExercises + imported
+        do { exercises = bundledExercises + (try ResourceCatalog().loadCommunityExercises(in: directory, kit: kit, bundled: bundledExercises)) }
+        catch { exercises = bundledExercises; exerciseImportMessage = "No se pudieron leer los MIDI importados: \(error.localizedDescription)" }
     }
     private func connect() {
         input = nil
-        guard let sourceID, let endpoint = MIDIInspector.source(withUniqueID: sourceID) else { status = "Teclado listo"; return }
+        guard let sourceID, let endpoint = MIDIInspector.source(withUniqueID: sourceID) else {
+            if sourceID == nil { custom = nil; customRouter = nil; liveMIDI?.setPadRouter(nil) }
+            loadCalibration()
+            status = "Teclado listo"
+            return
+        }
+        guard let processor = liveMIDI else { return }
         do {
-            let session = try MIDIInputSession { [weak self] event in self?.receive(event) }
+            let session = try MIDIInputSession { [weak self] event in self?.receive(event, processor: processor) }
             try session.connect(source: endpoint)
             input = session
             loadMap(sourceID)
@@ -1061,32 +2023,27 @@ final class Model: ObservableObject {
             loadCalibration()
         } catch { status = error.localizedDescription }
     }
-    private func receive(_ event: MIDINoteOn) {
+    private func receive(_ event: MIDINoteOn, processor: LiveMIDIProcessor) {
         if isMappingActiveForMIDI {
             DispatchQueue.main.async { [weak self] in self?.capture(event) }
             return
         }
-        guard let liveMIDI else { return }
         do {
-            guard let hit = try liveMIDI.process(event) else { return }
+            guard let hit = try processor.process(event) else { return }
+            record(hit.soundID, hostTime: event.hostTime, role: hit.role, padID: hit.padID, velocity: UInt8(clamping: event.velocity))
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.presentHit(hit.soundID, position: self.position(for: hit), hostTime: event.hostTime, role: hit.role, padID: hit.padID, velocity: UInt8(clamping: event.velocity))
+                if hit.padID != nil { self.markEquipmentPadCheck(hostTime: event.hostTime) }
+                self.presentHit(hit.soundID, position: self.position(for: hit), hostTime: event.hostTime, role: hit.role, padID: hit.padID, velocity: UInt8(clamping: event.velocity), recordsHit: false)
             }
         } catch {
             DispatchQueue.main.async { [weak self] in self?.status = error.localizedDescription }
         }
     }
     private func loadLoop(from root: URL) {
-        let loopDirectory = root.appendingPathComponent("Resources/Loops", isDirectory: true)
-        guard let url = try? FileManager.default.contentsOfDirectory(at: loopDirectory, includingPropertiesForKeys: nil)
-            .first(where: { ["wav", "aif", "aiff", "m4a"].contains($0.pathExtension.lowercased()) }) else { return }
-        do {
-            guard let audio else { return }
-            try audio.loadLoop(url: url)
-            loopTempo = audio.loopTempo?.bpm
-            if let tempo = loopTempo { loopStatus = "\(url.deletingPathExtension().lastPathComponent) · detectado a \(Int(tempo.rounded())) BPM" }
-        } catch { loopStatus = "No se pudo cargar el loop: \(error.localizedDescription)" }
+        let directory = root.appendingPathComponent("Resources/Loops", isDirectory: true)
+        loopOptions = LoopLibraryCatalog.discover(in: directory)
+        loopStatus = loopOptions.isEmpty ? "No hay loops compatibles incluidos." : "Elige un loop o usa selección automática por estilo y tempo."
     }
     private func loadMetronome(from root: URL) {
         let directory = root.appendingPathComponent("data/metronome", isDirectory: true)
@@ -1094,7 +2051,7 @@ final class Model: ObservableObject {
         guard let url = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .sorted(by: { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending })
             .first(where: { accepted.contains($0.pathExtension.lowercased()) }) else {
-            metronomeStatus = "Metrónomo del kit (no hay archivo personalizado)"
+            metronomeStatus = "Claqueta sintetizada (independiente de los sonidos del kit)"
             return
         }
         do {
@@ -1124,7 +2081,7 @@ final class Model: ObservableObject {
     }
     private func captureKeyboardKey(_ key: String) {
         guard let nextSound = Model.keyboardMappingSounds.dropFirst(keyboardCapture.count).first else { return }
-        guard keyboardCapture[key] == nil else { keyboardMapMessage = "La tecla (key) ya está asignada. Pulsa otra para (displayName(nextSound))."; return }
+        guard keyboardCapture[key] == nil else { keyboardMapMessage = "La tecla \(key) ya está asignada. Pulsa otra para \(displayName(nextSound))."; return }
         keyboardCapture[key] = nextSound
         let remaining = Model.keyboardMappingSounds.count - keyboardCapture.count
         if remaining == 0 {
@@ -1132,7 +2089,7 @@ final class Model: ObservableObject {
             saveKeyboardMap()
             keyboardMapping = false
             keyboardCapture = [:]
-            keyboardMapMessage = "Teclado guardado. Ya puedes practicar con esas seis teclas."
+            keyboardMapMessage = "Teclado guardado. Ya puedes practicar con esas diez teclas."
         } else if let following = Model.keyboardMappingSounds.dropFirst(keyboardCapture.count).first {
             keyboardMapMessage = "\(displayName(nextSound)): \(key). Quedan \(remaining). Pulsa la tecla para \(displayName(following))."
         }
@@ -1249,11 +2206,12 @@ final class Model: ObservableObject {
         guard let audio, !isPracticePaused else { return }
         do {
             try audio.play(soundID: sound, volume: volume)
+            if sourceID == nil { markEquipmentPadCheck(hostTime: hostTime) }
             presentHit(sound, position: position, hostTime: hostTime, role: role, padID: padID, velocity: velocity)
         } catch { status = error.localizedDescription }
     }
-    private func presentHit(_ sound: String, position: PadPosition?, hostTime: UInt64, role: String?, padID: String?, velocity: UInt8?) {
-        record(sound, hostTime: hostTime, role: role, padID: padID, velocity: velocity)
+    private func presentHit(_ sound: String, position: PadPosition?, hostTime: UInt64, role: String?, padID: String?, velocity: UInt8?, recordsHit: Bool = true) {
+        if recordsHit { record(sound, hostTime: hostTime, role: role, padID: padID, velocity: velocity) }
         // En práctica el feedback pertenece a SpriteKit; publicar el destello de
         // la rejilla oculta solo invalida SwiftUI sin aportar información visible.
         guard practiceScene == nil, previewScene == nil, let position else { return }
@@ -1275,9 +2233,8 @@ final class Model: ObservableObject {
     }
     private func slotsBySound() -> [String: Int] {
         var result: [String: Int] = [:]
-        // The falling-note view has one lane per sound. With duplicate pads,
-        // choose the lowest-numbered physical pad as a stable reference while
-        // the router/scorer accepts every duplicate pad for that sound.
+        // El primer pad de cada sonido define su orden visual estable; la escena
+        // compacta los huecos y el scorer sigue aceptando los pads alternativos.
         for pad in positions.sorted(by: { $0.row == $1.row ? $0.column < $1.column : $0.row < $1.row }) {
             if let sound = name(pad), result[sound] == nil { result[sound] = pad.row * 4 + pad.column }
         }
@@ -1287,16 +2244,28 @@ final class Model: ObservableObject {
         Dictionary(uniqueKeysWithValues: kit?.sounds.map { ($0.id, $0.label) } ?? [])
     }
     private func record(_ sound: String, hostTime: UInt64, role: String? = nil, padID: String? = nil, velocity: UInt8? = nil) {
-        guard practice != nil, !isPracticePaused else { return }
-        DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isPracticePaused, let current = self.practice else { return }
-            let judged = current.register(.init(sound: sound, hostTime: hostTime, practiceStartHostTime: self.practiceStartHostTime, role: role, padID: padID, velocity: velocity))
-            guard let offset = judged.offsetMilliseconds else {
-                self.practiceScene?.showFeedback(sound: sound, judgement: .extra)
-                return
+        // Se llama desde el worker MIDI o el teclado. No consulta estado SwiftUI:
+        // generación, reloj y admisión pertenecen a PracticeSessionIngress.
+        practiceIngress.submit(sound: sound, hostTime: hostTime, role: role, padID: padID, velocity: velocity) { [weak self] generation, processingResult in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.practiceGeneration == generation, !self.isPracticePaused else { return }
+                if let association = processingResult.calibrationAssociation {
+                    self.calibrationRawOffsets.append(association.rawOffsetMilliseconds)
+                }
+                if self.calibrating {
+                    self.practiceScene?.showWarmupHit(sound: sound)
+                    return
+                }
+                guard let judged = processingResult.scoredHit else {
+                    self.practiceScene?.showWarmupHit(sound: sound)
+                    return
+                }
+                for missedNote in processingResult.expiredMisses {
+                    self.practiceScene?.showFeedback(sound: missedNote.sound, judgement: .miss, noteIndex: missedNote.index)
+                }
+                self.practiceScene?.showFeedback(sound: judged.expectedNote?.sound ?? sound, judgement: judged.judgement,
+                    noteIndex: judged.expectedNote?.index, offsetMilliseconds: judged.offsetMilliseconds)
             }
-            let feedbackSound = judged.expectedNote?.sound ?? sound
-            self.practiceScene?.showFeedback(sound: feedbackSound, judgement: judged.judgement, noteIndex: judged.expectedNote?.index, offsetMilliseconds: offset)
         }
     }
     private func profileKey() -> CalibrationProfileKey {
@@ -1330,113 +2299,190 @@ final class Model: ObservableObject {
             try CalibrationProfileStore.save(profiles, to: url)
             calibrationOffset = profile.offsetMilliseconds
             calibrationProfileKey = profile.key
+            isRecheckingEquipment = false
             calibrationMessage = String(format: "Calibrado: %.0f ms, dispersión %.0f ms", estimate.offsetMilliseconds, estimate.medianAbsoluteDeviationMilliseconds)
         } catch { calibrationMessage = "Calibracion incompleta: \(error.localizedDescription)" }
     }
-    private func recordAttempt(exercise: Exercise, score: ExerciseScore) {
+    @discardableResult
+    private func recordAttempt(exercise: Exercise, score: ExerciseScore, context: TrainingContext) -> PracticeAttempt? {
         do {
             let soundStatistics = PracticeInsights(score: score).soundStatistics
             let hitRecords = HitRecord.records(from: score)
-            let scope: EvaluationScope
-            if practiceStepRange != nil { scope = trainingPhase == .isolate ? .corrective : .fragment }
-            else if !isFullRhythmSelection { scope = .selectedVoices }
-            else { scope = .fullPattern }
-            let context = TrainingContext(phase: trainingPhase, gapMetronomeLevel: gapMetronomeLevel, showsVisualGuides: trainingPhase != .transfer, evaluationScope: scope, completedBars: exercise.bars * exercise.repeats)
-            try progressStore?.record(PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context))
-            refreshProgress(for: exercise.id)
-            refreshRecentAttempts()
-            refreshCourseLevels()
-            if scope == .fullPattern, score.percentage >= 70, exercise.bpm == 100,
-               let next = exercises.first(where: { $0.level == exercise.level + 1 }), isAvailable(next) {
-                result += " · Nivel \(next.level) desbloqueado"
+            let attempt = PracticeAttempt(exerciseID: exercise.id, timestamp: Date(), bpm: exercise.bpm, score: score.percentage, stars: score.stars, perfect: score.perfectCount, good: score.goodCount, regular: score.regularCount, miss: score.misses.count, extra: score.extraCount, meanOffsetMilliseconds: score.meanOffsetMilliseconds, soundStatistics: soundStatistics, hitRecords: hitRecords, trainingContext: context)
+            guard let progressStore else { throw ProgressStoreError.sqlite("El historial no está disponible.") }
+            try progressStore.record(attempt)
+            if let graph = courseGraph {
+                let evidence = CourseAttemptEvidence(attempt: attempt)
+                worldVictory = graph.worldVictory(completing: evidence, previousEvidence: courseEvidence)
+                nextCampaignLevel = graph.campaignContinuation(after: evidence, evidence: courseEvidence + [evidence])
+                if let lesson = graph.node(for: exercise.id)?.exercise {
+                    learningRecovery = CourseLessonCriteria.recovery(for: lesson, attempt: evidence, evidence: courseEvidence)
+                }
+                courseEvidence = CourseAttemptEvidence.compacted(courseEvidence + [evidence])
+                courseLevels = graph.states(evidence: courseEvidence)
+                campaignWorlds = graph.worlds(evidence: courseEvidence, states: courseLevels)
             }
-        } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)" }
+            refreshProgress(for: exercise.id)
+            if context.evaluationScope == .fullPattern, score.percentage >= 70, exercise.bpm == CourseLessonCriteria.targetBPM(for: exercise),
+               courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true {
+                result += " · Estación acreditada"
+                nextExerciseTitle = courseRecommendation.flatMap { recommendation in
+                    exercises.first(where: { $0.id == recommendation.exerciseID })?.title
+                }
+            }
+            return attempt
+        } catch { progress = "No se pudo guardar el intento: \(error.localizedDescription)"; return nil }
     }
     func chooseExercise(_ exercise: Exercise) {
-        guard isAvailable(exercise) else { return }
-        if practice != nil { finishPractice() }
+        learningRecovery = nil
+        worldVictory = nil
+        nextCampaignLevel = nil
+        // Cambiar de ejercicio abandona el intento en curso. No lo conviertas
+        // en evidencia completa ni permitas que su resultado cambie la selección.
+        if practice != nil { leaveActiveScreen() }
+        cancelResultTransition()
+        activeDailyBlockID = nil
         audio?.stopScheduledSounds(); audio?.stopLoop(); practiceToken = UUID(); previewToken = UUID(); practiceScene = nil; previewScene = nil
-        showingResults = false; courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
-        let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
-        selectedBPM = nextStep?.bpm ?? exercise.bpm
-        selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
-        if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
+        showingResults = false; courseTitleOverride = nil; isCheckpointAssessment = false; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
+        microLessonStage = .completed; microLessonFocusSound = nil; microLessonBaselineAccuracy = nil; microLessonBaselineExpected = 0
+        lastCorrectivePlan = nil; microLessonFeedback = ""; performanceFeedback = ""
+        performanceTransferActive = false; performanceGuidedBaseline = nil; performanceGuidedExpected = 0; performancePreviousLoopEnabled = nil; performanceComparisonAllowed = false
+        selectPendingTempo(for: exercise)
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
         practiceStepRange = nil; selectFullRhythm()
         savePreferences(); refreshProgress(for: exercise.id)
     }
+    /// La lección pendiente usa su objetivo de aprendizaje. Los retos opcionales
+    /// de un ritmo ya superado conservan su alcance y duración propios.
+    private func selectPendingTempo(for exercise: Exercise) {
+        let steps = TempoLadder.steps(for: exercise)
+        let step = CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence)
+        selectedBPM = step.bpm
+        selectedTempoTier = steps.firstIndex(of: step) ?? 0
+        selectedRepeats = TempoLadder.repeats(for: step, exercise: exercise) ?? defaultRepeats(for: exercise)
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
+    }
+    func pendingTempoBPM(for exerciseID: String) -> Int? {
+        guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return nil }
+        return CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence).bpm
+    }
+    func pendingRepeats(for plan: NextSessionPlan) -> Int {
+        guard let exercise = exercises.first(where: { $0.id == plan.exerciseID }) else { return plan.repeats }
+        let step = CourseLessonCriteria.preparationStep(for: exercise, evidence: courseEvidence)
+        let minimum = TempoLadder.repeats(for: step, exercise: exercise) ?? 1
+        return max(plan.repeats, minimum)
+    }
     func openPreparation(_ exercise: Exercise? = nil) {
         if let exercise { chooseExercise(exercise) }
+        else if let chosen {
+            selectPendingTempo(for: chosen)
+            updateAutomaticLoopSelection(for: chosen, targetBPM: selectedBPM)
+        }
         guard chosen != nil else { return }
         showingPreparation = true
+    }
+
+    func openCheckpointAssessment(_ exercise: Exercise) {
+        guard exercise.metadata?.flags.contains("checkpoint") == true else { return }
+        chooseExercise(exercise)
+        selectedBPM = CourseLessonCriteria.targetBPM(for: exercise)
+        selectedRepeats = defaultRepeats(for: exercise)
+        selectedTempoTier = TempoLadder.stepIndex(for: exercise, bpm: selectedBPM, repeats: selectedRepeats) ?? 0
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
+        trainingPhase = .integrate
+        practiceStepRange = nil
+        transferCheck = false
+        selectFullRhythm()
+        savePreferences()
+        showingPreparation = true
+        isCheckpointAssessment = true
+        preview = "Reto de estación · patrón completo a \(selectedBPM) BPM · 70 % para completar la parada."
     }
     func openNextSession() {
         guard let plan = nextSessionPlan, let exercise = exercises.first(where: { $0.id == plan.exerciseID }) else { return }
         chooseExercise(exercise)
-        selectedBPM = plan.bpm
-        selectedRepeats = plan.repeats
+        selectedRepeats = pendingRepeats(for: plan)
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
         transferCheck = false
         selectFullRhythm()
         savePreferences()
         showingPreparation = true
     }
     func selectPreparationExercise(_ exercise: Exercise) {
-        guard isAvailable(exercise) else { return }
+        microLessonStage = .completed; microLessonFocusSound = nil; microLessonBaselineAccuracy = nil
+        microLessonBaselineExpected = 0; lastCorrectivePlan = nil; microLessonFeedback = ""; performanceFeedback = ""
         courseTitleOverride = nil; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""
-        let nextStep = TempoLadder.nextStep(for: exercise, attempts: recentAttempts)
-        selectedBPM = nextStep?.bpm ?? exercise.bpm
-        selectedTempoTier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) ?? 0
-        if let nextStep, let repeats = TempoLadder.repeats(for: nextStep, exercise: exercise) { selectedRepeats = repeats }
+        selectPendingTempo(for: exercise)
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
         practiceStepRange = nil; selectFullRhythm(); savePreferences(); refreshProgress(for: exercise.id)
     }
     /// La portada del curso siempre abre el groove completo del bloque. Sus
     /// capas internas sustituyen a las antiguas tarjetas descompuestas.
     func openCompleteRhythm(_ exercise: Exercise, title: String) {
-        guard isAvailable(exercise) else { return }
         leaveActiveScreen()
+        microLessonStage = .completed; microLessonFocusSound = nil; microLessonBaselineAccuracy = nil
+        microLessonBaselineExpected = 0; lastCorrectivePlan = nil; microLessonFeedback = ""; performanceFeedback = ""
         courseTitleOverride = title; chosenID = exercise.id; selectedRepeats = defaultRepeats(for: exercise); preview = ""; selectFullRhythm()
+        selectPendingTempo(for: exercise)
+        updateAutomaticLoopSelection(for: exercise, targetBPM: selectedBPM)
         savePreferences(); refreshProgress(for: exercise.id); showingPreparation = true
     }
     func startFromPreparation() {
-        switch trainingPhase {
-        case .discover:
-            showingPreparation = false
+        // La preparación ya expresa la elección del usuario: no sobrescribir
+        // voces, tempo, duración ni ayudas al pulsar la acción principal.
+        if trainingPhase == .discover {
             previewExercise()
-        case .isolate:
-            if isFullRhythmSelection, let weakest = soundStatistics.min(by: { $0.accuracy < $1.accuracy }) { setPlayerSounds([weakest.sound]) }
-            selectedBPM = max(40, Int((Double(selectedBPM) * 0.8).rounded()))
-            selectedRepeats = 2
-            if startPractice() { showingPreparation = false }
-        case .integrate:
-            transferCheck = false; selectFullRhythm()
-            if startPractice() { showingPreparation = false }
-        case .transfer:
-            selectFullRhythm(); transferCheck = true
-            if startPractice() { showingPreparation = false }
+        } else if startPractice(rehearsal: rehearsalEnabled && trainingPhase == .integrate && !isCheckpointAssessment) {
+            showingPreparation = false
         }
+    }
+    func startDirectFromPreparation() {
+        guard trainingPhase != .discover else { previewExercise(); return }
+        if startPractice() { showingPreparation = false }
     }
     func dismissPreparation() { showingPreparation = false }
     func chooseWarmup() {
-        var summaries: [String: ExerciseProgress] = [:]
-        for exercise in exercises { if let item = try? progressStore?.progress(for: exercise.id) { summaries[exercise.id] = item } }
-        guard let recommendation = WarmupPlanner.recommend(exercises: exercises.filter(isAvailable), progress: summaries).first,
-              let exercise = exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
-        chooseExercise(exercise); preview = "Calentamiento: \(recommendation.reason)."
+        guard !isLoadingWarmup, let progressStore else { return }
+        isLoadingWarmup = true
+        let candidates = exercises.filter(isAvailable)
+        progressStore.loadExerciseProgressInBackground { [weak self] result in
+            guard let self else { return }
+            self.isLoadingWarmup = false
+            switch result {
+            case .success(let summaries):
+                guard let recommendation = WarmupPlanner.recommend(exercises: candidates, progress: summaries).first,
+                      let exercise = self.exercises.first(where: { $0.id == recommendation.exerciseID }) else { return }
+                self.chooseExercise(exercise)
+                self.preview = "Calentamiento: \(recommendation.reason)."
+            case .failure(let error): self.progress = "No se pudo preparar el calentamiento: \(error.localizedDescription)"
+            }
+        }
     }
     private func refreshProgress(for exerciseID: String) {
-        do {
-            if let current = try progressStore?.progress(for: exerciseID) { progress = String(format: "Progreso: %d intentos · mejor %.0f %% · ultimo %.0f %%", current.attemptCount, current.bestScore, current.latestScore) }
-            scoreHistory = try progressStore?.scores(for: exerciseID) ?? []
-        } catch { progress = "No se pudo leer el progreso: \(error.localizedDescription)" }
+        guard let progressStore else { return }
+        let generation = UUID()
+        progressDetailGeneration = generation
+        progressStore.loadProgressDetailInBackground(for: exerciseID) { [weak self] result in
+            guard let self, self.progressDetailGeneration == generation, self.chosenID == exerciseID else { return }
+            switch result {
+            case .success(let detail):
+                if let current = detail.progress {
+                    self.progress = String(format: "Progreso: %d intentos · mejor %.0f %% · último %.0f %%", current.attemptCount, current.bestScore, current.latestScore)
+                } else { self.progress = "Aún no hay intentos para este ritmo." }
+                self.scoreHistory = detail.recentScores
+            case .failure(let error): self.progress = "No se pudo leer el progreso: \(error.localizedDescription)"
+            }
+        }
+        refreshRecentAttempts()
     }
     func isAvailable(_ exercise: Exercise) -> Bool {
-        if !bundledExercises.contains(where: { $0.id == exercise.id }) { return true }
-        return courseLevels.first(where: { $0.exerciseID == exercise.id })?.status != .locked
+        exercises.contains(where: { $0.id == exercise.id })
     }
     /// Mantiene una sesión inicial cerca de ocho compases aunque el archivo
     /// sea una frase de dos, tres o cuatro compases. El selector conserva
     /// potencias de dos para que la duración siga siendo predecible.
     private func defaultRepeats(for exercise: Exercise) -> Int {
-        Model.repeatOptions.last(where: { $0 * exercise.bars <= 8 }) ?? 1
+        PracticeConfiguration.defaultRepeats(forBars: exercise.bars)
     }
     func levelStatus(_ exercise: Exercise) -> String {
         switch courseLevels.first(where: { $0.exerciseID == exercise.id })?.status {
@@ -1445,18 +2491,16 @@ final class Model: ObservableObject {
         default: return ""
         }
     }
-    private func refreshCourseLevels() {
-        let attempts = (try? progressStore?.attempts(filter: .init(), limit: 1_000)) ?? []
-        courseLevels = CourseProgress.states(exercises: bundledExercises, attempts: attempts)
-        if let chosen = chosen, !isAvailable(chosen), let first = exercises.first(where: isAvailable) {
-            chosenID = first.id; selectedBPM = first.bpm; selectedRepeats = first.repeats; preview = ""
-            savePreferences(); refreshProgress(for: first.id)
+    func chapterIsAccredited(_ exercises: [Exercise]) -> Bool {
+        !exercises.isEmpty && exercises.allSatisfy { exercise in
+            courseLevels.first(where: { $0.exerciseID == exercise.id })?.chapterAccredited == true
         }
-        refreshNextSessionPlan()
+    }
+    private func refreshCourseLevels() {
+        refreshRecentAttempts()
     }
     private func refreshNextSessionPlan() {
-        let attempts = (try? progressStore?.attempts(filter: .init(), limit: 1_000)) ?? []
-        nextSessionPlan = NextSessionPlanner.plan(exercises: exercises, courseLevels: courseLevels, attempts: attempts, eligibleExerciseIDs: Set(bundledExercises.map(\.id)))
+        nextSessionPlan = NextSessionPlanner.plan(exercises: exercises, courseLevels: courseLevels, attempts: unfilteredRecentAttempts, eligibleExerciseIDs: Set(bundledExercises.map(\.id)))
     }
     func savePreferences() {
         let preferences = PracticePreferences(exerciseID: chosenID, bpm: selectedBPM, repeats: selectedRepeats)
@@ -1467,7 +2511,11 @@ final class Model: ObservableObject {
         if let id = preferences.exerciseID, exercises.contains(where: { $0.id == id }) { chosenID = id }
         if let bpm = preferences.bpm { selectedBPM = min(240, max(40, bpm)) }
         if let repeats = preferences.repeats { selectedRepeats = PracticeConfiguration.normalizedRepeats(repeats) }
-        if let tier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) { selectedTempoTier = tier }
+        if let exercise = chosen, let tier = TempoLadder.stepIndex(for: exercise, bpm: selectedBPM, repeats: selectedRepeats) {
+            selectedTempoTier = tier
+        } else if let tier = tempoPracticeOptions.firstIndex(where: { $0.bpm == selectedBPM }) {
+            selectedTempoTier = tier
+        }
     }
     func saveTuning() { try? PracticeTuningStore.save(tuning, to: applicationSupportURL("tuning.json")) }
     func resetTuning() { tuning = PracticeTuning(); resetSoundMix(); saveTuning() }
@@ -1476,36 +2524,55 @@ final class Model: ObservableObject {
         tuning = loaded
     }
     func refreshRecentAttempts() {
-        do {
-            let filter: ProgressFilter
-            switch progressFilter {
-            case 1: filter = .init(maximumScore: 74.999)
-            case 2: filter = .init(minimumScore: 70)
-            default: filter = .init()
+        guard let progressStore else { return }
+        let filter: ProgressFilter
+        switch progressFilter {
+        case 1: filter = .init(maximumScore: 74.999)
+        case 2: filter = .init(minimumScore: 70)
+        default: filter = .init()
+        }
+        let generation = UUID()
+        progressReadGeneration = generation
+        progressStore.loadSnapshotInBackground(exercises: exercises, graph: courseGraph, filter: filter,
+            selectedExerciseID: chosenID) { [weak self] result in
+            guard let self, self.progressReadGeneration == generation else { return }
+            switch result {
+            case .success(let snapshot):
+                self.unfilteredRecentAttempts = Array(snapshot.recentAttempts.prefix(100))
+                self.recentAttempts = snapshot.filteredAttempts
+                self.historicalDiagnostics = snapshot.diagnostics
+                self.masterySeals = snapshot.masterySeals
+                self.courseEvidence = snapshot.courseEvidence
+                self.courseLevels = snapshot.courseLevels
+                self.campaignWorlds = snapshot.campaignWorlds
+                self.refreshNextSessionPlan()
+            case .failure(let error): self.exportMessage = "No se pudo leer el historial: \(error.localizedDescription)"
             }
-            recentAttempts = try progressStore?.attempts(filter: filter, limit: 1_000) ?? []
-            let byID = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, $0) })
-            historicalDiagnostics = HistoricalDiagnosticsBuilder.build(attempts: recentAttempts, exercisesByID: byID)
-            if let chosen { masterySeals = MasteryEvaluator.seals(exercise: chosen, attempts: try progressStore?.attempts(filter: .init(exerciseID: chosen.id), limit: 1_000) ?? []) }
-        } catch { exportMessage = "No se pudo leer el historial: \(error.localizedDescription)" }
+        }
     }
     func exportProgress(format: String) {
+        guard !isExportingProgress, let store = progressStore else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "xroll-progreso.\(format)"
         if let type = UTType(filenameExtension: format) { panel.allowedContentTypes = [type] }
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url, let self else { return }
-            do {
                 let filter: ProgressFilter
                 switch self.progressFilter {
                 case 1: filter = .init(maximumScore: 74.999)
                 case 2: filter = .init(minimumScore: 70)
                 default: filter = .init()
                 }
-                if format == "csv" { try self.progressStore?.exportCSV(to: url, filter: filter) }
-                else { try self.progressStore?.exportJSON(to: url, filter: filter) }
-                self.exportMessage = "Exportado en \(url.lastPathComponent)."
-            } catch { self.exportMessage = "No se pudo exportar: \(error.localizedDescription)" }
+                self.isExportingProgress = true
+                self.exportMessage = "Exportando los intentos del filtro actual…"
+                store.exportInBackground(to: url, format: format == "csv" ? .csv : .json, filter: filter) { [weak self] result in
+                    guard let self else { return }
+                    self.isExportingProgress = false
+                    switch result {
+                    case .success(let count): self.exportMessage = "\(count == 1 ? "Se exportó 1 intento" : "Se exportaron \(count) intentos") en \(url.lastPathComponent)."
+                    case .failure(let error): self.exportMessage = "No se pudo exportar: \(error.localizedDescription)"
+                    }
+                }
         }
     }
     private func advice(for score: ExerciseScore) -> String {
@@ -1519,17 +2586,21 @@ final class Model: ObservableObject {
 
 struct Grid: View {
     @ObservedObject var model: Model
+    var showsTechnicalDetails = true
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 9), count: 4), spacing: 9) {
             ForEach(positions.sorted { $0.row > $1.row || ($0.row == $1.row && $0.column < $1.column) }) { pad in
                 let name = model.name(pad); let active = model.active.contains("\(pad.row):\(pad.column)")
+                let requested = model.mapping && model.equipmentNextPadID == "r\(pad.row)c\(pad.column)"
                 VStack(spacing: 4) {
-                    Text(model.displayName(name)).font(.subheadline.bold()).lineLimit(1)
-                    Text(model.midiLabel(for: pad)).font(.caption2.bold()).opacity(0.76)
-                    Text("Tecla \(model.keyboardLabel(for: pad))").font(.caption2).opacity(0.56)
+                    Text(requested ? "Toca aquí" : model.displayName(name)).font(.subheadline.bold()).lineLimit(1)
+                    if showsTechnicalDetails {
+                        Text(model.midiLabel(for: pad)).font(.caption2.bold()).opacity(0.76)
+                        Text("Tecla \(model.keyboardLabel(for: pad))").font(.caption2).opacity(0.56)
+                    } else { Text("Fila \(pad.row + 1) · columna \(pad.column + 1)").font(.caption2) }
                 }
                     .frame(maxWidth: .infinity, minHeight: 76).background(active ? Color.white.opacity(0.95) : padColor(for: name)).foregroundColor(active ? .black : (name == nil ? .white.opacity(0.38) : .white)).clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(active ? Color.white : Color.white.opacity(name == nil ? 0.08 : 0.18), lineWidth: active ? 3 : 1))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(requested ? StudioDesign.accent : (active ? Color.white : Color.white.opacity(name == nil ? 0.08 : 0.18)), lineWidth: active || requested ? 3 : 1))
                     .accessibilityElement(children: .ignore).accessibilityLabel(name.map { "Pad \($0), tecla \(model.keyboardLabel(for: pad))" } ?? "Pad sin asignar, tecla \(model.keyboardLabel(for: pad))")
             }
         }
@@ -1607,7 +2678,7 @@ private struct ExerciseCard: View {
                 Spacer()
             }.padding(10).background(model.chosenID == exercise.id ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor)).clipShape(RoundedRectangle(cornerRadius: 10))
         }.buttonStyle(.plain).disabled(!available)
-            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(available ? "disponible" : "bloqueado")")
+            .accessibilityLabel("Ejercicio \(exercise.level): \(exercise.title), \(available ? "se puede practicar" : "no disponible en este catálogo")")
     }
 }
 
@@ -1624,7 +2695,7 @@ private struct PracticeHome: View {
                 }.padding(.horizontal, 24).padding(.top, 16)
                 HStack(alignment: .top, spacing: 14) {
                     StagePanel {
-                        HStack { Text("CURSO").font(.caption.bold()).foregroundColor(.cyan); Spacer(); Button("Calentar") { model.chooseWarmup() }.buttonStyle(.borderless).foregroundColor(.white) }
+                        HStack { Text("CURSO").font(.caption.bold()).foregroundColor(.cyan); Spacer(); Button(model.isLoadingWarmup ? "Preparando…" : "Calentar") { model.chooseWarmup() }.buttonStyle(.borderless).foregroundColor(.white).disabled(model.isLoadingWarmup) }
                         ScrollView {
                             VStack(spacing: 6) {
                                 ForEach(model.exercises, id: \.id) { exercise in
@@ -1658,7 +2729,10 @@ private struct PracticeHome: View {
                         StagePanel {
                             Text("SESIÓN").font(.caption.bold()).foregroundColor(.cyan)
                             Text("\(model.selectedBPM) BPM").font(.title.bold()).padding(.top, 4)
-                            Stepper("Tempo", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in model.savePreferences() }
+                            Stepper("Tempo", value: $model.selectedBPM, in: 40...240, step: 5).onChange(of: model.selectedBPM) { _ in
+                                model.refreshAutomaticLoopForSelection()
+                                model.savePreferences()
+                            }
                             Divider().overlay(Color.white.opacity(0.16)).padding(.vertical, 5)
                             Text("\(model.selectedRepeats) vueltas").font(.headline)
                             Stepper("Duración", value: Binding(
@@ -1683,94 +2757,6 @@ private struct PracticeHome: View {
 }
 
 #endif
-
-private struct PracticePreview: View {
-    @ObservedObject var model: Model
-    let scene: PracticeScene
-    @Environment(\.accessibilityReduceMotion) private var reducesMotion
-
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [Color(red: 0.025, green: 0.04, blue: 0.09), Color(red: 0.075, green: 0.025, blue: 0.15)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
-            VStack(spacing: 18) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("DEMOSTRACIÓN GUIADA").font(.caption.bold()).foregroundColor(.cyan)
-                        Text(model.currentExerciseTitle).font(.title2.bold())
-                        Text("Observa una vuelta: aquí no se puntúa ningún golpe.").font(.caption).foregroundColor(.white.opacity(0.65))
-                    }
-                    Spacer()
-                    ActionButton("Volver", prominence: .secondary) { model.stopPreview() }
-                    ActionButton("Empezar a tocar", prominence: .primary) { model.stopPreview(); model.startPractice() }
-                }
-                SpriteView(scene: scene)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.15), lineWidth: 1))
-                StagePanel {
-                    HStack(spacing: 5) {
-                        Text("CÓMO USARLO").font(.caption.bold()).foregroundColor(.cyan)
-                        ContextInfoButton(title: "Demostración guiada", detail: "xRoll toca el patrón para que observes los carriles y escuches la relación entre los sonidos. Aquí no tienes que golpear nada ni se registra una puntuación.")
-                    }
-                    Text("Mira qué carril llega a la línea y escucha cómo encajan los golpes. Cuando lo tengas claro, pulsa Empezar a tocar.")
-                        .font(.subheadline).foregroundColor(.white.opacity(0.75))
-                }
-            }
-            .padding(24).foregroundColor(.white)
-        }
-        .onAppear { scene.setReducesMotion(reducesMotion) }
-        .onChange(of: reducesMotion) { scene.setReducesMotion($0) }
-    }
-}
-
-private struct PracticeRun: View {
-    @ObservedObject var model: Model
-    let scene: PracticeScene
-    @Environment(\.accessibilityReduceMotion) private var reducesMotion
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [Color(red: 0.025, green: 0.04, blue: 0.09), Color(red: 0.075, green: 0.025, blue: 0.15)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
-            VStack(spacing: 12) {
-                HStack(alignment: .center) {
-                    HStack(spacing: 10) {
-                        AppMark(size: 38)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("EN PRÁCTICA").font(.caption.bold()).foregroundColor(.cyan)
-                            Text(model.currentExerciseTitle).font(.title2.bold()).foregroundColor(.white)
-                        }
-                    }
-                    Spacer()
-                    Text("\(model.selectedBPM) BPM · \(model.selectedRepeats) vueltas").font(.subheadline.bold()).foregroundColor(.white.opacity(0.75))
-                    ActionButton("Pausar", prominence: .secondary) { model.pausePractice() }
-                }
-                if model.practiceStepRange != nil || !model.isFullRhythmSelection {
-                    Text(model.whaleTargetMessage.isEmpty ? "Tú: \(model.selectedPlayerSounds.map(model.displayName).sorted().joined(separator: " y ")) · gris: acompañamiento" : model.whaleTargetMessage)
-                        .font(.caption.weight(.semibold)).foregroundColor(StudioDesign.regular).lineLimit(1)
-                }
-                ZStack(alignment: .top) {
-                    SpriteView(scene: scene).id(model.practiceVisualID)
-                    if model.isPracticePaused {
-                        Color.black.opacity(0.82)
-                        VStack(spacing: 14) {
-                            Image(systemName: "pause.circle.fill").font(.system(size: 44)).foregroundColor(StudioDesign.accent)
-                            Text("Práctica en pausa").font(.title.bold())
-                            Text("Al reanudar, el intento comenzará de nuevo con la cuenta de entrada para mantener audio, notas y puntuación sincronizados.")
-                                .font(.subheadline).foregroundColor(StudioDesign.textSecondary).multilineTextAlignment(.center).frame(maxWidth: 440)
-                            HStack(spacing: 10) {
-                                ActionButton("Terminar sesión", prominence: .secondary) { model.leaveActiveScreen() }
-                                ActionButton("Reanudar desde el inicio", prominence: .primary) { model.resumePractice() }
-                            }
-                        }.padding(28)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.15), lineWidth: 1))
-                .frame(maxHeight: .infinity)
-            }.padding(18)
-        }.foregroundColor(.white)
-        .onAppear { scene.setReducesMotion(reducesMotion) }
-        .onChange(of: reducesMotion) { scene.setReducesMotion($0) }
-    }
-}
 
 private struct ProgressHome: View {
     @ObservedObject var model: Model
@@ -1803,35 +2789,75 @@ private struct ProgressHome: View {
             }
             HStack(spacing: 10) {
                 ActionButton("Exportar CSV") { model.exportProgress(format: "csv") }
+                    .disabled(model.isExportingProgress)
                 ActionButton("Exportar JSON") { model.exportProgress(format: "json") }
+                    .disabled(model.isExportingProgress)
             }
             Text(model.exportMessage).font(.caption).foregroundColor(.white.opacity(0.65))
             StagePanel {
                 HStack(spacing: 5) { Text("HISTORIAL RECIENTE").font(.studioLabel).foregroundColor(StudioDesign.accent); ContextInfoButton(title: "Historial reciente", detail: "Cada fila muestra: nombre del ritmo, tempo, puntuación, estrellas y desviación media en milisegundos. Un valor negativo llegó antes; uno positivo, después.") }
-                if model.recentAttempts.isEmpty { Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65)) }
-                else { ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in HStack { Text(model.exercises.first(where: { $0.id == attempt.exerciseID })?.title ?? attempt.exerciseID).frame(maxWidth: .infinity, alignment: .leading).lineLimit(1); Text("\(attempt.bpm) BPM").frame(width: 70, alignment: .leading); Text(String(format: "%.0f %%", attempt.score)).frame(width: 55, alignment: .leading).foregroundColor(attempt.score >= 70 ? StudioDesign.accent : StudioDesign.regular); Text("★ \(attempt.stars)").frame(width: 40, alignment: .leading); Text(attempt.meanOffsetMilliseconds.map { String(format: "%+.0f ms", $0) } ?? "—").font(.caption).foregroundColor(StudioDesign.textSecondary).frame(width: 58, alignment: .trailing) }.padding(.vertical, 4) } }
+                if model.recentAttempts.isEmpty {
+                    Text("Aquí aparecerán tus intentos al terminar una práctica.").foregroundColor(.white.opacity(0.65))
+                } else {
+                    ForEach(Array(model.recentAttempts.prefix(12).enumerated()), id: \.offset) { _, attempt in
+                        attemptRow(attempt)
+                    }
+                }
             }
             Spacer()
         }.foregroundColor(.white).padding(28).frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
+
+    private func attemptRow(_ attempt: PracticeAttempt) -> some View {
+        let title = model.exercises.first(where: { $0.id == attempt.exerciseID })?.title ?? attempt.exerciseID
+        let timing = attempt.meanOffsetMilliseconds.map { String(format: "%+.0f ms", $0) } ?? "—"
+        return HStack {
+            Text(title).frame(maxWidth: .infinity, alignment: .leading).lineLimit(1)
+            Text("\(attempt.bpm) BPM").frame(width: 70, alignment: .leading)
+            Text(String(format: "%.0f %%", attempt.score))
+                .frame(width: 55, alignment: .leading)
+                .foregroundColor(attempt.score >= 70 ? StudioDesign.accent : StudioDesign.regular)
+            Text("★ \(attempt.stars)").frame(width: 40, alignment: .leading)
+            Text(timing).font(.caption).foregroundColor(StudioDesign.textSecondary)
+                .frame(width: 58, alignment: .trailing)
+        }.padding(.vertical, 4)
+    }
 }
 
 private struct ProgressMetric: View {
-    let title: String; let value: String; let detail: String; let tint: Color; let info: String
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+    let info: String
+
     var body: some View {
-        StagePanel { HStack(spacing: 5) { Text(title).font(.studioLabel).foregroundColor(tint); ContextInfoButton(title: title.capitalized, detail: info) }; Text(value).font(.title3.bold()).lineLimit(2); Text(detail).font(.caption2).foregroundColor(StudioDesign.textSecondary) }
+        StagePanel {
+            HStack(spacing: 5) {
+                Text(title).font(.studioLabel).foregroundColor(tint)
+                ContextInfoButton(title: title.capitalized, detail: info)
+            }
+            Text(value).font(.title3.bold()).lineLimit(2)
+            Text(detail).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+        }
     }
 }
 
 private struct DiagnosticList: View {
-    let title: String; let items: [HistoricalDiagnostic]
+    let title: String
+    let items: [HistoricalDiagnostic]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased()).font(.caption2.bold()).foregroundColor(StudioDesign.textMuted)
-            if let item = items.first { Text("\(item.label) · \(Int(item.accuracy.rounded())) %").font(.caption).foregroundColor(StudioDesign.textPrimary); Text(item.timingLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary) }
-            else { Text("Aún sin datos").font(.caption).foregroundColor(StudioDesign.textSecondary) }
+            if let item = items.first {
+                Text("\(item.label) · \(Int(item.accuracy.rounded())) %").font(.caption).foregroundColor(StudioDesign.textPrimary)
+                Text(item.timingLabel).font(.caption2).foregroundColor(StudioDesign.textSecondary)
+            } else {
+                Text("Aún sin datos").font(.caption).foregroundColor(StudioDesign.textSecondary)
+            }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -1969,11 +2995,19 @@ private struct LayoutPresetPreview: View {
 
 private struct MappingHome: View {
     @ObservedObject var model: Model
+    @Binding var showsAdvanced: Bool
+    let layoutNavigationRequest: UUID?
+    @State private var showsBluetooth = false
     var body: some View {
         ZStack {
         StudioDesign.canvas.ignoresSafeArea()
         ScrollView {
         VStack(alignment: .leading, spacing: 14) {
+            Text("Mi equipo").font(.largeTitle.bold())
+            if layoutNavigationRequest != nil { layoutPanel }
+            equipmentWizard
+            DisclosureGroup(isExpanded: $showsAdvanced) {
+            VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Configura tus pads").font(.largeTitle.bold())
                 Text("Aprende los 16 pads físicos una vez; después podrás cambiar su distribución sin cambiar sus notas MIDI.").foregroundColor(.white.opacity(0.65))
@@ -1994,16 +3028,7 @@ private struct MappingHome: View {
                     if model.mapping { Button("Omitir este sonido") { model.skipMappingSound() }.buttonStyle(.borderless).foregroundColor(.cyan) }
                     Text(model.mapMessage.isEmpty ? "La asignación se guarda al terminar. Puedes omitir sonidos que no tenga tu controlador." : model.mapMessage).font(.caption).foregroundColor(.white.opacity(0.65)).padding(.top, 5)
                 }
-                StagePanel {
-                    Text("Layout de pads").font(.headline)
-                    Text("Pulsa directamente la tarjeta que quieras usar. Las notas físicas no se mueven.").font(.caption).foregroundColor(.white.opacity(0.65))
-                    Text("Entrada activa: \(model.selectedMIDIName)").font(.caption2).foregroundColor(StudioDesign.accent)
-                    LayoutPresetChooser(selection: $model.selectedLayoutPreset, onUse: model.useLayout)
-                    HStack { ActionButton("Aplicar layout seleccionado", prominence: .secondary) { model.applyLayoutPreset() }; ActionButton("Restaurar xRoll Core", prominence: .quiet) { model.restoreCoreLayout() } }
-                    HStack { ActionButton("Importar") { model.importLayout() }; ActionButton("Exportar") { model.exportLayout() } }
-                    Text(model.mapMessage.isEmpty ? "Selecciona arriba tu controlador MIDI antes de aplicar un layout." : model.mapMessage).font(.caption2).foregroundColor(.white.opacity(0.70))
-                    Text("«Restaurar xRoll Core» devuelve la distribución inicial sin cambiar las notas MIDI de tu controlador.").font(.caption2).foregroundColor(.white.opacity(0.58))
-                }
+                if layoutNavigationRequest == nil { layoutPanel }
             }
             // Va debajo de los controles: no se recorta al abrir la app en una
             // ventana estrecha y la rejilla conserva celdas cómodas de tocar.
@@ -2020,8 +3045,99 @@ private struct MappingHome: View {
                 ActionButton(model.keyboardMapping ? "Cancelar teclado" : "Mapear teclado", prominence: model.keyboardMapping ? .secondary : .primary) { model.keyboardMapping ? model.cancelKeyboardMapping() : model.startKeyboardMapping() }
                 Text(model.keyboardMapMessage.isEmpty ? "Sin asignación personalizada: se usa la cuadrícula Z–V, A–F, Q–R y 1–4." : model.keyboardMapMessage).font(.caption).foregroundColor(.white.opacity(0.65))
             }
+            }.padding(.top, 10)
+            } label: { Text("Opciones avanzadas").accessibilityIdentifier("equipment.advanced") }
+            .tint(StudioDesign.accent)
         }.foregroundColor(.white).padding(28).frame(maxWidth: 760, alignment: .leading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var layoutPanel: some View {
+        StagePanel {
+            Text("Layout de pads").font(.headline)
+            Text("Pulsa directamente la tarjeta que quieras usar. Las notas físicas no se mueven.").font(.caption).foregroundColor(.white.opacity(0.65))
+            Text("Entrada activa: \(model.selectedMIDIName)").font(.caption2).foregroundColor(StudioDesign.accent)
+            LayoutPresetChooser(selection: $model.selectedLayoutPreset, onUse: model.useLayout)
+            HStack { ActionButton("Aplicar layout seleccionado", prominence: .secondary) { model.applyLayoutPreset() }; ActionButton("Restaurar xRoll Core", prominence: .quiet) { model.restoreCoreLayout() } }
+            HStack { ActionButton("Importar") { model.importLayout() }; ActionButton("Exportar") { model.exportLayout() } }
+            Text(model.mapMessage.isEmpty ? "Selecciona un controlador MIDI en Mi equipo antes de aplicar un layout." : model.mapMessage).font(.caption2).foregroundColor(.white.opacity(0.70))
+            Text("«Restaurar xRoll Core» devuelve la distribución inicial sin cambiar las notas MIDI de tu controlador.").font(.caption2).foregroundColor(.white.opacity(0.58))
+        }
+    }
+
+    private var equipmentWizard: some View {
+        StagePanel {
+            Text(model.equipmentStep.title).font(.title2.bold()).accessibilityIdentifier("equipment.step")
+            switch model.equipmentStep {
+            case .sound:
+                Text("Elige cómo vas a tocar y comprueba que oyes la app.").foregroundColor(StudioDesign.textSecondary)
+                Text("Si no lo oyes, revisa el volumen del dispositivo o la salida de audio.").font(.caption).foregroundColor(StudioDesign.textSecondary)
+                Picker("Voy a tocar con", selection: Binding(get: { model.sourceID }, set: { model.sourceID = $0; model.selectSource() })) {
+                    Text("Teclado del Mac").tag(MIDIUniqueID?.none)
+                    ForEach(model.sources, id: \.uniqueID) { source in
+                        if let id = source.uniqueID { Text(source.name).tag(Optional(id)) }
+                    }
+                }
+                if model.canConfirmEquipmentSound {
+                    ActionButton("Lo escucho", prominence: .primary) { model.confirmEquipmentSound() }
+                        .accessibilityIdentifier("equipment.confirmSound")
+                    ActionButton("Probar otra vez", prominence: .quiet) { model.probeEquipmentSound() }
+                } else {
+                    ActionButton("Probar sonido", prominence: .primary) { model.probeEquipmentSound() }
+                        .accessibilityIdentifier("equipment.probeSound")
+                }
+                ActionButton("Buscar controlador", prominence: .quiet) { model.refreshMIDIDevices() }
+                DisclosureGroup("Conectar por Bluetooth", isExpanded: $showsBluetooth) { BluetoothMIDIPanel(model: model, compact: true) }
+            case .pads:
+                if model.keyboardMapping {
+                    Text("Hay una asignación de teclas en curso. Puedes terminarla en Opciones avanzadas o seguir usando las teclas actuales.")
+                        .foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Usar las teclas actuales", prominence: .primary) { model.cancelKeyboardMapping() }
+                } else if model.equipmentHasMappedPads && !model.equipmentLayoutCompatible {
+                    Text("A esta distribución le falta algún sonido del próximo ritmo.").foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Usar distribución recomendada", prominence: .primary) { model.useRecommendedEquipmentLayout() }
+                } else if model.sourceID == nil {
+                    Text("Pulsa una tecla de tu rejilla o usa el pad de prueba. No necesitas asignar un controlador.")
+                        .foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Probar un pad", prominence: .primary) { model.probeEquipmentPad() }
+                        .accessibilityIdentifier("equipment.probePad")
+                } else if !model.hasAssignedPad {
+                    Text("Conecta el controlador elegido y vuelve a buscarlo.").foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Buscar controlador", prominence: .primary) { model.refreshMIDIDevices() }
+                    ActionButton("Usar el teclado", prominence: .quiet) { model.sourceID = nil; model.selectSource() }
+                } else if model.mapping || !model.equipmentHasMappedPads {
+                    Text(model.mapping ? model.equipmentMappingPrompt : "Vamos a reconocer las 16 posiciones. Toca una cada vez, siguiendo la posición indicada.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    if model.mapping {
+                        Text("\(model.equipmentMappedCount) de 16 posiciones reconocidas").font(.caption)
+                        Grid(model: model, showsTechnicalDetails: false)
+                    }
+                    ActionButton(model.mapping ? "Cancelar asignación" : "Reconocer mis pads", prominence: .primary) {
+                        model.mapping ? model.cancelMapping() : model.startMapping()
+                    }
+                    if !model.mapping { ActionButton("Elegir otra entrada", prominence: .quiet) { model.recheckEquipment() } }
+                } else {
+                    Text("El mapa ya está aprendido. Golpea un pad del controlador para comprobar que responde.")
+                        .foregroundColor(StudioDesign.textSecondary)
+                    ActionButton("Cambiar entrada", prominence: .quiet) { model.recheckEquipment() }
+                }
+            case .calibration:
+                Text("Sigue el clic con golpes regulares. Así la puntuación se ajustará a tu entrada y salida.")
+                    .foregroundColor(StudioDesign.textSecondary)
+                Text(model.equipmentCalibrationPrompt).font(.subheadline.weight(.semibold))
+                ActionButton("Empezar ajuste guiado", prominence: .primary) { model.startCalibration() }
+                    .accessibilityIdentifier("equipment.calibrate")
+                Text(model.calibrationMessage).font(.caption).foregroundColor(StudioDesign.textSecondary)
+            case .ready:
+                Label(model.equipmentInputName, systemImage: "checkmark.circle.fill").foregroundColor(StudioDesign.accent)
+                Text("Tu entrada y salida están preparadas. Ya puedes tocar.").foregroundColor(StudioDesign.textSecondary)
+                ActionButton(model.guidedExercise?.metadata?.flags.contains("checkpoint") == true ? CourseWorld.challengeActionTitle : "Vamos a tocar", prominence: .primary) { model.startGuidedHomeSession() }
+                    .accessibilityIdentifier("equipment.start")
+                ActionButton("Volver a comprobar", prominence: .quiet) { model.recheckEquipment() }
+                    .accessibilityIdentifier("equipment.recheck")
+            }
+            if !model.equipmentMessage.isEmpty, model.equipmentStep != .ready { Text(model.equipmentMessage).font(.caption).foregroundColor(StudioDesign.textSecondary) }
         }
     }
 }
@@ -2131,6 +3247,11 @@ private struct SettingsHome: View {
                     }
                     StagePanel {
                         Text("Preferencias de práctica").font(.headline)
+                        Group {
+                            Toggle("Escuchar una vuelta antes de tocar", isOn: $model.rehearsalEnabled)
+                            Text("Se recuerda tu elección. Reiniciar o reanudar omite la demostración y mantiene la cuenta de entrada.")
+                                .font(.caption).foregroundColor(StudioDesign.textSecondary)
+                        }
                         Toggle("Metrónomo al comenzar", isOn: $model.metronomeEnabled)
                         Toggle("Loop de acompañamiento al comenzar", isOn: Binding(get: { model.loopEnabled }, set: { model.setLoopEnabled($0) }))
                         HStack(spacing: 8) {
@@ -2166,16 +3287,23 @@ private struct SettingsHome: View {
                         Toggle("Activar Debug", isOn: $model.tuning.debugEnabled).font(.headline)
                         Text("Opciones técnicas para diagnóstico; afectan a la siguiente práctica.").font(.caption).foregroundColor(.white.opacity(0.65))
                         if model.tuning.debugEnabled {
-                            Divider().overlay(Color.white.opacity(0.16))
-                            Text(model.midiDiagnostics).font(.caption).foregroundColor(.white.opacity(0.65))
-                            Text("Debug está pensado para diagnóstico interno y no modifica la calibración guardada.").font(.caption2).foregroundColor(.orange.opacity(0.8))
-                            Stepper("Anticipación: \(model.tuning.anticipationBars) compases", value: $model.tuning.anticipationBars, in: 1...4)
-                            Stepper("Perfecto: \(Int(model.tuning.perfectWindowMilliseconds)) ms", value: $model.tuning.perfectWindowMilliseconds, in: 5...100, step: 1)
-                            Stepper("Bien: \(Int(model.tuning.goodWindowMilliseconds)) ms", value: $model.tuning.goodWindowMilliseconds, in: 5...150, step: 1)
-                            Stepper("Regular: \(Int(model.tuning.regularWindowMilliseconds)) ms", value: $model.tuning.regularWindowMilliseconds, in: 5...250, step: 1)
-                            Stepper("Compensación manual: \(Int(model.tuning.manualTimingOffsetMilliseconds)) ms", value: $model.tuning.manualTimingOffsetMilliseconds, in: -200...200, step: 1)
-                            Stepper("Destello de pad: \(model.tuning.padFlashMilliseconds) ms", value: $model.tuning.padFlashMilliseconds, in: 30...500, step: 10)
-                            ActionButton("Restablecer valores de Debug", prominence: .secondary) { model.resetTuning() }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Divider().overlay(Color.white.opacity(0.16))
+                                Text(model.midiDiagnostics).font(.caption).foregroundColor(.white.opacity(0.65))
+                                Text("Debug está pensado para diagnóstico interno y no modifica la calibración guardada.").font(.caption2).foregroundColor(.orange.opacity(0.8))
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Stepper("Anticipación: \(model.tuning.anticipationBars) compases", value: $model.tuning.anticipationBars, in: 1...4)
+                                    Text("Ventanas de juicio (±ms; solo se pueden estrechar)").font(.caption.bold()).foregroundColor(.white.opacity(0.7))
+                                    Stepper("Clavado: ±\(Int(model.tuning.perfectWindowMilliseconds)) ms", value: $model.tuning.perfectWindowMilliseconds, in: 5...35, step: 1)
+                                    Stepper("Bien: ±\(Int(model.tuning.goodWindowMilliseconds)) ms", value: $model.tuning.goodWindowMilliseconds, in: 5...65, step: 1)
+                                    Stepper("Regular: ±\(Int(model.tuning.regularWindowMilliseconds)) ms", value: $model.tuning.regularWindowMilliseconds, in: 5...95, step: 1)
+                                }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Stepper("Compensación manual: \(Int(model.tuning.manualTimingOffsetMilliseconds)) ms", value: $model.tuning.manualTimingOffsetMilliseconds, in: -200...200, step: 1)
+                                    Stepper("Destello de pad: \(model.tuning.padFlashMilliseconds) ms", value: $model.tuning.padFlashMilliseconds, in: 30...500, step: 10)
+                                    ActionButton("Restablecer valores de Debug", prominence: .secondary) { model.resetTuning() }
+                                }
+                            }
                         }
                     }.onChange(of: model.tuning) { _ in model.saveTuning() }
                     Spacer()
@@ -2190,24 +3318,101 @@ private struct SettingsHome: View {
     }
 }
 
+private struct MenuNavigationRequest {
+    let destination: String
+    let advancedEquipment: Bool
+}
+
+private final class MenuNavigation: ObservableObject {
+    @Published var isAvailable = false
+    let requests = PassthroughSubject<MenuNavigationRequest, Never>()
+
+    func open(_ destination: String, _ advancedEquipment: Bool = false) {
+        guard isAvailable else { return }
+        requests.send(MenuNavigationRequest(destination: destination, advancedEquipment: advancedEquipment))
+    }
+}
+
+private struct XRollCommands: Commands {
+    @ObservedObject var navigation: MenuNavigation
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("Preferencias…") { navigation.open("settings") }
+                .keyboardShortcut(",", modifiers: .command)
+                .disabled(!navigation.isAvailable)
+        }
+        CommandMenu("Ir") {
+            Button("Inicio") { navigation.open("home") }.keyboardShortcut("1", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Curso") { navigation.open("course") }.keyboardShortcut("2", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Mi equipo") { navigation.open("pads") }.keyboardShortcut("3", modifiers: .command).disabled(!navigation.isAvailable)
+            Button("Progreso") { navigation.open("progress") }.keyboardShortcut("4", modifiers: .command).disabled(!navigation.isAvailable)
+            Divider()
+            Button("Redobles") { navigation.open("fills") }.disabled(!navigation.isAvailable)
+        }
+        CommandMenu("Equipo") {
+            Button("Pads y layout…") { navigation.open("pads", true) }.disabled(!navigation.isAvailable)
+            Button("Audio y latencia…") { navigation.open("audio") }.disabled(!navigation.isAvailable)
+            Button("Preparar y calibrar equipo…") { navigation.open("pads") }.disabled(!navigation.isAvailable)
+        }
+    }
+}
+
 private struct ContentView: View {
+    @ObservedObject var menuNavigation: MenuNavigation
     @StateObject private var model = Model()
     @State private var section = "home"
     @State private var sidebarCollapsed = false
+    @State private var showsMoreTools = false
+    @State private var showsEquipmentAdvanced = false
+    @State private var layoutNavigationRequest: UUID?
+    @State private var window: NSWindow?
+    @State private var showsLaunchBrand = true
+    @Environment(\.accessibilityReduceMotion) private var reducesMotion
     var body: some View {
         Group {
-            if let scene = model.previewScene {
-                PracticePreview(model: model, scene: scene)
+            if model.isShowingResultTransition {
+                PracticeCompletionTransition(percentage: model.resultTransitionPercentage).transition(.opacity)
+            } else if let scene = model.previewScene {
+                PracticePreview(model: model, scene: scene).transition(.opacity)
             } else if let scene = model.practiceScene {
-                PracticeRun(model: model, scene: scene)
+                PracticeRun(model: model, scene: scene).transition(.opacity)
             } else {
-                studioShell
+                studioShell.transition(.opacity)
             }
         }
-        .background(WindowResizeSupport())
+        .background(WindowResizeSupport(window: $window))
+        .onChange(of: window) { _ in updateMenuAvailability() }
+        .onChange(of: model.menuNavigationIsAvailable) { _ in updateMenuAvailability() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            if notification.object as? NSWindow === window { updateMenuAvailability() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
+            if notification.object as? NSWindow === window { menuNavigation.isAvailable = false }
+        }
+        .onReceive(menuNavigation.requests) { request in
+            if window?.isKeyWindow == true { navigate(request.destination, request.advancedEquipment) }
+        }
         .frame(minWidth: 960, minHeight: 650)
+        .safeAreaInset(edge: .top) {
+            if !model.trainingPersistenceError.isEmpty {
+                HStack {
+                    Text(model.trainingPersistenceError).font(.callout)
+                    Button("Reintentar guardado") { model.retryTrainingPersistence() }
+                }.padding().frame(maxWidth: .infinity).background(StudioDesign.surface)
+            }
+        }
+        .overlay {
+            if showsLaunchBrand { XRollLaunchView().transition(.opacity) }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
+                withAnimation(reducesMotion ? nil : .easeOut(duration: 0.35)) { showsLaunchBrand = false }
+            }
+        }
         .alert("Calibración pendiente", isPresented: $model.showingCalibrationWarning) {
-            Button("Entendido", role: .cancel) {}
+            Button("Calibrar ahora") { model.startCalibration() }
+            Button("Volver", role: .cancel) {}
         } message: {
             Text("No has calibrado esta entrada y salida. La práctica puntuada permanece bloqueada hasta completar la calibración guiada.")
         }
@@ -2216,10 +3421,18 @@ private struct ContentView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack { AppMark(size: 30); if !sidebarCollapsed { Text("xRoll").font(.headline.bold()) }; Spacer(); Button { sidebarCollapsed.toggle() } label: { Image(systemName: sidebarCollapsed ? "sidebar.right" : "sidebar.left") }.buttonStyle(.plain).foregroundColor(StudioDesign.textSecondary).help(sidebarCollapsed ? "Desplegar menú" : "Plegar menú") }.padding(.bottom, 18)
-                Group { nav("Inicio", "house", "home") }
-                Group { sidebarHeading("PRÁCTICA"); nav("Curso", "music.note.list", "course"); nav("Redobles", "music.quarternote.3", "fills") }
-                Group { sidebarHeading("ANÁLISIS"); nav("Progreso", "chart.line.uptrend.xyaxis", "progress") }
-                Group { sidebarHeading("EQUIPO"); nav("Pads y layout", "square.grid.3x3", "pads"); nav("Audio y latencia", "waveform", "audio"); nav("Ajustes", "gearshape", "settings") }
+                nav("Inicio", "house", "home")
+                nav("Curso", "music.note.list", "course")
+                nav("Mi equipo", "square.grid.3x3", "pads")
+                nav("Progreso", "chart.line.uptrend.xyaxis", "progress")
+                DisclosureGroup(isExpanded: $showsMoreTools) {
+                    nav("Redobles", "music.quarternote.3", "fills")
+                    nav("Audio y latencia", "waveform", "audio")
+                    nav("Ajustes", "gearshape", "settings")
+                } label: {
+                    if sidebarCollapsed { Image(systemName: "ellipsis.circle").accessibilityLabel("Más herramientas") }
+                    else { Text("Más herramientas").font(.caption.weight(.semibold)) }
+                }.tint(StudioDesign.textSecondary)
                 Spacer()
                 if !sidebarCollapsed { Text(model.status).font(.caption2).foregroundColor(StudioDesign.textSecondary).lineLimit(2) }
             }.foregroundColor(StudioDesign.textPrimary).padding(16).frame(width: sidebarCollapsed ? 64 : 190).background(StudioDesign.surface)
@@ -2227,33 +3440,41 @@ private struct ContentView: View {
             Group {
                 if model.showingResults { ResultsHome(model: model) }
                 else if model.showingPreparation { PreparationHome(model: model) }
-                else if section == "home" { OnboardingHome(model: model, showPads: { section = "pads" }, showAudio: { section = "audio" }) }
+                else if section == "home" { OnboardingHome(model: model, showPads: { section = "pads" }) }
                 else if section == "progress" { ProgressHome(model: model) }
                 else if section == "fills" { FillsHome(model: model) }
-                else if section == "pads" { MappingHome(model: model) }
+                else if section == "pads" { MappingHome(model: model, showsAdvanced: $showsEquipmentAdvanced, layoutNavigationRequest: layoutNavigationRequest) }
                 else if section == "audio" { AudioLatencyHome(model: model) }
                 else if section == "settings" { SettingsHome(model: model) }
                 else { PracticeHome(model: model) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
-    @ViewBuilder private func sidebarHeading(_ title: String) -> some View {
-        if !sidebarCollapsed { Text(title).font(.studioLabel).foregroundColor(StudioDesign.textMuted).padding(.top, 14) }
-        else { Divider().overlay(StudioDesign.surfaceHover).padding(.vertical, 8) }
-    }
     private func nav(_ title: String, _ icon: String, _ id: String) -> some View {
-        Button { model.leaveActiveScreen(); section = id } label: {
+        Button { navigate(id, false) } label: {
             Group { if sidebarCollapsed { Image(systemName: icon).frame(maxWidth: .infinity) } else { Label(title, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading) } }
                 .font(.subheadline.weight(.medium)).padding(.horizontal, sidebarCollapsed ? 2 : 10).padding(.vertical, 8).background(section == id ? StudioDesign.accent.opacity(0.15) : Color.clear).foregroundColor(section == id ? StudioDesign.accent : StudioDesign.textSecondary).clipShape(RoundedRectangle(cornerRadius: 8))
         }.buttonStyle(.plain).help(title)
     }
+    private func navigate(_ destination: String, _ advancedEquipment: Bool) {
+        guard model.menuNavigationIsAvailable else { return }
+        model.leaveActiveScreen()
+        showsEquipmentAdvanced = destination == "pads" && advancedEquipment
+        layoutNavigationRequest = advancedEquipment ? UUID() : nil
+        section = destination
+    }
+    private func updateMenuAvailability() {
+        if window?.isKeyWindow == true { menuNavigation.isAvailable = model.menuNavigationIsAvailable }
+    }
 }
 
 private struct WindowResizeSupport: NSViewRepresentable {
+    @Binding var window: NSWindow?
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
+            if self.window !== window { self.window = window }
             window.styleMask.insert(.resizable)
             window.minSize = NSSize(width: 960, height: 650)
             window.standardWindowButton(.zoomButton)?.isEnabled = true
@@ -2261,6 +3482,12 @@ private struct WindowResizeSupport: NSViewRepresentable {
     }
 }
 
-private struct XRollPadsApp: App { var body: some Scene { WindowGroup("xRoll") { ContentView() } } }
+private struct XRollPadsApp: App {
+    @StateObject private var menuNavigation = MenuNavigation()
+    var body: some Scene {
+        WindowGroup("xRoll") { ContentView(menuNavigation: menuNavigation) }
+            .commands { XRollCommands(navigation: menuNavigation) }
+    }
+}
 
 XRollPadsApp.main()

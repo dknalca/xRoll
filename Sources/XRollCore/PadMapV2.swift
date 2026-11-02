@@ -57,10 +57,21 @@ public struct PadMapV2: Codable, Equatable {
         })
     }
 
+    /// Solo cambia la identidad del controlador; el archivo conserva sus
+    /// notas, canales, posiciones y roles al importarse en otro equipo.
+    public func rebound(to device: Device) -> PadMapV2 {
+        PadMapV2(id: id, name: name, preset: .custom, orientation: orientation,
+            device: device, created: created, pads: pads)
+    }
+
     public func validate(availableSounds: Set<String>) throws {
-        guard format == 2, !id.isEmpty, !name.isEmpty, !device.name.isEmpty else { throw PadMapValidationError.emptyDevice }
+        guard format == 2 else { throw PadMapValidationError.unsupportedFormat(format) }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("id del mapa") }
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("nombre del mapa") }
+        guard !device.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyDevice }
         var ids = Set<String>(), positions = Set<String>(), messages = Set<String>(), roles = Set<String>()
         for pad in pads {
+            guard !pad.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("id del pad") }
             guard ids.insert(pad.id).inserted else { throw PadMapValidationError.duplicatePadID(pad.id) }
             guard (0...3).contains(pad.row), (0...3).contains(pad.column) else { throw PadMapValidationError.invalidPosition(row: pad.row, column: pad.column) }
             guard availableSounds.contains(pad.sound) else { throw PadMapValidationError.unknownSound(pad.sound) }
@@ -68,8 +79,34 @@ public struct PadMapV2: Codable, Equatable {
             guard pad.input.message == "note", (0...127).contains(pad.input.number) else { throw PadMapValidationError.invalidNote(pad.input.number) }
             guard (1...16).contains(pad.input.channel) else { throw PadMapValidationError.invalidChannel(pad.input.channel) }
             guard messages.insert("\(pad.input.message):\(pad.input.number):\(pad.input.channel)").inserted else { throw PadMapValidationError.duplicateMessage(note: pad.input.number, channel: pad.input.channel) }
-            if let role = pad.role { guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateRole(role) } }
+            if let role = pad.role {
+                guard !role.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PadMapValidationError.emptyIdentifier("rol") }
+                guard roles.insert(role).inserted else { throw PadMapValidationError.duplicateRole(role) }
+            }
         }
+    }
+
+    /// Proyección táctil de los objetivos activos, sin cambiar el mapa físico.
+    /// Los objetivos por sonido comparten un pad; los de rol/pad conservan las
+    /// alternativas exactas necesarias aunque correspondan al mismo sonido.
+    public func practicePads(for notes: [Exercise.Note]) -> [Pad] {
+        let ordered = pads.sorted { $0.row == $1.row ? $0.column < $1.column : $0.row < $1.row }
+        var selected = Set<String>()
+        var anySounds = Set<String>()
+        for note in notes {
+            guard let target = note.target, target.type != .any else {
+                anySounds.insert(note.sound)
+                continue
+            }
+            if let exact = ordered.first(where: { pad in
+                pad.sound == note.sound && (target.type == .pad ? pad.id == target.value : pad.role == target.value)
+            }) { selected.insert(exact.id) }
+        }
+        for sound in anySounds {
+            if ordered.contains(where: { $0.sound == sound && selected.contains($0.id) }) { continue }
+            if let pad = ordered.first(where: { $0.sound == sound }) { selected.insert(pad.id) }
+        }
+        return ordered.filter { selected.contains($0.id) }
     }
 
 }
@@ -78,7 +115,10 @@ public struct PadMapV2Router {
     private let byInput: [PadMapV2.Pad?]
     public init(_ map: PadMapV2) {
         var inputs = Array<PadMapV2.Pad?>(repeating: nil, count: 16 * 128)
-        for pad in map.pads { inputs[Self.index(note: pad.input.number, channel: pad.input.channel)] = pad }
+        for pad in map.pads {
+            guard (0...127).contains(pad.input.number), (1...16).contains(pad.input.channel) else { continue }
+            inputs[Self.index(note: pad.input.number, channel: pad.input.channel)] = pad
+        }
         byInput = inputs
     }
     public func pad(for event: MIDINoteOn) -> PadMapV2.Pad? {
@@ -104,6 +144,17 @@ public enum PadLayoutFactory {
     /// controller. MIDI note and channel remain attached to their physical
     /// row/column; only the sound assigned to that pad changes.
     public static func applying(_ preset: PadLayoutPreset, to physicalMap: PadMapV2) -> PadMapV2 {
+        if preset == .custom {
+            return PadMapV2(
+                id: physicalMap.id,
+                name: physicalMap.name,
+                preset: .custom,
+                orientation: physicalMap.orientation,
+                device: physicalMap.device,
+                created: physicalMap.created,
+                pads: physicalMap.pads
+            )
+        }
         let template = make(preset, device: physicalMap.device)
         let physicalByPosition = Dictionary(uniqueKeysWithValues: physicalMap.pads.map { ("\($0.row):\($0.column)", $0) })
         let pads = template.pads.compactMap { desired -> PadMapV2.Pad? in

@@ -7,14 +7,23 @@ let logEvents = arguments.contains("--log-events")
 let sourceArgumentIndex = arguments.firstIndex(of: "--source")
 let mapArgumentIndex = arguments.firstIndex(of: "--map")
 let sourceID: MIDIUniqueID?
-if let sourceArgumentIndex, arguments.indices.contains(sourceArgumentIndex + 1) {
-    sourceID = MIDIUniqueID(arguments[sourceArgumentIndex + 1])
+if let sourceArgumentIndex {
+    guard arguments.indices.contains(sourceArgumentIndex + 1),
+          let parsedSourceID = MIDIUniqueID(arguments[sourceArgumentIndex + 1]) else {
+        fputs("--source requiere un UID MIDI entero. Usa xroll-preflight para listarlos.\n", stderr)
+        exit(64)
+    }
+    sourceID = parsedSourceID
 } else {
     sourceID = nil
 }
 
 let mapURL: URL?
-if let mapArgumentIndex, arguments.indices.contains(mapArgumentIndex + 1) {
+if let mapArgumentIndex {
+    guard arguments.indices.contains(mapArgumentIndex + 1), !arguments[mapArgumentIndex + 1].hasPrefix("--") else {
+        fputs("--map requiere la ruta de un archivo .padmap.\n", stderr)
+        exit(64)
+    }
     mapURL = URL(fileURLWithPath: arguments[mapArgumentIndex + 1])
 } else {
     mapURL = nil
@@ -23,7 +32,7 @@ let unexpectedArguments = arguments.enumerated().filter { index, argument in
     argument != "--log-events" && argument != "--source" && argument != "--map" && index != sourceArgumentIndex.map({ $0 + 1 }) && index != mapArgumentIndex.map({ $0 + 1 })
 }
 guard unexpectedArguments.isEmpty else {
-    fputs("Uso: swift run xroll-play-kit [--source <uid>] [--map <archivo.padmap>] [--log-events]\\n", stderr)
+    fputs("Uso: swift run xroll-play-kit [--source <uid>] [--map <archivo.padmap>] [--log-events]\n", stderr)
     exit(64)
 }
 
@@ -36,8 +45,8 @@ do {
     let kit = try catalog.loadKit(at: kitURL)
     let router = KitNoteRouter(kit: kit)
     let padMapRouter = try mapURL.map {
-        try PadMapStore.load(at: $0, availableSounds: Set(kit.sounds.map(\.id)))
-    }.map(PadMapRouter.init)
+        try PadMapStore.loadV2(at: $0, availableSounds: Set(kit.sounds.map(\.id)))
+    }.map(PadMapV2Router.init)
     let audio = SampleAudioEngine()
     try audio.load(kit: kit, from: kitDirectory)
     try audio.start()
@@ -55,13 +64,13 @@ do {
                 DispatchQueue.main.async { print("\(soundID): canal \(event.channel), nota \(event.note), velocidad \(event.velocity)") }
             }
         } catch {
-            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\\n", stderr) }
+            DispatchQueue.main.async { fputs("Error de audio: \(error.localizedDescription)\n", stderr) }
         }
     }
 
     if let sourceID {
         guard let source = MIDIInspector.source(withUniqueID: sourceID) else {
-            fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\\n", stderr)
+            fputs("No existe una fuente MIDI con UID \(sourceID). Usa xroll-preflight para listarlas.\n", stderr)
             exit(64)
         }
         try input.connect(source: source)
@@ -75,6 +84,6 @@ do {
     }
     RunLoop.current.run()
 } catch {
-    fputs("No se puede iniciar el kit: \(error.localizedDescription)\\n", stderr)
+    fputs("No se puede iniciar el kit: \(error.localizedDescription)\n", stderr)
     exit(1)
 }

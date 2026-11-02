@@ -1,28 +1,103 @@
 import CoreMIDI
 import Foundation
+#if SWIFT_PACKAGE
 import XRollRealtimeQueue
+#endif
+
+public enum MIDITimestampSource: String, Codable, Equatable {
+    case coreMIDI
+    case callbackFallback
+}
+
+public struct MIDITimestampResolution: Equatable {
+    public let hostTime: UInt64
+    public let source: MIDITimestampSource
+
+    public init(hostTime: UInt64, source: MIDITimestampSource) {
+        self.hostTime = hostTime
+        self.source = source
+    }
+}
+
+/// Valida el timestamp de CoreMIDI contra el instante de llegada del paquete,
+/// capturado en el callback. Los límites son de sanidad, no una medición de latencia.
+public enum MIDITimestampResolver {
+    public static let maximumPastAgeMilliseconds = 2_000.0
+    public static let maximumFutureLeadMilliseconds = 100.0
+
+    public static func resolve(coreMIDIHostTime: UInt64, callbackHostTime: UInt64) -> MIDITimestampResolution {
+        guard callbackHostTime > 0 else {
+            return MIDITimestampResolution(hostTime: coreMIDIHostTime, source: .coreMIDI)
+        }
+        guard coreMIDIHostTime > 0 else {
+            return MIDITimestampResolution(hostTime: callbackHostTime, source: .callbackFallback)
+        }
+
+        if coreMIDIHostTime < callbackHostTime {
+            let age = AudioClock.milliseconds(from: coreMIDIHostTime, to: callbackHostTime)
+            if age > maximumPastAgeMilliseconds {
+                return MIDITimestampResolution(hostTime: callbackHostTime, source: .callbackFallback)
+            }
+        } else if coreMIDIHostTime > callbackHostTime {
+            let lead = AudioClock.milliseconds(from: callbackHostTime, to: coreMIDIHostTime)
+            if lead > maximumFutureLeadMilliseconds {
+                return MIDITimestampResolution(hostTime: callbackHostTime, source: .callbackFallback)
+            }
+        }
+
+        return MIDITimestampResolution(hostTime: coreMIDIHostTime, source: .coreMIDI)
+    }
+}
 
 public struct MIDINoteOn: Equatable {
     public let hostTime: MIDITimeStamp
+    public let coreMIDIHostTime: MIDITimeStamp
+    public let callbackHostTime: MIDITimeStamp
+    public let timestampSource: MIDITimestampSource
     public let channel: Int
     public let note: Int
     public let velocity: Int
+
+    public init(
+        hostTime: MIDITimeStamp,
+        channel: Int,
+        note: Int,
+        velocity: Int,
+        coreMIDIHostTime: MIDITimeStamp? = nil,
+        callbackHostTime: MIDITimeStamp? = nil,
+        timestampSource: MIDITimestampSource = .coreMIDI
+    ) {
+        self.hostTime = hostTime
+        self.coreMIDIHostTime = coreMIDIHostTime ?? hostTime
+        self.callbackHostTime = callbackHostTime ?? hostTime
+        self.timestampSource = timestampSource
+        self.channel = channel
+        self.note = note
+        self.velocity = velocity
+    }
 }
 
 public enum MIDIByteDecoder {
     public static func noteOnEvents(bytes: [UInt8], hostTime: MIDITimeStamp) -> [MIDINoteOn] {
+        noteOnEvents(bytes: bytes, hostTime: hostTime, callbackHostTime: hostTime)
+    }
+
+    public static func noteOnEvents(bytes: [UInt8], hostTime: MIDITimeStamp, callbackHostTime: MIDITimeStamp) -> [MIDINoteOn] {
         var events: [MIDINoteOn] = []
         bytes.withUnsafeBufferPointer { buffer in
-            decodeNoteOnEvents(bytes: buffer, hostTime: hostTime) { events.append($0) }
+            decodeNoteOnEvents(bytes: buffer, hostTime: hostTime, callbackHostTime: callbackHostTime) { events.append($0) }
         }
         return events
     }
 
     /// Decodifica sobre memoria prestada para que el worker MIDI no cree arrays
-    /// intermedios antes de reproducir el golpe.
+    /// intermedios antes de reproducir el golpe. CoreMIDI entrega los mensajes
+    /// completos en cada MIDIPacket, salvo SysEx, que no produce golpes Note On;
+    /// por eso no se comparte running status entre paquetes o fuentes distintas.
     public static func decodeNoteOnEvents(
         bytes: UnsafeBufferPointer<UInt8>,
         hostTime: MIDITimeStamp,
+        callbackHostTime: MIDITimeStamp? = nil,
         consume: (MIDINoteOn) -> Void
     ) {
         var index = 0
@@ -53,17 +128,34 @@ public enum MIDIByteDecoder {
             }
 
             let dataLength = (status & 0xE0 == 0xC0) ? 1 : 2
-            guard index + dataLength <= bytes.count else { break }
-            let data1 = bytes[index]
-            let data2 = dataLength == 2 ? bytes[index + 1] : 0
-            index += dataLength
+            var data1: UInt8 = 0
+            var data2: UInt8 = 0
+            var receivedDataCount = 0
+            while index < bytes.count && receivedDataCount < dataLength {
+                let data = bytes[index]
+                // Clock, Active Sensing y demás realtime pueden aparecer entre
+                // cualesquiera dos bytes sin consumir datos ni running status.
+                if data >= 0xF8 { index += 1; continue }
+                // Un nuevo status interrumpe el mensaje incompleto. La siguiente
+                // iteración lo procesará sin interpretarlo como nota o velocity.
+                guard data < 0x80 else { break }
+                if receivedDataCount == 0 { data1 = data } else { data2 = data }
+                receivedDataCount += 1
+                index += 1
+            }
+            guard receivedDataCount == dataLength else { continue }
 
             guard status & 0xF0 == 0x90, data2 > 0 else { continue }
+            let arrivalHostTime = callbackHostTime ?? hostTime
+            let timestamp = MIDITimestampResolver.resolve(coreMIDIHostTime: hostTime, callbackHostTime: arrivalHostTime)
             consume(MIDINoteOn(
-                hostTime: hostTime,
+                hostTime: timestamp.hostTime,
                 channel: Int(status & 0x0F) + 1,
                 note: Int(data1),
-                velocity: Int(data2)
+                velocity: Int(data2),
+                coreMIDIHostTime: hostTime,
+                callbackHostTime: arrivalHostTime,
+                timestampSource: timestamp.source
             ))
         }
     }
@@ -72,6 +164,7 @@ public enum MIDIByteDecoder {
 public enum MIDIInputError: LocalizedError {
     case coreMIDI(OSStatus)
     case noSources
+    case queueAllocationFailure
 
     public var errorDescription: String? {
         switch self {
@@ -79,6 +172,8 @@ public enum MIDIInputError: LocalizedError {
             return "CoreMIDI devolvio el error \(status)."
         case .noSources:
             return "No hay fuentes MIDI conectadas."
+        case .queueAllocationFailure:
+            return "No se pudo reservar la cola de entrada MIDI."
         }
     }
 }
@@ -160,14 +255,12 @@ private final class MIDIInputCallbackContext {
             .advanced(by: packetOffset)
             .assumingMemoryBound(to: MIDIPacket.self)
         for _ in 0..<packetList.pointee.numPackets {
-            let eventPacket = packet.pointee
-            withUnsafeBytes(of: eventPacket.data) { bytes in
-                delivery.enqueue(
-                    hostTime: eventPacket.timeStamp,
-                    bytes: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                    length: eventPacket.length
-                )
-            }
+            // La región prestada puede superar los 256 bytes del campo Swift.
+            let dataOffset = MemoryLayout<MIDIPacket>.offset(of: \.data)!
+            delivery.enqueue(hostTime: packet.pointee.timeStamp,
+                callbackHostTime: AudioClock.currentHostTime(),
+                bytes: UnsafeRawPointer(packet).advanced(by: dataOffset).assumingMemoryBound(to: UInt8.self),
+                length: packet.pointee.length)
             packet = UnsafePointer(MIDIPacketNext(packet))
         }
     }
@@ -183,8 +276,9 @@ private final class MIDIEventDelivery {
     private var thread: Thread?
 
     init(onNoteOn: @escaping (MIDINoteOn) -> Void) throws {
-        guard let queue = xroll_realtime_queue_create(1_024) else {
-            throw MIDIInputError.coreMIDI(OSStatus(memFullErr))
+        // Unos 4 MiB preasignados para 64 paquetes de hasta UInt16.max bytes.
+        guard let queue = xroll_realtime_queue_create(64) else {
+            throw MIDIInputError.queueAllocationFailure
         }
         self.queue = queue
         self.onNoteOn = onNoteOn
@@ -214,32 +308,33 @@ private final class MIDIEventDelivery {
         self.thread = nil
     }
 
-    func enqueue(hostTime: MIDITimeStamp, bytes: UnsafePointer<UInt8>?, length: UInt16) {
+    func enqueue(hostTime: MIDITimeStamp, callbackHostTime: MIDITimeStamp, bytes: UnsafePointer<UInt8>?, length: UInt16) {
         guard let bytes else { return }
-        guard xroll_realtime_queue_push(queue, hostTime, bytes, length) else { return }
+        guard xroll_realtime_queue_push(queue, hostTime, callbackHostTime, bytes, length) else { return }
         if xroll_realtime_queue_consumer_needs_wake(queue) { wake.signal() }
     }
 
     private func drain() {
-        var bytes = Array(repeating: UInt8.zero, count: 256)
+        var bytes = Array(repeating: UInt8.zero, count: Int(XROLL_MAX_PACKET_BYTES))
         while !Thread.current.isCancelled {
             var hostTime: UInt64 = 0
+            var callbackHostTime: UInt64 = 0
             var length: UInt16 = 0
             var delivered = false
-            while xroll_realtime_queue_pop(queue, &hostTime, &bytes, &length) {
+            while xroll_realtime_queue_pop(queue, &hostTime, &callbackHostTime, &bytes, &length) {
                 delivered = true
                 bytes.withUnsafeBufferPointer { buffer in
                     let packet = UnsafeBufferPointer(start: buffer.baseAddress, count: Int(length))
-                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, consume: onNoteOn)
+                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, callbackHostTime: callbackHostTime, consume: onNoteOn)
                 }
             }
             guard !delivered else { continue }
             _ = xroll_realtime_queue_mark_consumer_waiting(queue)
-            if xroll_realtime_queue_pop(queue, &hostTime, &bytes, &length) {
+            if xroll_realtime_queue_pop(queue, &hostTime, &callbackHostTime, &bytes, &length) {
                 xroll_realtime_queue_clear_consumer_waiting(queue)
                 bytes.withUnsafeBufferPointer { buffer in
                     let packet = UnsafeBufferPointer(start: buffer.baseAddress, count: Int(length))
-                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, consume: onNoteOn)
+                    MIDIByteDecoder.decodeNoteOnEvents(bytes: packet, hostTime: hostTime, callbackHostTime: callbackHostTime, consume: onNoteOn)
                 }
                 continue
             }

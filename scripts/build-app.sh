@@ -2,7 +2,7 @@
 set -eu
 
 project_root=${0:A:h:h}
-output="$project_root/dist/xRoll.app"
+output=${XROLL_APP_OUTPUT:-"$project_root/dist/xRoll.app"}
 binary="$project_root/.build/release/xroll-pads"
 
 cd "$project_root"
@@ -14,7 +14,9 @@ rm -rf "$output/Contents/Resources/ProjectData"
 mkdir -p "$output/Contents/Resources/ProjectData"
 cp "$binary" "$output/Contents/MacOS/xRoll"
 cp -R "$project_root/Resources" "$output/Contents/Resources/ProjectData/"
-cp -R "$project_root/data" "$output/Contents/Resources/ProjectData/"
+mkdir -p "$output/Contents/Resources/ProjectData/data"
+cp -R "$project_root/data/exercises" "$output/Contents/Resources/ProjectData/data/"
+cp "$project_root/LICENSE" "$output/Contents/Resources/ProjectData/LICENSE"
 iconset="$output/Contents/Resources/AppIcon.iconset"
 mkdir -p "$iconset"
 swift "$project_root/scripts/render_app_icon.swift" "$iconset"
@@ -30,7 +32,7 @@ cat > "$output/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>xRoll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleShortVersionString</key><string>0.4.0</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSBluetoothAlwaysUsageDescription</key><string>xRoll usa Bluetooth para buscar y conectar tus pads MIDI inalámbricos.</string>
 </dict></plist>

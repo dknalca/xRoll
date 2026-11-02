@@ -1,8 +1,9 @@
 .build/
 .swiftpm/
 DerivedData/
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
+**/xcuserdata/
+*.xcuserstate
+**/IDEWorkspaceChecks.plist
 *.DS_Store
 data/measurements/*.MOV
 data/measurements/*.mov

@@ -33,11 +33,8 @@ public struct BluetoothMIDIDevice: Identifiable, Equatable {
     }
 }
 
-/// Connects BLE MIDI pads that macOS has not yet promoted to CoreMIDI.
-///
-/// On macOS 12 this supplements Audio MIDI Setup. Once the MIDI service and
-/// its I/O characteristic are confirmed, CoreMIDI owns the connection and the
-/// regular xRoll MIDI input selector sees it like a USB controller.
+/// Descubre controladores BLE MIDI y entrega a CoreMIDI las conexiones
+/// comprobadas. La entrada de notas se recibe después por MIDIInputSession.
 public final class BluetoothMIDIManager: NSObject {
     public var onUpdate: (([BluetoothMIDIDevice], String) -> Void)?
 
@@ -46,12 +43,18 @@ public final class BluetoothMIDIManager: NSObject {
     private var central: CBCentralManager?
     private var peripherals = [UUID: CBPeripheral]()
     private var states = [UUID: BluetoothMIDIDevice.State]()
+    private var coreMIDIDevices = Set<UUID>()
     private var preferredID: UUID?
     private var message = "Bluetooth MIDI apagado"
 
     public var supportsDirectConnection: Bool {
+        #if os(iOS)
+        if #available(iOS 16.0, *) { return true }
+        return false
+        #else
         if #available(macOS 13.0, *) { return true }
         return false
+        #endif
     }
 
     public func start(preferredDeviceID: UUID? = nil) {
@@ -68,30 +71,55 @@ public final class BluetoothMIDIManager: NSObject {
     }
 
     public func refresh() {
+        reconcileCoreMIDIDevices()
         scan()
     }
 
     public func connect(_ id: UUID) {
         guard supportsDirectConnection else {
-            message = "macOS 12 requiere conectar el pad desde Configuración de Audio MIDI y después refrescar xRoll."
+            message = platformPairingInstructions
             publish()
             return
         }
         guard let peripheral = peripherals[id], let central, central.state == .poweredOn else {
-            message = "Activa Bluetooth en el Mac y vuelve a buscar pads MIDI."
+            message = platformBluetoothInstructions
             publish()
             return
         }
+        if let currentID = preferredID, currentID != id {
+            disconnect()
+            guard preferredID == nil else { return }
+        }
         preferredID = id
         states[id] = .connecting
-        message = "Conectando (displayName(for: peripheral))…"
+        message = "Conectando \(displayName(for: peripheral))…"
         central.connect(peripheral, options: nil)
         publish()
     }
 
     public func disconnect() {
-        guard let preferredID, let peripheral = peripherals[preferredID], let central else { return }
+        guard let preferredID else { return }
+        if coreMIDIDevices.contains(preferredID) {
+            #if os(iOS)
+            guard #available(iOS 16.0, *) else { return }
+            #else
+            guard #available(macOS 13.0, *) else { return }
+            #endif
+            let status = MIDIBluetoothDriverDisconnect(preferredID.uuidString as CFString)
+            if status == noErr {
+                coreMIDIDevices.remove(preferredID)
+                self.preferredID = nil
+                states[preferredID] = .discovered
+                message = "Dispositivo Bluetooth MIDI desconectado."
+            } else {
+                message = "CoreMIDI no pudo desconectar el dispositivo Bluetooth (error \(status))."
+            }
+            publish()
+            return
+        }
+        guard let peripheral = peripherals[preferredID], let central else { return }
         central.cancelPeripheralConnection(peripheral)
+        self.preferredID = nil
     }
 
     private func scan() {
@@ -108,15 +136,25 @@ public final class BluetoothMIDIManager: NSObject {
     }
 
     private func activateMIDI(for peripheral: CBPeripheral) {
-        guard #available(macOS 13.0, *) else {
-            message = "macOS 12 requiere conectar el pad desde Configuración de Audio MIDI y después refrescar xRoll."
+        #if os(iOS)
+        guard #available(iOS 16.0, *) else {
+            message = platformPairingInstructions
             publish()
             return
         }
+        #else
+        guard #available(macOS 13.0, *) else {
+            message = platformPairingInstructions
+            publish()
+            return
+        }
+        #endif
         let status = MIDIBluetoothDriverActivateAllConnections()
         if status == noErr {
-            states[peripheral.identifier] = .connected
-            message = "(displayName(for: peripheral)) conectado. Ya aparece en la entrada MIDI."
+            states[peripheral.identifier] = .connecting
+            message = "Confirmando la entrada CoreMIDI de \(displayName(for: peripheral))…"
+            publish()
+            confirmCoreMIDIDevice(peripheral, attemptsRemaining: 20)
         } else {
             states[peripheral.identifier] = .unavailable
             message = "Bluetooth conectado, pero CoreMIDI no pudo activarlo (error \(status))."
@@ -124,16 +162,74 @@ public final class BluetoothMIDIManager: NSObject {
         publish()
     }
 
+    /// Espera a que CoreMIDI publique el dispositivo antes de cerrar la
+    /// conexión temporal de CoreBluetooth.
+    private func confirmCoreMIDIDevice(_ peripheral: CBPeripheral, attemptsRemaining: Int) {
+        guard preferredID == peripheral.identifier else { return }
+        if MIDIInspector.device(named: displayName(for: peripheral)) != nil {
+            let id = peripheral.identifier
+            coreMIDIDevices.insert(id)
+            states[id] = .connected
+            message = "\(displayName(for: peripheral)) conectado a CoreMIDI."
+            if peripheral.state != .disconnected { central?.cancelPeripheralConnection(peripheral) }
+            publish()
+            return
+        }
+
+        guard attemptsRemaining > 0 else {
+            states[peripheral.identifier] = .unavailable
+            message = "Bluetooth conectó \(displayName(for: peripheral)), pero CoreMIDI no publicó su dispositivo. Vuelve a buscar o reconecta el pad."
+            publish()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            self.confirmCoreMIDIDevice(peripheral, attemptsRemaining: attemptsRemaining - 1)
+        }
+    }
+
+    private func reconcileCoreMIDIDevices() {
+        for id in Array(coreMIDIDevices) {
+            guard let peripheral = peripherals[id],
+                  MIDIInspector.device(named: displayName(for: peripheral)) == nil else { continue }
+            coreMIDIDevices.remove(id)
+            states[id] = .discovered
+            if preferredID == id { preferredID = nil }
+        }
+    }
+
     private func displayName(for peripheral: CBPeripheral) -> String {
         peripheral.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? peripheral.name! : "Pad Bluetooth MIDI"
+    }
+
+    private var platformPairingInstructions: String {
+        #if os(iOS)
+        return "Este dispositivo necesita iOS 16 o posterior para activar Bluetooth MIDI."
+        #else
+        return "macOS 12 requiere conectar el pad desde Configuración de Audio MIDI y después refrescar xRoll."
+        #endif
+    }
+
+    private var platformBluetoothInstructions: String {
+        #if os(iOS)
+        return "Activa Bluetooth en el dispositivo y vuelve a buscar MIDI."
+        #else
+        return "Activa Bluetooth en el Mac y vuelve a buscar pads MIDI."
+        #endif
     }
 
     private func bluetoothStateMessage(_ state: CBManagerState) -> String {
         switch state {
         case .poweredOn: return "Bluetooth MIDI listo"
-        case .poweredOff: return "Activa Bluetooth en el Mac para buscar pads MIDI."
+        case .poweredOff: return platformBluetoothInstructions
         case .unauthorized: return "xRoll no tiene permiso para usar Bluetooth. Revísalo en Privacidad y seguridad."
-        case .unsupported: return "Este Mac no ofrece Bluetooth LE MIDI."
+        case .unsupported:
+            #if os(iOS)
+            return "Este dispositivo no ofrece Bluetooth LE MIDI."
+            #else
+            return "Este Mac no ofrece Bluetooth LE MIDI."
+            #endif
         case .resetting: return "Bluetooth se está reiniciando…"
         case .unknown: return "Comprobando Bluetooth…"
         @unknown default: return "Estado Bluetooth desconocido."
@@ -164,7 +260,9 @@ extension BluetoothMIDIManager: CBCentralManagerDelegate {
         peripherals[peripheral.identifier] = peripheral
         if states[peripheral.identifier] == nil { states[peripheral.identifier] = .discovered }
         publish()
-        if peripheral.identifier == preferredID, peripheral.state == .disconnected {
+        if peripheral.identifier == preferredID,
+           !coreMIDIDevices.contains(peripheral.identifier),
+           peripheral.state == .disconnected {
             connect(peripheral.identifier)
         }
     }
@@ -173,20 +271,25 @@ extension BluetoothMIDIManager: CBCentralManagerDelegate {
         peripherals[peripheral.identifier] = peripheral
         states[peripheral.identifier] = .connecting
         peripheral.delegate = self
-        message = "Verificando MIDI en (displayName(for: peripheral))…"
+        message = "Verificando MIDI en \(displayName(for: peripheral))…"
         peripheral.discoverServices([midiService])
         publish()
     }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         states[peripheral.identifier] = .unavailable
-        message = "No se pudo conectar (displayName(for: peripheral)). \(error?.localizedDescription ?? "")"
+        message = "No se pudo conectar \(displayName(for: peripheral)). \(error?.localizedDescription ?? "")"
         publish()
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        states[peripheral.identifier] = .discovered
-        message = "(displayName(for: peripheral)) se ha desconectado."
+        if coreMIDIDevices.contains(peripheral.identifier) {
+            states[peripheral.identifier] = .connected
+            message = "\(displayName(for: peripheral)) está gestionado por CoreMIDI."
+        } else {
+            states[peripheral.identifier] = .discovered
+            message = "\(displayName(for: peripheral)) se ha desconectado."
+        }
         publish()
     }
 }
@@ -195,7 +298,7 @@ extension BluetoothMIDIManager: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard error == nil, let service = peripheral.services?.first(where: { $0.uuid == midiService }) else {
             states[peripheral.identifier] = .unavailable
-            message = "(displayName(for: peripheral)) no expone el servicio Bluetooth MIDI."
+            message = "\(displayName(for: peripheral)) no expone el servicio Bluetooth MIDI."
             publish()
             return
         }
@@ -206,7 +309,7 @@ extension BluetoothMIDIManager: CBPeripheralDelegate {
         let hasMIDIIO = error == nil && service.characteristics?.contains(where: { $0.uuid == midiIOCharacteristic }) == true
         guard hasMIDIIO else {
             states[peripheral.identifier] = .unavailable
-            message = "(displayName(for: peripheral)) no expone entrada/salida Bluetooth MIDI."
+            message = "\(displayName(for: peripheral)) no expone entrada/salida Bluetooth MIDI."
             publish()
             return
         }

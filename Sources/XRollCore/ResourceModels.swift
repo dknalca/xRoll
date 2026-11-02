@@ -3,6 +3,7 @@ import Foundation
 public enum ResourceValidationError: LocalizedError, Equatable {
     case unsupportedFormat(Int)
     case emptyIdentifier(String)
+    case invalidIdentifier(String)
     case duplicateSound(String)
     case unknownSound(String)
     case invalidMeter([Int])
@@ -14,6 +15,9 @@ public enum ResourceValidationError: LocalizedError, Equatable {
     case duplicateNote(step: Int, sound: String)
     case invalidHand(String)
     case duplicateNoteNumber(Int)
+    case missingSampleFiles([String])
+    case emptyExerciseCatalog
+    case duplicateExercise(String)
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +25,8 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "Formato no compatible: \(format)."
         case .emptyIdentifier(let name):
             return "Falta el identificador \(name)."
+        case .invalidIdentifier(let name):
+            return "El identificador \(name) contiene un carácter nulo."
         case .duplicateSound(let sound):
             return "El sonido \(sound) aparece mas de una vez."
         case .unknownSound(let sound):
@@ -43,6 +49,12 @@ public enum ResourceValidationError: LocalizedError, Equatable {
             return "La mano \(hand) no es valida."
         case .duplicateNoteNumber(let note):
             return "La nota MIDI \(note) esta asignada a mas de un sonido."
+        case .missingSampleFiles(let files):
+            return "Faltan \(files.count) samples obligatorios: \(files.joined(separator: ", "))."
+        case .emptyExerciseCatalog:
+            return "El catálogo no contiene ejercicios MIDI."
+        case .duplicateExercise(let id):
+            return "Ya existe un ejercicio con el identificador \(id)."
         }
     }
 }
@@ -76,12 +88,15 @@ public struct KitManifest: Codable, Equatable {
 
     public func validate() throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
-        guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del kit") }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id del kit") }
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("nombre del kit") }
 
         var identifiers = Set<String>()
         var noteNumbers = Set<Int>()
         for sound in sounds {
-            guard !sound.id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id de sonido") }
+            guard !sound.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id de sonido") }
+            guard !sound.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("etiqueta de sonido") }
+            guard !sound.file.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("archivo de sonido") }
             guard Self.canonicalSoundIDs.contains(sound.id) else {
                 throw ResourceValidationError.unknownSound(sound.id)
             }
@@ -136,7 +151,12 @@ public struct Exercise: Codable, Equatable {
 
     public func validate(availableSounds: Set<String>) throws {
         guard format == 1 else { throw ResourceValidationError.unsupportedFormat(format) }
-        guard !id.isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
+        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("id del ejercicio") }
+        // Este ID se guarda como texto SQLite y debe sobrevivir a su paso por C.
+        guard !id.utf8.contains(0) else { throw ResourceValidationError.invalidIdentifier("del ejercicio") }
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("título del ejercicio") }
+        guard !family.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("familia del ejercicio") }
+        guard !kit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ResourceValidationError.emptyIdentifier("kit del ejercicio") }
         guard meter == [4, 4] else { throw ResourceValidationError.invalidMeter(meter) }
         guard grid == 12 || grid == 16 else { throw ResourceValidationError.invalidGrid(grid) }
         guard bars > 0 else { throw ResourceValidationError.invalidLength("bars") }
@@ -157,7 +177,10 @@ public struct Exercise: Codable, Equatable {
                 throw ResourceValidationError.invalidHand(hand)
             }
             if let velocity = note.velocity, !(1...127).contains(velocity) { throw ResourceValidationError.invalidVelocity(velocity) }
-            if let target = note.target, target.type != .any, target.value?.isEmpty != false { throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio") }
+            if let target = note.target, target.type != .any,
+               target.value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                throw ResourceValidationError.emptyIdentifier("objetivo del ejercicio")
+            }
             let key = "\(note.step):\(note.sound)"
             guard seenNotes.insert(key).inserted else {
                 throw ResourceValidationError.duplicateNote(step: note.step, sound: note.sound)
@@ -188,6 +211,8 @@ public struct ResourceCatalog {
             options: [.skipsHiddenFiles]
         ).filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
 
+        guard !urls.isEmpty else { throw ResourceValidationError.emptyExerciseCatalog }
+
         let availableSounds = Set(kit.sounds.map(\.id))
         let exercises = try urls.enumerated().map { index, url -> Exercise in
             let exercise = try MIDIExerciseLoader.load(url: url, kit: kit, level: index + 1)
@@ -195,6 +220,10 @@ public struct ResourceCatalog {
             return exercise
         }
 
+        var identifiers = Set<String>()
+        for exercise in exercises where !identifiers.insert(exercise.id).inserted {
+            throw ResourceValidationError.duplicateExercise(exercise.id)
+        }
         let levels = exercises.map(\.level).sorted()
         guard levels == Array(1...exercises.count) else {
             throw ResourceValidationError.emptyIdentifier("niveles consecutivos de ejercicios")
@@ -202,7 +231,27 @@ public struct ResourceCatalog {
         return exercises
     }
 
+    /// Comparte la unicidad entre ambas apps y se recupera de archivos antiguos
+    /// duplicados sin borrarlos. El catálogo integrado siempre tiene prioridad.
+    public func loadCommunityExercises(in directory: URL, kit: KitManifest, bundled: [Exercise]) throws -> [Exercise] {
+        guard fileManager.fileExists(atPath: directory.path) else { return [] }
+        let urls = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]).filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        var known = Set(bundled.map(\.id))
+        return urls.enumerated().compactMap { index, url in
+            guard let exercise = try? MIDIExerciseLoader.load(url: url, kit: kit, level: bundled.count + index + 1),
+                  known.insert(exercise.id).inserted else { return nil }
+            return exercise
+        }
+    }
+
     public func missingSampleFiles(for kit: KitManifest, in directory: URL) -> [String] {
         kit.sounds.map(\.file).filter { !fileManager.fileExists(atPath: directory.appendingPathComponent($0).path) }
+    }
+
+    public func validateSampleFiles(for kit: KitManifest, in directory: URL) throws {
+        let missingFiles = missingSampleFiles(for: kit, in: directory)
+        guard missingFiles.isEmpty else { throw ResourceValidationError.missingSampleFiles(missingFiles) }
     }
 }

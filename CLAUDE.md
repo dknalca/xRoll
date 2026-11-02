@@ -72,12 +72,16 @@ Toda pieza de audio anadida al repositorio debe registrarse en
 Resources/Loops/ATTRIBUTION.md en el mismo commit. Sin excepciones: reconstruir
 la procedencia meses despues es imposible.
 
+La app macOS se distribuye intencionalmente sin firma ni notarización (D-059).
+No recomiendes firmarla ni notarizarla; remite a las instrucciones de autorización
+puntual de Gatekeeper. La firma que una herramienta de sideloading aplica al IPA
+de iOS es un flujo separado.
+
 ## Estructura
 
 ```
 xRoll/
   CLAUDE.md              este fichero
-  PLAN.md                fases y estado
   README.md              cara publica
   LICENSE
   docs/
@@ -111,8 +115,8 @@ pueda ensenar. Un dato plausible pero inventado es peor que ninguno, porque se
 construyen decisiones encima.
 
 **Consulta `docs/IMPLEMENTATION_ROADMAP.md` y `docs/RELEASE_CHECKLIST.md` antes
-de empezar**. `PLAN.md` conserva el razonamiento histórico; el estado vigente y
-las validaciones pendientes están en los dos documentos anteriores.
+de empezar**. Esos documentos contienen el estado vigente y las validaciones
+pendientes.
 
 **Si una decision de docs/DECISIONS.md te estorba, dilo** en vez de rodearla.
 Estan escritas con su motivo justamente para poder revisarlas cuando el motivo

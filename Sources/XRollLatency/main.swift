@@ -8,8 +8,13 @@ let checkOnly = arguments.contains("--check")
 let testClick = arguments.contains("--test-click")
 let sourceArgumentIndex = arguments.firstIndex(of: "--source")
 let sourceID: MIDIUniqueID?
-if let sourceArgumentIndex, arguments.indices.contains(sourceArgumentIndex + 1) {
-    sourceID = MIDIUniqueID(arguments[sourceArgumentIndex + 1])
+if let sourceArgumentIndex {
+    guard arguments.indices.contains(sourceArgumentIndex + 1),
+          let parsedSourceID = MIDIUniqueID(arguments[sourceArgumentIndex + 1]) else {
+        fputs("--source requiere un UID MIDI entero. Usa xroll-preflight para listarlos.\n", stderr)
+        exit(64)
+    }
+    sourceID = parsedSourceID
 } else {
     sourceID = nil
 }
